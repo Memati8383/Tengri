@@ -1,0 +1,69 @@
+name: Derle
+
+# Sürüm yayınlama elle yapılırsa her seferinde tek bir Windows makinesine bağımlı kalırsın:
+# o makinenin araç seti, o anki ImGui submodule'i ve o anki registry durumu derlemeyi belirler.
+# Burada her etiket kendi kendine, temiz bir kurulumda derlenir ve exe'i sürüm olarak
+# yayınlar.
+#
+# Kullanım:
+#   git tag v1.0.1
+#   git push origin v1.0.1
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  derle:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Arayüz kütüphanesi submodule; submodule olmadan checkout eksik dosyalarla döner.
+          submodules: recursive
+
+      - name: Visual Studio kurulum bilgisi
+        run: |
+          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+
+      - name: Derle
+        run: cmd /c build.bat
+
+      - name: Sürüm bilgisini doğrula
+        shell: pwsh
+        run: |
+          $f = Get-Item build\TENGRI.exe
+          if (-not $f) { throw "build\TENGRI.exe uretilmedi" }
+          Write-Host "boyut    : $([math]::Round($f.Length/1KB)) KB"
+          Write-Host "urun    : $($f.VersionInfo.ProductName)"
+          Write-Host "surum   : $($f.VersionInfo.ProductVersion)"
+          $v = $f.VersionInfo.ProductVersion
+          if ($env:GITHUB_REF_NAME -like 'v*') {
+            $beklenen = $env:GITHUB_REF_NAME.TrimStart('v')
+            if ($v -ne $beklenen) {
+              throw "Surum uyusmadi: etiket '$beklenen', exe '$v'. brand.hpp / tengri.rc guncellenmeli."
+            }
+          }
+
+      - name: Sürümü yayınla
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $notes = "Sürüm $tag"
+          if (Test-Path "docs\release-notes\$tag.md") {
+            $notes = Get-Content "docs\release-notes\$tag.md" -Raw
+          }
+          gh release create $tag "build\TENGRI.exe" `
+            --title "TENGRI $tag" `
+            --notes "$notes"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
