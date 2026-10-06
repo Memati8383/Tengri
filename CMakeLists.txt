@@ -54,6 +54,7 @@ add_executable(TENGRI WIN32
     src/core/sysinfo_detail.cpp
     src/core/ram.cpp
     src/core/regpack.cpp
+    src/core/elevate.cpp
     src/tray.cpp
     res/tengri.rc
     ${VERSION_HEADER}

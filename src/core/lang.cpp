@@ -309,7 +309,7 @@ namespace lang
 
             "A\xC3\x87IK KAYNAK", "Hakk\xC4\xB1nda", "S\xC3\xBCr\xC3\xBCm", "Lisans: MIT",
             "Bu derleme demo lisans ekran\xC4\xB1 i\xC3\xA7" "erir: her anahtar kabul edilir ve hi\xC3\xA7" "bir \xC5\x9F" "ey sunucuya do\xC4\x9Frulanmaz.",
-            "Oyunlar, FiveM, Gecikme ve RAM kategorileri HKLM'ye yazd\xC4\xB1\u011F\xC4\xB1 i\xC3\xA7in uygulama \xC3\xA7" "al\xC4\xB1\xC5\x9Ft\xC4\xB1rda y\xC3\xB6netici yetkisi ister.",
+            "Uygulama normal kullan\xC4\xB1" "c\xC4\xB1 olarak a\xC3\xA7\xC4\xB1l\xC4\xB1r; HKLM'ye yazan bir i\xC5\x9F istendi\xC4\x9Finde kendini \x22runas\x22 ile yeniden ba\xC5\x9Flat\xC4\xB1r ve o i\xC5\x9Fi y\xC3\xBCksek yetkiyle yapar.",
             "Kapat", "Depo",
             "S\xC3\xBCr\xC3\xBCm, ba\xC4\x9Flant\xC4\xB1lar ve bildirimler", "BA\xC4\x9ELANTILAR", "Kaynak kodu", "B\xC4\xB0LG\xC4\xB0LER", "Lisans",
 

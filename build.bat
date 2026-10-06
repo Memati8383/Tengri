@@ -52,7 +52,7 @@ if not exist build\obj mkdir build\obj
 
 set IMGUI=third_party\imgui
 set SOURCES=src\main.cpp src\app.cpp src\gui\theme.cpp src\gui\fx.cpp src\gui\icons.cpp src\gui\brand_icons.cpp src\gui\widgets.cpp ^
- src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\tray.cpp ^
+ src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\tray.cpp ^
  %IMGUI%\imgui.cpp %IMGUI%\imgui_draw.cpp %IMGUI%\imgui_tables.cpp %IMGUI%\imgui_widgets.cpp ^
  %IMGUI%\backends\imgui_impl_win32.cpp %IMGUI%\backends\imgui_impl_dx11.cpp
 
@@ -101,9 +101,9 @@ if not exist build\tobj mkdir build\tobj
 echo [*] Building tests ...
 cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 ^
    /DUNICODE /D_UNICODE /I src ^
-   tests\test_pure.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\tweaks.cpp ^
+   tests\test_pure.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\tweaks.cpp src\core\elevate.cpp src\core\network.cpp ^
    /Fobuild\tobj\ /Febuild\test_pure.exe ^
-   /link advapi32.lib
+   /link advapi32.lib shell32.lib iphlpapi.lib
 if errorlevel 1 (
     echo [!] Test derlemesi basarisiz.
     exit /b 1

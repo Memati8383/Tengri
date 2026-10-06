@@ -11,6 +11,7 @@
 #include "core/lang.hpp"
 #include "core/sysinfo_detail.hpp"
 #include "core/ram.hpp"
+#include "core/elevate.hpp"
 #include "tray.hpp"
 #include "brand.hpp"
 #include <shellapi.h>
@@ -202,6 +203,21 @@ namespace app
         // yeniden yazmak, başka bir aracın sahibi olduğu registry değerlerini geri alırdı.
         bool g_dirty[kTweakCats][16] = {};
         bool g_dirtyAny[kTweakCats] = {};
+
+        // Bekleyen tekil işler: kullanıcı yükseltilmiş geçiş tetiklendiğinde, tweak
+        // dışındaki sayfalarda da seçilmiş ama henüz uygulanmamış işleri aynı yükseltilmiş
+        // sürece ekler. Böylece kullanıcı bir kez UAC görür, bekleyen tüm işler birden
+        // uygulanır; her iş için ayrı UAC istemek sinir bozucu olurdu.
+        int  g_pendingRam     = -1;
+        int  g_pendingDns     = -1;
+        int  g_pendingStartup = -1;
+
+        void CollectPendingFromPages(elevate::Pending& p)
+        {
+            p.ramPreset     = g_pendingRam;
+            p.dnsProvider   = g_pendingDns;
+            p.startupToggle = g_pendingStartup;
+        }
 
         // Etiketler yine satır indeksinden lang::NetNameKey/NetDescKey ile gelir, tweak kategorileriyle aynı düzen.
         std::vector<Tweak> g_netTweaks = {
@@ -614,15 +630,38 @@ namespace app
             if (g_applying && now - g_applyStart > 1.4)
             {
                 g_applying = false;
-                int on = 0, fail = 0, written = 0;
-                // Uygulama boyunca tutulur: regpack import .reg dosyasını %TEMP% altına yazar,
-                // çalışan bir temizleyici bu dosyayı reg.exe'in elinden siler.
-                g_applyingReg.store(true);
 
                 // Yalnızca kullanıcının o sırada baktığı kategoriye dokunulur. Tek bir
                 // düğmeden 56 ayarın tamamını uygulamak, arayüzün arkasından tüm
                 // registry kümesini yazıyor ve kimsenin çevirmediği anahtarları da geri alıyordu.
                 const int c = g_tweakCat;
+
+                // Süreç yükseltilmiş değilse, bekleyen iş "runas" ile yeni bir yükseltilmiş
+                // sürece devredilir ve bu arayüz kapanır. Kullanıcı UAC'i bir kez görür;
+                // ayarının uygulanmış olması gerektiğini o süreç yapar. Buradaki düğme
+                // basıldığı an sistem bilgisi okumak gibi işlemler için UAC hiç çıkmaz.
+                if (g_dirtyAny[c] && !elevate::IsElevated())
+                {
+                    elevate::Pending p;
+                    p.anyChange[c] = true;
+                    const int cnt = ImMin((int)g_tweaks[c].size(), 8);
+                    for (int i = 0; i < cnt; ++i) p.categories[c][i] = g_tweaks[c][i].on;
+                    // Başka sayfalarda bekleyen işler varsa (RAM/DNS/başlangıç) aynı yükseltilmiş
+                    // geçişte onlar da taşınsın; kullanıcı bir kez UAC görsün.
+                    CollectPendingFromPages(p);
+                    elevate::ApplyOrDelegate(p);
+                    // ApplyOrDelegate devredildiyse süreci kapatır; buraya dönmez.
+                    // UAC reddedildiyse bu satıra düşer ve ayar uygulanmamış olur.
+                    g_dirtyAny[c] = false;
+                    for (int i = 0; i < cnt; ++i) g_dirty[c][i] = false;
+                    ui::Notify(Toast::Warning, L(TweaksApplied), L(NeedAdmin));
+                    return;
+                }
+
+                int on = 0, fail = 0, written = 0;
+                // Uygulama boyunca tutulur: regpack import .reg dosyasını %TEMP% altına yazar,
+                // çalışan bir temizleyici bu dosyayı reg.exe'in elinden siler.
+                g_applyingReg.store(true);
 
                 if (g_dirtyAny[c])
                 {
@@ -1192,10 +1231,12 @@ namespace app
             ImGui::BeginDisabled(g_ramPick < 0 || g_ramPick == live);
             if (ui::Button(L(ApplyRamProfile), ImVec2(bw, px(32)), ButtonStyle::Primary, Icon::Memory))
             {
-                if (ram::Apply(g_ramPick))
+                g_pendingRam = g_ramPick;
+                elevate::Pending pending;
+                CollectPendingFromPages(pending);
+                if (elevate::ApplyOrDelegate(pending) == elevate::Result::Applied)
                     ui::Notify(Toast::Success, L(RamProfileApplied), L(RamRestartNote));
-                else
-                    ui::Notify(Toast::Warning, L(RamProfileApplied), L(NeedAdmin));
+                g_pendingRam = -1;   // devredildiyse süreç zaten kapanmıştı
             }
             ImGui::EndDisabled();
 
@@ -1325,11 +1366,14 @@ namespace app
             ImGui::SetCursorScreenPos(p + px(18, 78));
             if (ui::Segmented("##dns", dns, 4, &g_dns, ImMin(px(440), cw - px(36) - fbw - px(14))))
             {
-                network::SetDns(g_dns);
-                if (network::SetDns(g_dns))
+                // DNS sunucusunu değiştirmek HKLM'ye yazar, yani yetki ister. Süreç
+                // yükseltilmiş değilse iş "runas" ile yükseltilmiş sürece devredilir.
+                g_pendingDns = g_dns;
+                elevate::Pending pending;
+                CollectPendingFromPages(pending);
+                if (elevate::ApplyOrDelegate(pending) == elevate::Result::Applied)
                     ui::Notify(Toast::Success, L(DnsUpdated), dns[g_dns]);
-                else
-                    ui::Notify(Toast::Warning, L(DnsUpdated), L(NeedAdmin));
+                g_pendingDns = -1;   // devredildiyse süreç zaten kapanmıştı
             }
             ImGui::SetCursorScreenPos(ImVec2(p.x + cw - px(18) - fbw, p.y + px(78)));
             if (ui::Button(L(FlushDnsCache), ImVec2(fbw, px(38)), ButtonStyle::Secondary, Icon::Refresh))

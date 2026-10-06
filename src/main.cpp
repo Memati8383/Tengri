@@ -8,6 +8,7 @@
 #include "gui/theme.hpp"
 #include "tray.hpp"
 #include "brand.hpp"
+#include "core/elevate.hpp"
 #include <d3d11.h>
 #include <dwmapi.h>
 
@@ -153,6 +154,32 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 {
+    // Yükseltilmiş yeniden başlatma: kullanıcı bir yazan iş istedi, süreç "runas" ile
+    // bu exe'yi yüksek yetkiyle yeniden açtı ve bekleyen işi komut satırında taşıdı.
+    // Burada hiçbir arayüz oluşturmadan iş uygulanır ve süreç çıkar. Normal açılışta
+    // bu bayrak yoktur ve akış normaldir.
+    elevate::CacheExecutablePath();
+    {
+        int    argc = 0;
+        LPWSTR* argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+        if (argv)
+        {
+            elevate::Pending pending;
+            if (elevate::DecodeCommandLine(argc, argv, pending))
+            {
+                // Yalnızca yükseltilmiş bir başlatma bu bayrağı taşır. Yanlışlıkla
+                // normal kullanıcı elle --apply yazarsa yazma reddedilir.
+                const bool yuksek = elevate::IsElevated();
+                LocalFree(argv);
+                if (yuksek)
+                    return elevate::ApplyOrDelegate(pending) == elevate::Result::Applied ? 0 : 1;
+                // Yükseltilmemişse: kullanıcıya yeter, yazma olmadı.
+                return 1;
+            }
+            LocalFree(argv);
+        }
+    }
+
     ImGui_ImplWin32_EnableDpiAwareness();
     const float scale = ImGui_ImplWin32_GetDpiScaleForMonitor(::MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
     g_initialScale = scale > 0.0f ? scale : 1.0f;

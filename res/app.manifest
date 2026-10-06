@@ -6,12 +6,13 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
       <requestedPrivileges>
-        <!-- requireAdministrator, not requireAdministrator: the Games, FiveM, Delay and RAM
-             categories all write HKLM, and every other feature is either harmless or
-             unavailable without elevation. The better-practice alternative (run as
-             invoker, elevate per action) needs a UAC relaunch that is not wired up
-             here; see README, section Elevation. -->
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+        <!-- asInvoker, not requireAdministrator: the Games, FiveM, Delay and RAM
+             categories all write HKLM, but almost nothing else needs elevation. The app
+             used to start elevated, which meant opening a system-info screen cost a UAC
+             prompt. It now starts as the invoking user; when an action actually writes
+             HKLM the process relaunches itself via "runas" (see src/core/elevate.cpp)
+             and performs that one action elevated. -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>

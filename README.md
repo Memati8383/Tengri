@@ -4,8 +4,9 @@ C++ ile yazılmış bir Windows sistem optimize edici. .NET yok, Electron yok �
 ~1.4 MB yerel çalıştırılabilir dosya, DirectX 11 üzerinde çizilen kendi monokrom
 arayüzüyle.
 
-Yazdığı her registry anahtarı kaynakta görünür. İkna dosyasına güvenmek istemiyorsan
-kendin derle.
+Yazdığı her registry anahtarı kaynakta görünür: 56 anahtarın dokunduğu her yol
+[docs/tweaks-registry.md](docs/tweaks-registry.md) içinde liste halinde. Bu tablo kaynaktan üretilir,
+elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 
 > **Ayarları uygulamadan önce bir geri yükleme noktası oluştur.** Bunlar gerçek registry
 > değerlerini değiştirir.
@@ -365,22 +366,30 @@ anında:
 
 ## Yükseltme
 
-Manifest `requireAdministrator` istiyor, yani tüm uygulama yükseltilmiş çalışıyor.
-Sebebi: Oyunlar, FiveM, Gecikme ve RAM kategorileri HKLM'ye yazıyor ve Uygula düğmesinde
-başarısız olmak için yükseltmeden başlatmanın anlamı yok.
+Manifest `asInvoker` istiyor: uygulama normal kullanıcı olarak açılır. Sistem bilgisini
+okumak, temizlik taraması yapmak, registry değerlerini listelemek — hiçbiri yönetici
+gerektirmez, dolayısıyla bunlar için UAC çıkmaz.
 
-**Bu bir tercihtir ve gerçek maliyetleri vardır.** Süreç içindeki hiçbir kod yolu, bunları
-yapmak için hiçbir sebebi olmayanlar dâhil, yönetici haklarıyla çalışır. Bakımını üstlenecek
-geliştirici için daha iyi tasarım `asInvoker` + kullanıcı yönetici gerektiren bir
-kategoride Uygula'ya bastığında `runas` ile yeniden başlatmaktır. Bu bir refactor'dır,
-manifest düzenlemesi değil.
+Yalnızca **gerçekten HKLM'ye yazan** işler yetki ister. Bunlardan biri istendiğinde
+süreç kendini `runas` ile yeniden başlatır, o işi yüksek yetkiyle yapar ve çıkar.
+Kullanıcı UAC sorusunu bir kez görür; ayarının uygulanmış olduğunu açarak doğrular.
 
-Pratik bir rahatsızlık: **çalışan bir TENGRI örneği kendi `.exe`'ini tutuyor**, üstüne
-derleme yapamazsın ve yükseltilmemiş bir kabuk onu kapatamaz. Yeniden derlemeden önce
-TENGRI'yi tray'den kapat.
+| İş | Yazdığı yer | Yetki |
+|----|-------------|-------|
+| İnce ayarlar (Oyunlar, FiveM, Gecikme dahil çoğu) | `HKLM` | ister |
+| RAM profili | `HKLM` | ister |
+| DNS sağlayıcısı | `HKLM` + ağ adaptörü | ister |
+| Başlangıçta çalıştır | `HKCU\...\Run` | **istemez** |
+| Temizleyici (kendi dosyaları siler) | dosya sistemi | **istemez** |
+
+Ayrı bir yardımcı exe kullanılmıyor: aynı exe yeniden başlatılıyor. Yardımcı exe ikinci
+bir uygulama olurdu — ayrı derleme, ayrı sürüm, ayrı antivirüs tetiklemesi.
+
+Bekleyen iş `src\core\elevate.cpp` tarafından onaltılık olarak komut satırına kodlanır
+(`--apply=...`), yükseltilmiş süreçte çözülür ve orada uygulanır. Bu kodlama/çözme
+gidiş-dönüşü testlerle korunur.
 
 ---
-
 ## Derleme
 
 ```bat
@@ -444,6 +453,7 @@ src/core/sysinfo.cpp       CPU / RAM / disk / çalışma süresi / HWID
 src/core/sysinfo_detail.cpp  Secure Boot, sanallaştırma, BIOS modu, kurulum tarihi
 src/core/lang.cpp          İngilizce / Türkçe metin tabloları
 src/core/license.cpp       Demo lisans ekranı
+src/core/elevate.cpp        Yetki yükseltme: runas ile yeniden başlatma, komut satırı kodlama
 src/tray.cpp               Kabuk tray ikonu
 res/tengri.rc              İkon, manifest, VERSIONINFO
 res/app.manifest           Yürütme düzeyi, DPI farkındalığı, işletim sistemi uyumluluğu
@@ -451,9 +461,13 @@ tools/make_icon.ps1        Uygulama ikonunu üretir
 tools/make_brand_icons.ps1 Marka siluetlerini üçgenler ve brand_icons.cpp üretir
 tools/make_version.ps1     brand.hpp'den sürüm başlığı üretir (VERSIONINFO kaynağı)
 tools/shoot.ps1            Ekran görüntüsü almak için yardımcı betikler
+tools/make_tweak_table.ps1 tweaks.cpp + regpack.cpp'den registry tablosu üretir
+tests/test_pure.cpp         Registry'ye dokunmayan saf mantık testleri (build.bat çalıştırır)
 .github/workflows/         Etiket itildiğinde sürümü temiz kurulumda derleyip yayınlar
 docs/release-notes/        Sürüm notları (sürüm başına bir dosya)
 SECURITY.md                Antivirüs uyarıları ve güvenlik bildirimi
+CONTRIBUTING.md            Katkı rehberi (derleme, neyi nereden değiştirmek, geri alınabilirlik)
+docs/tweaks-registry.md    56 anahtarın dokunduğu registry yolları (üretilmiş)
 ```
 
 ### i18n tabloları
