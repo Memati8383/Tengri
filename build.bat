@@ -61,6 +61,11 @@ rem .rc dosyasi bunu include eder, boylece VERSIONINFO kaynak koddan ayrilamaz.
 echo [*] Generating version header ...
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\make_version.ps1 || exit /b 1
 
+rem Registry tablosunu yenile: tweaks.cpp ve regpack.cpp degistiyse docs\tweaks-registry.md
+rem eski kalmasin. Derleme ciktisi degil, yanlisi hali derlemeyi bozmaz; yine de
+rem tutarsizlik gorunur olsun.
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\make_tweak_table.ps1 || exit /b 1
+
 rem res\tengri.rc ikonu, uygulama manifestini (yetki + DPI + isletim sistemi uyumlulugu)
 rem ve VERSIONINFO blogunu tasiyor. rc.exe ayri bir adim olarak calismak zorunda: cl bir
 rem .rc argumanini kaynak dosya adi sanir, nesne dosyasinin var oldugunu varsayar ve
@@ -85,3 +90,29 @@ if errorlevel 1 (
     exit /b 1
 )
 echo [+] Done: build\TENGRI.exe
+
+rem --- testler ----------------------------------------------------------------
+rem Registry'ye dokunmayan saf mantik testleri. D3D11 ve ImGui baglanmaz; bu yuzden
+rem arayuz kutuphanesi ve ekran gerektirmez, saniyeler icinde kosar.
+rem
+rem Test kaynaklari registry YAZAN kodu icerir (tweaks.cpp, regpack.cpp) ama testler
+rem o yollari cagirmaz; yalnizca govde metinlerini okur. advapi32 yine de baglanir.
+if not exist build\tobj mkdir build\tobj
+echo [*] Building tests ...
+cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 ^
+   /DUNICODE /D_UNICODE /I src ^
+   tests\test_pure.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\tweaks.cpp ^
+   /Fobuild\tobj\ /Febuild\test_pure.exe ^
+   /link advapi32.lib
+if errorlevel 1 (
+    echo [!] Test derlemesi basarisiz.
+    exit /b 1
+)
+
+echo [*] Running tests ...
+build\test_pure.exe
+if errorlevel 1 (
+    echo [!] Testler basarisiz.
+    exit /b 1
+)
+echo [+] Tests passed

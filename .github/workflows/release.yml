@@ -34,8 +34,23 @@ jobs:
             -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
             -property installationPath
 
-      - name: Derle
+      - name: Derle ve test et
         run: cmd /c build.bat
+
+      # Üretilen registry tablosu kaynak kodla tutarlı olmalı. Üretici yanlış bir
+      # ayarı sessizce atlarsa tablo eksik kalır ama derleme yine de yeşildir;
+      # burada yeniden üretip fark olup olmadığına bakılıyor.
+      - name: Registry tablosu güncel mi
+        shell: pwsh
+        run: |
+          $degisiklik = git diff --stat -- docs/tweaks-registry.md
+          if ($degisiklik) {
+            Write-Host "docs/tweaks-registry.md kaynak kodla uyumsuz:"
+            Write-Host $degisiklik
+            Write-Host "Betik zaten yeniden uretti. Bu dosyayi elle duzenlemeyin."
+            throw "Registry tablosu guncellenmemis; yukaridaki farki commit'leyin."
+          }
+          Write-Host "tablo kaynak kodla eslesiyor"
 
       - name: Sürüm bilgisini doğrula
         shell: pwsh
