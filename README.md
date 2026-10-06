@@ -10,6 +10,21 @@ kendin derle.
 > **Ayarları uygulamadan önce bir geri yükleme noktası oluştur.** Bunlar gerçek registry
 > değerlerini değiştirir.
 
+## İndir
+
+Hazır derlemeler [Releases](https://github.com/Memati8383/Tengri/releases) sayfasında.
+Kurulum gerekmez, `TENGRI.exe` dosyasını çalıştırman yeterli.
+
+Antivirüs uyarısı alırsan normaldir ve nedeni [SECURITY.md](SECURITY.md)'de açıklanıyor.
+
+## Kaynaktan derle
+
+```bat
+git clone --recurse-submodules https://github.com/Memati8383/Tengri.git
+cd Tengri
+build.bat
+```
+
 ---
 
 ## Ekran görüntüleri
@@ -414,6 +429,9 @@ res/app.manifest           Yürütme düzeyi, DPI farkındalığı, işletim sis
 tools/make_icon.ps1        Uygulama ikonunu üretir
 tools/make_brand_icons.ps1 Marka siluetlerini üçgenler ve brand_icons.cpp üretir
 tools/shoot.ps1            Ekran görüntüsü almak için yardımcı betikler
+.github/workflows/         Etiket itildiğinde sürümü temiz kurulumda derleyip yayınlar
+docs/release-notes/        Sürüm notları (sürüm başına bir dosya)
+SECURITY.md                Antivirüs uyarıları ve güvenlik bildirimi
 ```
 
 ### i18n tabloları
@@ -437,6 +455,23 @@ anahtar eklemenin blokları bozamaması anlamına geliyor.
   söyler.
 - Makine parmak izi, bilgisayar adı, sistem birim seri numarası ve bir **ürüne özgü tuz**
   üzerinden FNV-1a özeti olarak hesaplanır. Hiçbir yere gönderilmez.
+
+## Sürümleme
+
+Sürüm vermek için etiket yeterli:
+
+```bat
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+GitHub Actions etiketi görünce temiz bir kurulumda derleyip sürümü `Releases` sayfasına
+ekler. Sürüm notlarını `docs\release-notes\v1.0.1.md` altına koyarsan not olarak
+kullanılır; yoksa otomatik olarak `TENGRI v1.0.1` yazılır.
+
+İş akışı, etiketteki sürüm ile exe'in içindeki `VERSIONINFO` sürümünün aynı olduğunu da
+kontrol eder. `src/brand.hpp` ve `res/tengri.rc` güncellenmeden etiket atarsan derleme
+düşmüş gibi görünse de iş akışı bunu ayrıca reddeder.
 
 ## Lisans
 
