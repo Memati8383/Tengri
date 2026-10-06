@@ -79,4 +79,9 @@ namespace brand
     // tarafından tanımlı bir sabit olmadığından hem kaynak dosyasında hem de
     // burada bildirilmelidir; aksi hâlde çağrı var olmayan bir kaynağı gösterir.
     constexpr int            kIconId        = 101;
+
+    // Arayüzde çizilen marka resminin kaynak kimliği (RT_RCDATA). Kaynak dosyada
+    // IDI_LOGOPNG olarak tanımlıdır; iki taraf ayrıldığında çizim doku yerine
+    // yedek işarete düşer, bu yüzden eşleşmeleri gerekir.
+    constexpr int            kLogoResId     = 102;
 }

@@ -41,12 +41,15 @@ namespace tray
         g_nid.hWnd = hwnd;
         g_nid.uID = 1;
 
+        // Simge kaynaktan, görev çubuğu ve pencere ile aynı artwork olsun diye.
         // LR_DEFAULTSIZE sistem ikon ölçülerini ister ve LR_SHARED verilmediği için
         // bu modülün sahibi olduğu, kapanışta yok edilebilen bir kopya döndürür.
         // (LR_DEFAULTCOPY Windows SDK başlıklarında yok, bu yüzden kullanılmıyor.)
-        g_icon = (HICON)::LoadImageW(nullptr, IDI_APPLICATION, IMAGE_ICON,
-                                    GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON),
-                                    LR_DEFAULTSIZE);
+        const int cx = GetSystemMetrics(SM_CXSMICON), cy = GetSystemMetrics(SM_CYSMICON);
+        g_icon = (HICON)::LoadImageW(nullptr, MAKEINTRESOURCEW(brand::kIconId), IMAGE_ICON, cx, cy,
+                                     LR_DEFAULTSIZE);
+        if (!g_icon)
+            g_icon = (HICON)::LoadImageW(nullptr, IDI_APPLICATION, IMAGE_ICON, cx, cy, LR_DEFAULTSIZE);
 
         Add();
         g_have = g_added;

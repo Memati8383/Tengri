@@ -8,8 +8,65 @@ Yazdığı her registry anahtarı kaynakta görünür: 56 anahtarın dokunduğu 
 [docs/tweaks-registry.md](docs/tweaks-registry.md) içinde liste halinde. Bu tablo kaynaktan üretilir,
 elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 
-> **Ayarları uygulamadan önce bir geri yükleme noktası oluştur.** Bunlar gerçek registry
-> değerlerini değiştirir.
+<div align="center">
+  <img src="docs/screenshots/01-dashboard.png" alt="TENGRI gösterge paneli" width="820" />
+</div>
+
+## Gereksinimler
+
+| | |
+|---|---|
+| İşletim sistemi | Windows 10 ve Windows 11 (x64) |
+| Mimari | 64-bit |
+| Disk | ~2 MB |
+| Ek bağımlılık | Yok — .NET, Python veya çalışma zamanı gerekmez |
+| Yönetici | Yalnızca ayar uygularken gerekir; açılışta gerekmez |
+
+Windows 10 1809'dan eskisi desteklenmiyor. Bazı anahtarlar (`HwSchMode`,
+`PowerThrottling`) yalnızca Windows 10 1903 ve sonrasında vardır; daha eski bir sürümde
+açılıp kapatılsa bile etkisi görünmez.
+
+## Kapsam dışılar
+
+Bu birkaç şeyi **yapmaz**, ve yapmadığını açıkça söylemek bu aracın bir parçası:
+
+- **Antivirüsü, güvenliği veya Windows güncellemesini değiştirmez.** Tek bir antivirüs
+  ya da güvenlik özelliğini kapatmaz, hiçbir dosyayı karantinaya almaz.
+- **Telemetri göndermez.** Lisans ekranı bir demodur; sunucuya hiçbir istek yapılmaz.
+  Makine parmak izi hesaplanır ama hiçbir yere gönderilmez.
+- **Güncelleme yok.** Kurulum yok, çalışma zamanında indirme yok, arka planda kendini
+  yenileme yok.
+- **Kullanıcı verisini okumaz.** Yalnızca [registry tablosunda](docs/tweaks-registry.md)
+  listelenen anahtarlara yazar, temizleyicide de yalnızca kendi kategorilerinin saydığı
+  geçici dosyaları siler.
+- **Arka planda sessizce çalışmaz.** Ayar ancak sen "Uygula" dediğinde yazılır.
+
+## Geri alma
+
+Ayarlar gerçek registry değerlerini değiştirir. İki ayrı geri dönüş yolu var:
+
+**1. Aracın kendi yedeği.** "Uygula" düğmesine bastığında dokunulacak registry
+anahtarları **önce** dışa aktarılır, tarih damgalı bir klasöre:
+
+```
+%LOCALAPPDATA%\TENGRI\backups\YYYYAAGG-SS-DDSS\
+```
+
+Sonrasında İnce Ayarlar sayfasındaki **Geri al** düğmesi bu yedeği geri içe aktarır.
+Yedekleme yalnızca okuma yaptığı için UAC istemez; geri alma yazdığı için UAC ister.
+
+Yedekler birikmez, her uygulamada yeni bir klasör açılır. Temizlemek istersen
+`%LOCALAPPDATA%\TENGRI\backups` klasörünü silmen yeterli.
+
+> **Neden önemli:** "Kapat" işlemi senin değerini geri yüklemez, kodlanmış varsayılanı
+> geri yükler. Özelleştirdiğin bir değer varsa yedek olmadan kaybolur. Yedek tam olarak
+> "uygulamadan önce ne vardı" halini saklar.
+
+**2. Windows geri yükleme noktası.** Araç yalnızca kendi dokunduğu anahtarları saklar.
+Sistemde yapacağın başka değişiklikler için ayrıca bir nokta oluştur:
+`Windows + R` → `sysdm.cpl` → **Sistem koruma** → **Oluştur**.
+
+İki yol birbirinin yerine geçmez; ikisini birlikte kullan.
 
 ## İstatistikler
 
@@ -81,11 +138,14 @@ Hakkında:
 
 ## Çalıştırmadan önce
 
-Antivirüsünüzün uyarı vermesi beklenir. TENGRI açılışta yönetici yetkisi istiyor,
-`HKEY_LOCAL_MACHINE` altına yazıyor ve geçici `.reg` dosyalarını içe aktarmak için
-`reg.exe` çağırıyor. Bu tam olarak bir "registry temizleyici" zararlı yazılım ailesinin
+Antivirüsünüzün uyarı vermesi beklenir. TENGRI `HKEY_LOCAL_MACHINE` altına yazıyor ve
+geçici `.reg` dosyalarını içe aktarmak için `reg.exe` çağırıyor. Bu tam olarak bir "registry temizleyici" zararlı yazılım ailesinin
 davranış imzası, bu yüzden sezgisel motorlar imzasız çalıştırılabilirleri işaretliyor.
-TENGRI imzasız ve tespitler bu yüzden beklenen bir sonuç. Ayrıntı: [Yükseltme](#yükseltme).
+TENGRI imzasız ve tespitler bu yüzden beklenen bir sonuç. Ayrıntı:
+[SECURITY.md](SECURITY.md) ve [Yükseltme](#yükseltme).
+
+Ayar uygularken yönetici yetkisi istenir, ancak uygulamayı açarken ve sistem bilgisi
+okurken **hiç sorulmaz**. Ayrıntı: [Yükseltme](#yükseltme).
 
 ---
 
@@ -151,9 +211,12 @@ bir ayar dosyası değil, gerçekte uygulanan şeyi gösterir.
 
 **Uygula** yalnızca seçili kategoriye ve yalnızca gerçekten dokunduğun anahtarlara yazar.
 Dokunulmamış bir kayıt, başka bir aracın sahip olduğu bir değerin üstüne asla geri
-alınmaz. İki anahtarın ortak sahiplendiği değerler (`SystemResponsiveness`,
-`DisablePagingExecutive`, `GameDVR_FSEBehaviorMode`) etkin olan anahtardan yeniden
+alınmaz. İki anahtarın ortak sahiplendiği değerler etkin olan anahtardan yeniden
 dayatılır.
+
+**Yazmadan önce yedek alınır.** Düğmeye bastığında dokunulacak anahtarlar
+`%LOCALAPPDATA%\TENGRI\backups` altına `reg export` ile dışa aktarılır; sayfadaki
+**Geri al** düğmesi bunu geri içe aktarır. Ayrıntı için [Geri alma](#geri-alma).
 
 #### Performans
 
@@ -454,6 +517,7 @@ src/core/sysinfo_detail.cpp  Secure Boot, sanallaştırma, BIOS modu, kurulum ta
 src/core/lang.cpp          İngilizce / Türkçe metin tabloları
 src/core/license.cpp       Demo lisans ekranı
 src/core/elevate.cpp        Yetki yükseltme: runas ile yeniden başlatma, komut satırı kodlama
+src/core/backup.cpp         Uygulama öncesi registry yedeği (reg export) ve geri alma (reg import)
 src/tray.cpp               Kabuk tray ikonu
 res/tengri.rc              İkon, manifest, VERSIONINFO
 res/app.manifest           Yürütme düzeyi, DPI farkındalığı, işletim sistemi uyumluluğu
@@ -461,7 +525,9 @@ tools/make_icon.ps1        Uygulama ikonunu üretir
 tools/make_brand_icons.ps1 Marka siluetlerini üçgenler ve brand_icons.cpp üretir
 tools/make_version.ps1     brand.hpp'den sürüm başlığı üretir (VERSIONINFO kaynağı)
 tools/shoot.ps1            Ekran görüntüsü almak için yardımcı betikler
-tools/make_tweak_table.ps1 tweaks.cpp + regpack.cpp'den registry tablosu üretir
+tools/make_tweak_table.ps1 tweaks.cpp + regpack.cpp'den registry tablosu ve anahtar başlığı üretir
+tools/make_icon_from_png.ps1  PNG kaynaktan çok boyutlu .ico üretir
+tools/verify_icon.ps1      Üretilen .ico içindeki tek bir boyutu PNG'ye açar (gözle kontrol)
 tests/test_pure.cpp         Registry'ye dokunmayan saf mantık testleri (build.bat çalıştırır)
 .github/workflows/         Etiket itildiğinde sürümü temiz kurulumda derleyip yayınlar
 docs/release-notes/        Sürüm notları (sürüm başına bir dosya)
@@ -491,6 +557,10 @@ anahtar eklemenin blokları bozamaması anlamına geliyor.
   söyler.
 - Makine parmak izi, bilgisayar adı, sistem birim seri numarası ve bir **ürüne özgü tuz**
   üzerinden FNV-1a özeti olarak hesaplanır. Hiçbir yere gönderilmez.
+- Bazı anahtarlar birden fazla ayar tarafından paylaşılır (aynı registry değerini ikisi de
+  yazar). Uygulama birini kapattığında açık olanın değerini yeniden yazar, ama bu ilişki
+  elle tutulan bir listede durur — yeni bir ayar eklerken
+  [CONTRIBUTING.md](CONTRIBUTING.md) bunu anlatıyor.
 
 ## Sürümleme
 

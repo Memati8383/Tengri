@@ -26,7 +26,16 @@
 // gerekir, aksi hâlde LoadIconW hiç derlenmemiş bir kimliği arar.
 #define IDI_APPICON 101
 
+// Arayüzde çizilen markanın kaynağı. Simge dosyasından farklı olarak bu PNG
+// exe içine gömülür ve çalışma anında WIC ile çözülür; kaynak dosyayı ayrı
+// taşımak, exe tek başına taşındığında markanın kaybolmasına yol açar.
+//
+// Aynı sayı src\brand.hpp içinde brand::kLogoResId olarak bildirilir; iki tarafın
+// uyuşması gerekir, aksi hâlde FindResourceW var olmayan bir kaynağı arar.
+#define IDI_LOGOPNG 102
+
 IDI_APPICON          ICON            "tengri.ico"
+IDI_LOGOPNG          RT_RCDATA       "tengri-logo.png"
 1 RT_MANIFEST "app.manifest"
 
 VS_VERSION_INFO VERSIONINFO

@@ -44,6 +44,7 @@ add_executable(TENGRI WIN32
     src/gui/fx.cpp
     src/gui/icons.cpp
     src/gui/brand_icons.cpp
+    src/gui/logo.cpp
     src/gui/widgets.cpp
     src/core/license.cpp
     src/core/sysinfo.cpp
@@ -77,4 +78,6 @@ set_target_properties(TENGRI PROPERTIES LINK_FLAGS "/MANIFEST:NO")
 target_include_directories(TENGRI PRIVATE src res ${IMGUI_DIR} ${IMGUI_DIR}/backends ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_compile_definitions(TENGRI PRIVATE UNICODE _UNICODE IMGUI_DEFINE_MATH_OPERATORS TENGRI_HAS_VERSION_H TENGRI_HAS_TWEAK_KEYS)
 target_compile_options(TENGRI PRIVATE /utf-8 /W4)
-target_link_libraries(TENGRI PRIVATE d3d11 dxgi d3dcompiler dwmapi user32 gdi32 advapi32 shell32 iphlpapi comctl32 version)
+# windowscodecs: kaynak olarak gömülü marka PNG'sini çözer (gui\logo.cpp)
+# ole32: WIC fabrikasını kullanan CoCreateInstance
+target_link_libraries(TENGRI PRIVATE d3d11 dxgi d3dcompiler dwmapi user32 gdi32 advapi32 shell32 iphlpapi comctl32 version windowscodecs ole32)

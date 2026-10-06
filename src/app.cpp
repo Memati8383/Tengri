@@ -3,6 +3,7 @@
 #include "gui/widgets.hpp"
 #include "gui/fx.hpp"
 #include "gui/icons.hpp"
+#include "gui/logo.hpp"
 #include "core/license.hpp"
 #include "core/sysinfo.hpp"
 #include "core/cleaner.hpp"
@@ -383,10 +384,24 @@ namespace app
             ui::Text(dl, f, size, ImVec2(cx - ts.x * 0.5f, y), col, text);
         }
 
+        // Marka işareti. Doku hazırsa PNG'den çizilir; değilse (kaynak eksik,
+        // doku yaratılamadı) çizgili elmas yedeğine düşülür, böylece arayüz hiçbir
+        // koşulda marksız kalmaz.
         void DrawLogo(ImDrawList* dl, const ImVec2& c, float s, float glow = 1.0f)
         {
-            const float t = (float)ImGui::GetTime();
             const float h = s * 0.5f;
+
+            if (logo::Ready())
+            {
+                // Doku zaten kendi koyu karesini taşıyor, arkaya ayrı bir hale
+                // gerekmiyor; glow yalnızca kenarı yumuşatmak için düşük tutulur.
+                const ImU32 tint = ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(1.0f, 1.0f, 1.0f, ImClamp(glow, 0.0f, 1.0f)));
+                logo::Draw(dl, ImVec2(c.x - h, c.y - h), ImVec2(c.x + h, c.y + h), tint);
+                return;
+            }
+
+            const float t = (float)ImGui::GetTime();
             fx::RadialGradient(dl, c, s * 1.5f, s * 1.5f, White(0.10f * glow), White(0.0f), 40);
 
             const ImVec2 d[4] = { ImVec2(c.x, c.y - h), ImVec2(c.x + h, c.y), ImVec2(c.x, c.y + h), ImVec2(c.x - h, c.y) };

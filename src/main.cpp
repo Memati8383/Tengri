@@ -6,6 +6,7 @@
 #include "imgui_impl_dx11.h"
 #include "app.hpp"
 #include "gui/theme.hpp"
+#include "gui/logo.hpp"
 #include "tray.hpp"
 #include "brand.hpp"
 #include "core/elevate.hpp"
@@ -250,6 +251,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     theme::Init(scale);
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_device, g_context);
+
+    // Marka dokusu, arayüz ilk kez çizilmeden önce hazır olmalı: hazır değilse
+    // DrawLogo yedeğe düşer ve bir sonraki karede dokunmayı denemez.
+    logo::Init(g_device);
+
     app::Init(hwnd, corner);
     tray::Init(hwnd);
 
@@ -340,6 +346,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 
     app::Shutdown();
     tray::Shutdown();
+
+    // Cihaz kapatılmadan önce serbest bırakılmalı; ters sırada serbest bırakılan
+    // doya cihaz yok sayılır ve sızıntı olur.
+    logo::Shutdown();
 
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();
