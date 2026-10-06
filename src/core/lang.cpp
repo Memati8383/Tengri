@@ -335,29 +335,29 @@ namespace lang
             // Oyunlar
             "Oyun g\xC3\xB6revi \xC3\xB6nceli\xC4\x9Fi", "Game DVR'\xC4\xB1 kapat", "Oyunlar i\xC3\xA7in saat h\xC4\xB1z\xC4\xB1",
             "\xC3\x87" "ekirdek ba\xC4\xB1na GPU DPC", "NVIDIA i\xC3\xB6k par\xC3\xA7" "ac\xC4\xB1k \xC3\xB6nceli\u011Fi",
-            "Sayfa belle\uC4\x9Fini kapat", "B\xC3\xBCy\xC3\xBCk sistem \xC3\x96nbelle\uC4\x9Fi",
+            "Sayfa belle\xC4\x9Fini kapat", "B\xC3\xBCy\xC3\xBCk sistem \xC3\x96nbelle\xC4\x9Fi",
             "G/Ç \xC3\x87 sayfa kilidi s\xC4\xB1n\xC4\xB1r\xC4\xB1",
             // FiveM
             "FiveM g\xC3\xB6revi boost'u", "Sistem duyarl\xC4\xB1l\xC4\xB1\u011F\xC4\xB1 0", "A\xC4\x9F kısıtlamay\xC4\xB1 kapat",
-            "Men\xC3\xBC g\xC3\xB6sterim gecikmesi 0", "H\uC4\xB1zl\uC4\xB1 uygulama sonland\xC4\xB1rma",
-            "D\xC3\xBC\xC5\x9F\xC3\xBCk kanca zaman a\xC5\x9F\uC4\xB1m\uC4\xB1", "Servis kapatma zaman a\xC5\x9F\uC4\xB1m\uC4\xB1",
+            "Men\xC3\xBC g\xC3\xB6sterim gecikmesi 0", "H\xC4\xB1zl\xC4\xB1 uygulama sonland\xC4\xB1rma",
+            "D\xC3\xBC\xC5\x9F\xC3\xBCk kanca zaman a\xC5\x9F\xC4\xB1m\xC4\xB1", "Servis kapatma zaman a\xC5\x9F\xC4\xB1m\xC4\xB1",
             "Pencere s\xC3\xBCr\xC3\xBCklemesini kapat",
             // Gecikme
             "Genel zamanlay\xC4\xB1\xC3\xA7 \xC3\xA7\xC3\xB6z\xC3\xBCn\xC3\xBC\u011F\xC3\xBC", "DPC g\xC3\xB6zet bek\xC3\xA7i kaymas\xC4\xB1",
-            "\xC3\x96zel durum zinciri do\uC4\x9Frulamas\xC4\xB1", "Kesme y\xC3\xB6nlendirmesini kapat",
+            "\xC3\x96zel durum zinciri do\xC4\x9Frulamas\xC4\xB1", "Kesme y\xC3\xB6nlendirmesini kapat",
             "Win32 \xC3\xB6ncelik ayr\xC4\xB1m\xC4\xB1", "G\xC3\xBCvenilirlik zaman damgas\xC4\xB1 0",
             "LanmanServer gecikme d\xC3\xBCzeltmesi", "Fare giri\xC5\x9Fi gecikme d\xC3\xBCzeltmesi",
 
             // ---- TweakDescs: aynı düzen ----
             "Gizli g\xC3\xBC\xC3\xA7 performans plan\xC4\xB1n\xC4\xB1 a\xC3\xA7", "Bo\xC5\x9Fta \xC3\xA7" "al\xC4\xB1\xC5\x9F" "an UWP uygulamalar\xC4\xB1n\xC4\xB1 durdur",
-            "Yumu\xC3\xA7" "atma korunur, gerisi kapat\xC4\xB1l\xC4\xB1r", "Superfetch disk me\uC5\x9Fgaletmesini durdur",
+            "Yumu\xC3\xA7" "atma korunur, gerisi kapat\xC4\xB1l\xC4\xB1r", "Superfetch disk me\xC5\x9Fgaletmesini durdur",
             "hiberfil.sys disk alan\xC4\xB1n\xC4\xB1 bo\xC5\x9F" "alt", "\xC3\x96n plan i\xC5\x9Flerine \xC3\xB6ncelik ver",
             "\xC3\x87" "ekirdekleri tam h\xC4\xB1zda tut", "Sayfaland\xC4\xB1rma ve \xC3\xB6nbellek boyutlar\xC4\xB1n\xC4\xB1 ayarla",
 
-            "Oyunlara kaynak \xC3\xB6nceli\u011Fi ver", "Tam ekran d\xC3\xB1\uC5\x9F modu i\xC3\xA7in kapat",
+            "Oyunlara kaynak \xC3\xB6nceli\u011Fi ver", "Tam ekran d\xC3\xB1\xC5\x9F modu i\xC3\xA7in kapat",
             "Daha d\xC3\xBC\xC5\x9Fk kare zamanlamas\xC4\xB1", "Kaplama ve DVR kayd\xC4\xB1n\xC4\xB1 kald\xC4\xB1r",
             "\xC4\xB0\xC5\x9F" "aret h\xC4\xB1zland\xC4\xB1rmas\xC4\xB1n\xC4\xB1 kapat", "Daha s\xC4\xB1k\u0131 kare pacalama",
-            "Etkin oyun s\xC3\xBCrecini h\xC4\xB1zland\xC4\xB1r", "Eski \xC5\x9F\uC3\xBCr\xC3\xBClebilirlere Oyun Modu",
+            "Etkin oyun s\xC3\xBCrecini h\xC4\xB1zland\xC4\xB1r", "Eski \xC5\x9F\xC3\xBCr\xC3\xBClebilirlere Oyun Modu",
 
             "Tan\xC4\xB1lama verisi y\xC3\xBCklemelerini durdur", "Zaman \xC3\xA7izelgenini kaydetme",
             "Ki\xC5\x9Fiselle\xC5\x9Firilmi\xC5\x9F reklam izleme yok", "Sistem genelinde konumu engelle",
@@ -367,29 +367,29 @@ namespace lang
             "An\xC4\xB1nda pencere ge\xC3\xA7i\u015Fleri", "Dolu \xC3\xA7ubuk ve men\xC3\xBCler",
             "Tam sa\xC4\x9F t\u0131kl\xC4\xB1 men\xC3\xBCs\xC3\xBC", ".exe, .txt vb. dosyalar\xC4\xB1 daima g\xC3\xB6ster",
             "Gizli klas\xC3\xB6rleri a\xC3\xA7", "\xC3\x87ubuk alan\xC4\xB1n\xC4\xB1 geri kazan",
-            "Kilit ekran\xC4\xB1n\xC4\xB1 temizle", "Ba\xC5\x9Flang\xC4\xB1 uygulamalar\xC4\xB1n\xC4\xB1 an\uC4\xB1nda ba\xC5\x9Flat",
+            "Kilit ekran\xC4\xB1n\xC4\xB1 temizle", "Ba\xC5\x9Flang\xC4\xB1 uygulamalar\xC4\xB1n\xC4\xB1 an\xC4\xB1nda ba\xC5\x9Flat",
 
             "GPU 8 / CPU 6 / y\xC3\xBCksek zamanlama", "Kay\xC4\xB1t ve FSE kipini kapat",
-            "10000 tik, arka plan s\xC3\xBCn\xC4\xB1r\xC3\xBC yok", "S\xC3\xBCr\xC3\xBC" "c\xC3\xBC DPC'leri \xC3\xA7" "ekirdeklere da\xC4\x9Ft\uC4\xB1r",
-            "nvlddmkm'yi \xC3\xB6ncelik 31'e \xC3\xA7\uC4\xB1kar", "\xC3\x87" "ekirdek kodunu fiziksel bellekte tut",
-            "\xC3\x87" "al\xC4\xB1\uC5\x9Fma seti yerine dosya \xC3\xB6nbelle\uC4\x9Fini tercih et", "1 MB kilit s\xC4\xB1n\uC4\xB1r\uC4\xB1, daha b\xC3\xBCy\xC3\xBCk L2 ipucu",
+            "10000 tik, arka plan s\xC3\xBCn\xC4\xB1r\xC3\xBC yok", "S\xC3\xBCr\xC3\xBC" "c\xC3\xBC DPC'leri \xC3\xA7" "ekirdeklere da\xC4\x9Ft\xC4\xB1r",
+            "nvlddmkm'yi \xC3\xB6ncelik 31'e \xC3\xA7\xC4\xB1kar", "\xC3\x87" "ekirdek kodunu fiziksel bellekte tut",
+            "\xC3\x87" "al\xC4\xB1\xC5\x9Fma seti yerine dosya \xC3\xB6nbelle\xC4\x9Fini tercih et", "1 MB kilit s\xC4\xB1n\xC4\xB1r\xC4\xB1, daha b\xC3\xBCy\xC3\xBCk L2 ipucu",
 
             "FiveM i\xC3\xA7in tam oyun g\xC3\xB6revi profili", "CPU'nun %100'\xC3\xBCn\xC3\xBC \xC3\xB6n plan i\xC5\x9Flerine",
-            "Paket/ms ba\uC4\x9F cap\uC4\xB1n\xC4\xB1 kald\xC4\xB1r", "An\xC4\xB1nda men\xC3\xBCler, bekleme yok",
-            "Daha k\uC4\xB1sa as\xC4\xB1l\uC4\xB1 uygulama zaman a\xC5\x9F\uC4\xB1mlar\xC4\xB1", "5000 ms yerine 1000 ms",
-            "Servisleri daha h\xC4\xB1zl\uC4\xB1 kapat", "Daha hafif pencere hareketi",
+            "Paket/ms ba\xC4\x9F cap\xC4\xB1n\xC4\xB1 kald\xC4\xB1r", "An\xC4\xB1nda men\xC3\xBCler, bekleme yok",
+            "Daha k\xC4\xB1sa as\xC4\xB1l\xC4\xB1 uygulama zaman a\xC5\x9F\xC4\xB1mlar\xC4\xB1", "5000 ms yerine 1000 ms",
+            "Servisleri daha h\xC4\xB1zl\xC4\xB1 kapat", "Daha hafif pencere hareketi",
 
             "0.5 ms zamanlay\xC4\xB1\xC3\xA7 isteklerini kabul et", "DPC g\xC3\xB6zet profilini gev\xC5\x9Flet",
-            "SEHOP zincir kontrollerini atla", "Kesmeleri kendi \xC3\xA7" "ekirde\uC4\x9Finde tut",
-            "0x28 - k\xC4\xB1sa, sabit kuantumlar", "G\xC3\xBCvenilirlik \xC3\xB6rnekleme yaz\uC4\xB1m\uC4\xB1n\xC4\xB1 durdur",
-            "Payla\xC5\x9F\xC4\xB1m ihlali beklemesi yok", "AAP e\xC5\x9Fi\uC4\x9Fi + \xC3\xB6zellik ayarlar\xC4\xB1",
+            "SEHOP zincir kontrollerini atla", "Kesmeleri kendi \xC3\xA7" "ekirde\xC4\x9Finde tut",
+            "0x28 - k\xC4\xB1sa, sabit kuantumlar", "G\xC3\xBCvenilirlik \xC3\xB6rnekleme yaz\xC4\xB1m\xC4\xB1n\xC4\xB1 durdur",
+            "Payla\xC5\x9F\xC4\xB1m ihlali beklemesi yok", "AAP e\xC5\x9Fi\xC4\x9Fi + \xC3\xB6zellik ayarlar\xC4\xB1",
 
             // ---- NetNames / NetDescs: 6 satır ----
-            "TCP otomatik ayarlama", "Nagle algoritmas\xC4\xB1n\xC4\xB1 kapat", "A\xC4\x9F k\uC4\xB1s\uC4\xB1tlama dizini",
+            "TCP otomatik ayarlama", "Nagle algoritmas\xC4\xB1n\xC4\xB1 kapat", "A\xC4\x9F k\xC4\xB1s\xC4\xB1tlama dizini",
             "QoS paket zamanlay\xC4\xB1" "c\xC4\xB1", "B\xC3\xBCy\xC3\xBCk g\xC3\xB6nderme \xC3\xBCst\xC3\xBCn\xC3\xBC\u011F", "Kesme yumu\xC5\x9F" "atma",
 
             "En iyi alma penceresi \xC3\xB6l\xC3\xA7" "eklendirme", "K\xC3\xBC\xC3\xA7\xC3\xBCk paketler i\xC3\xA7in daha d\xC3\xBC\xC5\x9Fk gecikme",
-            "\xC3\x87oklu ortam k\xC4\xB1s\uC4\xB1tlamas\xC4\xB1n\xC4\xB1 kald\xC4\xB1r", "QoS i\xC3\xA7in bant geni\xC5\x9Fi\xC4\x9Fi ay\xC4\xB1rma",
+            "\xC3\x87oklu ortam k\xC4\xB1s\xC4\xB1tlamas\xC4\xB1n\xC4\xB1 kald\xC4\xB1r", "QoS i\xC3\xA7in bant geni\xC5\x9Fi\xC4\x9Fi ay\xC4\xB1rma",
             "Adapt\xC3\xB6rlerde LSO'yu kapat", "Adapt\xC3\xB6re \xC3\xB6zel, genel olarak ayarlanamaz",
         };
 

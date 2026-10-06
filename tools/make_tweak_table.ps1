@@ -36,15 +36,14 @@ function Resolve-Escapes([string]$s) {
     $bytes = New-Object System.Collections.Generic.List[byte]
 
     # Kaynaga iki tur kacis karismis olarak yaziliyor:
-    #   \xC4\xB1    ->  C++ on ekli bayt kacisi
-    #   \u011F      ->  on ekli evrensel karakter kacisi (dort haneli, kod noktasi)
-    #   \uC4\xB1    ->  IKISININ KARBILIGI: bazi dizelerde Turkce harfler \x degil \u
-    #                   on ekiyle yaziliyor ve DEGISKEN sayida hane ile geliyor.
+    #   \xC4\xB1  ->  on ekli bayt kacisi (UTF-8'deki "i")
+    #   \u011F    ->  on ekli evrensel karakter kacisi, dort haneli, dogrudan kod noktasi
     #
-    # \uC4 teknik olarak gecersiz bir C++ kacisi (\u dort hane ister). Genc kod
-    # ureticisinde karikastirilir ve gecersiz bir kacis uretilirdi; o yuzden iki
-    # haneli bicim de bayt olarak ele alinir. 32 dizede bu bicim kullaniliyor.
-    $esc = [regex]::Matches($s, '\\x([0-9A-Fa-f]{2})|\\u([0-9A-Fa-f]{4})|\\u([0-9A-Fa-f]{2})(?![0-9A-Fa-f])')
+    # Kaynakta bir zamanlar \uC4\x9F gibi IKIHANELI \u kacislari da vardi; bunlar teknik
+    # olarak gecersizdir (\u dort hane ister) ve \x olarak duzeltildi. Iki haneli bicim
+    # bilerek desteklenmez: yeniden gelirse uretilen tablo sessizce bozulmaktansa hata
+    # versin diye \u yalnizca dort haneli kabul edilir.
+    $esc = [regex]::Matches($s, '\\x([0-9A-Fa-f]{2})|\\u([0-9A-Fa-f]{4})')
     $pos = 0
     foreach ($e in $esc) {
         # Kacislar arasindaki duz metin her zaman ASCII'dir (Turkce harfler zaten kacis
@@ -55,10 +54,6 @@ function Resolve-Escapes([string]$s) {
 
         if ($e.Groups[1].Success) {
             $bytes.Add([Convert]::ToByte($e.Groups[1].Value, 16))
-        }
-        elseif ($e.Groups[3].Success) {
-            # Iki haneli \u -- bati kodlamasinda tek bayt
-            $bytes.Add([Convert]::ToByte($e.Groups[3].Value, 16))
         }
         else {
             # Dort haneli \u -- bir kod noktasi; UTF-8'e cevirip ekle.
