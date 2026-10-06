@@ -31,6 +31,12 @@ namespace elevate
         int                  ramPreset = -1;         // >= 0 ise RAM profili uygula
         int                  dnsProvider = -1;       // >= 0 ise DNS ayarla
         int                  startupToggle = -1;     // 0 = kapat, 1 = aç, -1 = dokunma
+
+        // Boş değilse ayarlar uygulanmaz, bunun yerine bu yedek geri yüklenir.
+        // Yalnızca klasör ADI taşınır (tarih damgası, ASCII); tam yol yükseltilmiş
+        // süreçte yeniden kurulur, böylece komut satırına kullanıcıdan gelen bir
+        // yol sızmaz.
+        std::string          restoreFrom;
     };
 
     void  CacheExecutablePath();

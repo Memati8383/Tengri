@@ -295,6 +295,38 @@ static void Test_ElevateCodec()
         wchar_t* argv[2] = { const_cast<wchar_t*>(L"TENGRI.exe"), const_cast<wchar_t*>(L"--other") };
         Check(!elevate::DecodeCommandLine(2, argv, out), "bayraksiz komut satiri reddedildi");
     }
+
+    // Geri alma klasoru adi: ayar uygulanmaz, yedek geri yuklenir. Ad komut satirindan
+    // geldigi icin tasinma ve sınır denetimi ayrıca denenmeli.
+    {
+        elevate::Pending in;
+        in.restoreFrom = "20261006-071234";
+        elevate::Pending out;
+        Check(RoundTrip(in, out), "geri alma klasoru cozuldu");
+        Check(out.restoreFrom == "20261006-071234", "klasor adi aynen aktarildi");
+
+        // Geri alma istegi varken ayar istekleri de tasinabilmeli; yukseltilmis surec
+        // once geri alma yoluna girer, ama kodlama ikisini de korumali.
+        elevate::Pending in2;
+        in2.restoreFrom = "20260101-000000";
+        in2.anyChange[3] = true;
+        in2.categories[3][4] = true;
+        elevate::Pending out2;
+        Check(RoundTrip(in2, out2), "geri alma + ayar birlikte cozuldu");
+        Check(out2.restoreFrom == "20260101-000000", "klasor adi korundu");
+        Check(out2.categories[3][4], "ayar da korundu");
+    }
+
+    // Kontrol karakteri ve bosluk iceren klasor adi reddedilmeli: komut satiri
+    // ayristiricisi bunlari guvenle ayirt edemez.
+    {
+        elevate::Pending out;
+        elevate::Pending in;
+        in.restoreFrom = std::string("bad\x01name");
+        std::wstring args = elevate::EncodeCommandLine(in);
+        wchar_t* argv[2] = { const_cast<wchar_t*>(L"TENGRI.exe"), const_cast<wchar_t*>(args.c_str()) };
+        Check(!elevate::DecodeCommandLine(2, argv, out), "kontrol karakterli klasor adi reddedildi");
+    }
 }
 
 // Registry paket govdelerinin acil/kapali simetrisi.

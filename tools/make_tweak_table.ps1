@@ -17,7 +17,8 @@ param(
     [string]$Tweaks  = 'src\core\tweaks.cpp',
     [string]$Regpack = 'src\core\regpack.cpp',
     [string]$Lang    = 'src\core\lang.cpp',
-    [string]$Out     = 'docs\tweaks-registry.md'
+    [string]$Out     = 'docs\tweaks-registry.md',
+    [string]$Header  = 'build\obj\tweak_keys.h'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -148,6 +149,11 @@ if ($catNames.Count -lt $catCount) {
 $catNames = $catNames[0..($catCount - 1)]
 
 $switchRows = @{}
+
+# Anahtar yollari ayrica toplanir: bunlar build\obj\tweak_keys.h dosyasini uretir,
+# yani uygulama uygulamadan once hangi anahtarlari yedekleyecegini buradan ogrenir.
+$keyRows = @{}
+
 $funcs = @{
     'ApplyPerf' = 0; 'ApplyGame' = 1; 'ApplyPriv' = 2; 'ApplyVis' = 3
 }
@@ -163,12 +169,16 @@ foreach ($fn in $funcs.Keys) {
         $txt = $c.Groups[2].Value
 
         $loc = @()
+        $keys = @()
         foreach ($r in [regex]::Matches($txt, 'Reg(?:Put|Get|GetStrIs)\s*\(\s*(HKCU|HKLM)\s*,\s*(k\w+|L"([^"]*)")')) {
             $root = if ($r.Groups[1].Value -eq 'HKCU') { 'HKCU' } else { 'HKLM' }
             $key = if ($r.Groups[2].Value -like 'L*') { $r.Groups[3].Value } else { $r.Groups[2].Value }
             # C++ genis dize literal'inde  \\  tek bisl demektir.
-            $loc += ($root + '\' + ($key -replace '\\\\', '\'))
+            $full = ($root + '\' + ($key -replace '\\\\', '\'))
+            $loc += $full
+            $keys += $full
         }
+        if ($keys.Count -gt 0) { $keyRows["$cat,$idx"] = $keys }
         foreach ($v in [regex]::Matches($txt, 'Reg(?:Put|Get)\w*\s*\([^,]+,\s*[^,]+,\s*L"([^"]*)"')) {
             $loc += '    deger: ' + $v.Groups[1].Value
         }
@@ -203,12 +213,15 @@ foreach ($an in $arrays.Keys) {
         $body = $e.Groups[3].Value
 
         $loc = @()
+        $keys = @()
         foreach ($k in [regex]::Matches($body, '(?m)^\[(HKEY_\w+[^\]]*)\]')) {
             $p = $k.Groups[1].Value
             $p = $p -replace '^HKEY_CURRENT_USER', 'HKCU'
             $p = $p -replace '^HKEY_LOCAL_MACHINE', 'HKLM'
             $loc += $p
+            $keys += $p
         }
+        if ($keys.Count -gt 0) { $keyRows["$cat,$idx"] = $keys }
         foreach ($v in [regex]::Matches($body, '(?m)^"([^"]+)"\s*=')) {
             $loc += '    deger: ' + $v.Groups[1].Value
         }
@@ -250,3 +263,53 @@ if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Path 
 [System.IO.File]::WriteAllText($outPath, $sb.ToString(), (New-Object System.Text.UTF8Encoding $false))
 
 Write-Output ("    kaynak tablo yazildi: {0}  ({1} ayar, {2} eksik)" -f $outPath, $n, $missing)
+
+# --- Anahtar basligi (build\obj\tweak_keys.h) ---------------------------------
+# Uygulama bir ayari uygulamadan once dokunacagi registry anahtarlarini disa aktarir
+# (yedek). Bu anahtarlarin listesi tweaks.cpp ve regpack.cpp'de yazili; ayni kaynaktan
+# uretiliyor ki yedek kapsami ile ayarlarin yazdigi yerler ayrisabilsin.
+#
+# Dize literal'leri C++ genisl dize bicimine cevirilir: ters bisl ikiye kacirilir.
+$hdr = New-Object System.Text.StringBuilder
+[void]$hdr.AppendLine('// tools/make_tweak_table.ps1 tarafindan uretilir -- elle duzenleme.')
+[void]$hdr.AppendLine('//')
+[void]$hdr.AppendLine('// Her ayarin dokundugu registry anahtarlari. src\core\backup.cpp bunu okuyarak')
+[void]$hdr.AppendLine('// uygulama oncesi yedek alir; elle tutulan bir liste olsaydi yedek kapsami')
+[void]$hdr.AppendLine('// ayarlarin gercekten yazdigi yerlerden ayrilabilirdi.')
+[void]$hdr.AppendLine()
+[void]$hdr.AppendLine('namespace tweakkeys')
+[void]$hdr.AppendLine('{')
+[void]$hdr.AppendLine('    struct Entry { int cat; int idx; const wchar_t* path; };')
+[void]$hdr.AppendLine()
+[void]$hdr.AppendLine('    static const Entry kEntries[] =')
+[void]$hdr.AppendLine('    {')
+
+$uniq = New-Object System.Collections.Generic.HashSet[string]
+$entryCount = 0
+for ($c = 0; $c -lt $catCount; $c++) {
+    for ($i = 0; $i -lt $rowsPerCat; $i++) {
+        $key = "$c,$i"
+        if (-not $keyRows.ContainsKey($key)) { continue }
+        foreach ($p in $keyRows[$key]) {
+            # Ayni anahtar birden fazla ayarda geciyorsa bir kez yeter; yedek tekrarli olmaz.
+            if (-not $uniq.Add($p)) { continue }
+            $esc = $p.Replace('\', '\\')
+            [void]$hdr.AppendLine("        { $c, $i, L`"$esc`" },")
+            $entryCount++
+        }
+    }
+}
+
+[void]$hdr.AppendLine('    };')
+[void]$hdr.AppendLine()
+[void]$hdr.AppendLine("    static const int kCount = $entryCount;")
+[void]$hdr.AppendLine('}')
+# rc.exe'nin on ekli on ekli dosya sonu satiri bekliyor (RC1004).
+[void]$hdr.AppendLine('')
+
+$hdrOut = if ([System.IO.Path]::IsPathRooted($Header)) { $Header } else { Join-Path (Get-Location) $Header }
+$hdrDir = Split-Path -Parent $hdrOut
+if ($hdrDir -and -not (Test-Path $hdrDir)) { New-Item -ItemType Directory -Path $hdrDir -Force | Out-Null }
+[System.IO.File]::WriteAllText($hdrOut, $hdr.ToString(), (New-Object System.Text.UTF8Encoding $false))
+
+Write-Output ("    anahtar basligi yazildi: {0}  ({1} anahtar)" -f $hdrOut, $entryCount)

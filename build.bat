@@ -52,7 +52,7 @@ if not exist build\obj mkdir build\obj
 
 set IMGUI=third_party\imgui
 set SOURCES=src\main.cpp src\app.cpp src\gui\theme.cpp src\gui\fx.cpp src\gui\icons.cpp src\gui\brand_icons.cpp src\gui\widgets.cpp ^
- src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\tray.cpp ^
+ src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\core\backup.cpp src\tray.cpp ^
  %IMGUI%\imgui.cpp %IMGUI%\imgui_draw.cpp %IMGUI%\imgui_tables.cpp %IMGUI%\imgui_widgets.cpp ^
  %IMGUI%\backends\imgui_impl_win32.cpp %IMGUI%\backends\imgui_impl_dx11.cpp
 
@@ -70,7 +70,6 @@ rem res\tengri.rc ikonu, uygulama manifestini (yetki + DPI + isletim sistemi uyu
 rem ve VERSIONINFO blogunu tasiyor. rc.exe ayri bir adim olarak calismak zorunda: cl bir
 rem .rc argumanini kaynak dosya adi sanir, nesne dosyasinin var oldugunu varsayar ve
 rem atlar; boylece ikonu ve manifesti olmayan bir exe sessizce baglanir.
-echo [*] Compiling resources ...
 if not exist build\obj mkdir build\obj
 rc /nologo /DTENGRI_HAS_VERSION_H /I build\obj /fo build\obj\tengri.res res\tengri.rc
 if errorlevel 1 (
@@ -81,7 +80,8 @@ if errorlevel 1 (
 echo [*] Building TENGRI.exe ...
 cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 /MP ^
    /DNDEBUG /DUNICODE /D_UNICODE /DIMGUI_DEFINE_MATH_OPERATORS ^
-   /I src /I %IMGUI% /I %IMGUI%\backends ^
+   /DTENGRI_HAS_TWEAK_KEYS ^
+   /I src /I build\obj /I %IMGUI% /I %IMGUI%\backends ^
    %SOURCES% ^
    /Fobuild\obj\ /Febuild\TENGRI.exe ^
    /link build\obj\tengri.res /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib d3dcompiler.lib dwmapi.lib user32.lib gdi32.lib advapi32.lib shell32.lib iphlpapi.lib comctl32.lib version.lib
@@ -101,8 +101,9 @@ if not exist build\tobj mkdir build\tobj
 echo [*] Building tests ...
 cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 ^
    /DUNICODE /D_UNICODE /I src ^
-   tests\test_pure.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\tweaks.cpp src\core\elevate.cpp src\core\network.cpp ^
+   tests\test_pure.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\tweaks.cpp src\core\elevate.cpp src\core\backup.cpp src\core\network.cpp ^
    /Fobuild\tobj\ /Febuild\test_pure.exe ^
+   /DTENGRI_HAS_TWEAK_KEYS /I build\obj ^
    /link advapi32.lib shell32.lib iphlpapi.lib
 if errorlevel 1 (
     echo [!] Test derlemesi basarisiz.

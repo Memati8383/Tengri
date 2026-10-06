@@ -3,6 +3,7 @@
 #include "regpack.hpp"
 #include "ram.hpp"
 #include "network.hpp"
+#include "backup.hpp"
 
 #include <windows.h>
 #include <shellapi.h>
@@ -76,6 +77,17 @@ namespace elevate
         putOpt(body, p.dnsProvider);
         putOpt(body, p.startupToggle);
 
+        // Geri alma klasörü adı: önce uzunluk, sonra adın ASCII baytları.
+        // Uzunluk konulmazsa çözücü nerede biteceğini bilemez.
+        const std::string& r = p.restoreFrom;
+        AppendHex(body, (unsigned)(r.size() > 255 ? 255 : r.size()));
+        for (size_t i = 0; i < r.size() && i < 255; ++i)
+        {
+            // AppendHex zaten iki haneyi (yüksek ve alçak) birlikte yazıyor; ayrı ayrı
+            // çağırmak karakteri iki bayta böler ve çözücü yanlış hizalıyor.
+            AppendHex(body, (unsigned)(unsigned char)r[i]);
+        }
+
         unsigned n = 0;
         for (int c = 0; c < 8; ++c) if (p.anyChange[c]) ++n;
         AppendHex(body, n);
@@ -114,7 +126,7 @@ namespace elevate
             bytes.push_back((hi << 4) | lo);
         }
         size_t p = 0;
-        if (bytes.size() < 7) return false;   // 3 seçim x 2 bayt + kategori sayısı
+        if (bytes.size() < 8) return false;   // 3 seçim x 2 bayt + geri alma uzunluğu + kategori sayısı
 
         // Her seçim: varlık baytı (0 = yok, 1 = var), sonra değer.
         auto getOpt = [&](int& dst) -> bool {
@@ -127,6 +139,20 @@ namespace elevate
         if (!getOpt(out.ramPreset))     return false;
         if (!getOpt(out.dnsProvider))   return false;
         if (!getOpt(out.startupToggle)) return false;
+
+        // Geri alma klasörü adı: uzunluk baytı, sonra ASCII baytlar.
+        out.restoreFrom.clear();
+        if (p >= bytes.size()) return false;
+        const unsigned rlen = bytes[p++];
+        for (unsigned i = 0; i < rlen; ++i)
+        {
+            if (p >= bytes.size()) return false;
+            // Yalnizca basit ASCII kabul edilir. Komut satirindan gelen veri
+            // kullanici girdisi sayilmaz; yine de sinir disi bir bayt reddedilir.
+            const unsigned ch = bytes[p++];
+            if (ch < 0x20 || ch > 0x7E) return false;
+            out.restoreFrom.push_back((char)ch);
+        }
 
         if (p >= bytes.size()) return true;
         const unsigned n = bytes[p++];
@@ -146,6 +172,22 @@ namespace elevate
     static bool ApplyHere(const Pending& p)
     {
         bool any = false;
+
+        // Geri alma isteniyorsa ayarlar uygulanmaz; yedeklenen eski degerler geri
+        // ice aktarilir. Yolu burada kuruyoruz: komut satirinda yalnizca klasor adi
+        // tasindi, kullanici girdisi bu yola giremez.
+        if (!p.restoreFrom.empty())
+        {
+            const std::wstring root = backup::RootDirectory();
+            if (root.empty()) return false;
+
+            // Klasor adi ASCII; darlaltma acikca yaziliyor.
+            std::wstring ad;
+            for (char ch : p.restoreFrom)
+                ad.push_back(ch < 128 ? (wchar_t)ch : L'?');
+
+            return backup::Restore(root + L"\\" + ad);
+        }
 
         for (int c = 0; c < 8; ++c)
         {

@@ -76,8 +76,7 @@ namespace lang
             "Virtualization", "Install date", "DirectX",
             "Display", "System locale",
 
-            "Apply changes", "No changes",
-            "Your session has been closed", "plan - welcome back!",
+            "Apply changes", "No changes", "Undo", "Restore the settings from before the last apply?", "Settings restored.", "No backup to restore.", "Backup taken before applying.", "Your session has been closed", "plan - welcome back!",
             "Memory trimmed, caches flushed",
             "All tweaks in this category disabled",
             "Nothing changed - %d tweaks active",
@@ -285,8 +284,7 @@ namespace lang
             "Ekran \xC3\xA7\xC3\xB6z\xC3\xBC" "n\xC3\xBCrl\xC3\xBC\xC4\x9F\xC3\xBC",
             "Sistem dili",
 
-            "De\xC4\xB1\xC5\x9Fi\xC5\x9Flikleri uygula", "De\xC4\xB1\xC5\x9Fi\xC5\x9F yok",
-            "Oturumunuz kapat\xC4\xB1ld\xC4\xB1", "plan - tekrar ho\xC5\x9Fgeldiniz!",
+            "De\xC4\xB1\xC5\x9Fi\xC5\x9Flikleri uygula", "De\xC4\xB1\xC5\x9Fi\xC5\x9F yok", "Geri al", "Son uygulama \xC3\xB6ncesi de\xC4\xB1\xC5\x9Fler geri y\xC3\xBCklensin mi?", "Ayarlar geri al\xC4\xB1nd\xC4\xB1.", "Geri al\xC4\xB1nacak bir yedek yok.", "Ayarlar uygulanmadan \xC3\xB6nce yedek al\xC4\xB1nd\xC4\xB1.", "Oturumunuz kapat\xC4\xB1ld\xC4\xB1", "plan - tekrar ho\xC5\x9Fgeldiniz!",
             "Bellek k\xC4\xB1salt\xC4\xB1ld\xC4\xB1, \xC3\xB6nbellekler temizlendi",
             "Bu kategorideki t\xC3\xBCm ayarlar kapat\xC4\xB1ld\xC4\xB1",
             "De\xC4\xB1\xC5\x9Fi\xC5\x9Flik yok - %d ayar etkin",

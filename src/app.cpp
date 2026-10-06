@@ -12,6 +12,7 @@
 #include "core/sysinfo_detail.hpp"
 #include "core/ram.hpp"
 #include "core/elevate.hpp"
+#include "core/backup.hpp"
 #include "tray.hpp"
 #include "brand.hpp"
 #include <shellapi.h>
@@ -211,6 +212,10 @@ namespace app
         int  g_pendingRam     = -1;
         int  g_pendingDns     = -1;
         int  g_pendingStartup = -1;
+
+        // Son uygulamadan önce alınan yedeğin tam yolu. "Geri al" düğmesi bunu
+        // kullanır; boşsa hiç yedek alınmamıştır.
+        std::wstring g_lastBackup;
 
         void CollectPendingFromPages(elevate::Pending& p)
         {
@@ -635,6 +640,17 @@ namespace app
                 // düğmeden 56 ayarın tamamını uygulamak, arayüzün arkasından tüm
                 // registry kümesini yazıyor ve kimsenin çevirmediği anahtarları da geri alıyordu.
                 const int c = g_tweakCat;
+
+                // Uygulamadan hemen once dokunulacak anahtarlar disa aktarilir.
+                // "Kapat" islemi kullanici degerini degil kodlanmis varsayilani geri
+                // yukler; bu yedek olmadan geri al dugmesi gercek bir geri alma
+                // sayilmaz. Yedekleme yalnizca OKUMA ister, yonetici gerekmez.
+                if (g_dirtyAny[c])
+                {
+                    const int cats[1] = { c };
+                    std::wstring yedek;
+                    if (backup::ExportForCategories(cats, 1, &yedek)) g_lastBackup = yedek;
+                }
 
                 // Süreç yükseltilmiş değilse, bekleyen iş "runas" ile yeni bir yükseltilmiş
                 // sürece devredilir ve bu arayüz kapanır. Kullanıcı UAC'i bir kez görür;
@@ -1283,6 +1299,37 @@ namespace app
             }
             ImGui::SetCursorScreenPos(p);
             ImGui::Dummy(ImVec2(cw, bh));
+
+            // Geri al: uygulama öncesi alınan yedeği içe aktarır. Yedekleme/geri alma
+            // HKLM'ye yazdığı için yetki ister; tıpkı "Uygula" gibi yükseltilmiş
+            // sürece devredilir. Kullanıcı UAC'i bir kez daha görür.
+            {
+                std::wstring yedek = g_lastBackup;
+                if (yedek.empty()) yedek = backup::Latest();
+
+                ImGui::SetCursorScreenPos(ImVec2(p.x + cw - bwR, p.y + bh + px(8)));
+                ImGui::BeginDisabled(yedek.empty() || g_applying);
+                if (ui::Button(L(UndoChanges), ImVec2(bwR, px(30)), ButtonStyle::Secondary, Icon::Refresh))
+                {
+                    const size_t slash = yedek.find_last_of(L'\\');
+                    elevate::Pending undo;
+                    if (slash != std::wstring::npos)
+                    {
+                        const std::wstring ad = yedek.substr(slash + 1);
+                        // Klasor adi ASCII; wchar_t -> char darlaltmasi acikca yazildi,
+                        // implicit donustum C4244 uyarisi veriyordu.
+                        undo.restoreFrom.clear();
+                        for (wchar_t ch : ad)
+                            undo.restoreFrom.push_back(ch < 128 ? (char)ch : '?');
+                    }
+                    elevate::ApplyOrDelegate(undo);
+                    g_lastBackup.clear();
+                    ui::Notify(Toast::Info, L(UndoChanges), L(UndoDone));
+                }
+                ImGui::EndDisabled();
+            }
+            ImGui::SetCursorScreenPos(p);
+            ImGui::Dummy(ImVec2(cw, bh + px(38)));
 
             int on = 0;
             for (const Tweak& t : list)

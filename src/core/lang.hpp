@@ -83,6 +83,7 @@ namespace S
         // sonradan eklenenler: bildirim metinleri, kategori başlıkları ve ağ satır
         // etiketleri; sıraları metin tablolarıyla birlikte korunmalıdır
         ApplyChanges, NoChanges,
+        UndoChanges, UndoConfirm, UndoDone, UndoNoBackup, BackupTaken,
         SignedOutMsg, ActivatedMsg,
         OptimizedDesc,
         DefaultsRestoredDesc,
