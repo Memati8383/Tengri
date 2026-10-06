@@ -10,6 +10,20 @@ kendin derle.
 > **Ayarları uygulamadan önce bir geri yükleme noktası oluştur.** Bunlar gerçek registry
 > değerlerini değiştirir.
 
+## İstatistikler
+
+<div align="center">
+  <a href="https://github.com/Memati8383">
+    <img src="https://github-readme-stats.vercel.app/api?username=Memati8383&show_icons=true&locale=tr&rank_icon=github&theme=dark" height="165" alt="GitHub istatistikleri" />
+  </a>
+  <a href="https://github.com/Memati8383">
+    <img src="https://github-readme-stats.vercel.app/api/top-langs?username=Memati8383&layout=compact&locale=tr&theme=dark" height="165" alt="En çok kullanılan diller" />
+  </a>
+  <a href="https://github.com/Memati8383/Tengri">
+    <img src="https://github-readme-stats.vercel.app/api/pin/?username=Memati8383&repo=Tengri&locale=tr&theme=dark" height="165" alt="TENGRI deposu" />
+  </a>
+</div>
+
 ## İndir
 
 Hazır derlemeler [Releases](https://github.com/Memati8383/Tengri/releases) sayfasında.
