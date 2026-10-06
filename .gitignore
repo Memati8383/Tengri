@@ -1,0 +1,25 @@
+# Derleme çıktısı
+build/
+out/
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.lib
+*.exp
+
+# Arayüz kütüphanesi bir submodule olarak sabitlenmiş sürümde duruyor; içeriği kendi
+# deposu yönetir, dolayısıyla buraya dosya listesi eklemeye gerek yok.
+# Depoyu klonlarken:  git submodule update --init --recursive
+
+# Kaynak derleyicisi çıktısı. Normal düzende build/ zaten kapsıyor, ama ara dizin
+# kolayca başka yere yönlendirildiği için açıkça da yazıldı.
+*.res
+
+# Düzenleyici / işletim sistemi
+.vs/
+.vscode/
+.idea/
+*.user
+Thumbs.db
+desktop.ini

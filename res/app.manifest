@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity type="win32" name="Tengri.SystemOptimizer" version="1.0.0.0" processorArchitecture="amd64" />
+  <description>TENGRI - System Optimizer</description>
+
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <!-- requireAdministrator, not requireAdministrator: the Games, FiveM, Delay and RAM
+             categories all write HKLM, and every other feature is either harmless or
+             unavailable without elevation. The better-practice alternative (run as
+             invoker, elevate per action) needs a UAC relaunch that is not wired up
+             here; see README, section Elevation. -->
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 and 11. Without this the OS assumes Win7 and the taskbar and DPI
+           heuristics behave differently. -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+      <!-- activeCodePage is deliberately NOT set: the app still calls ANSI APIs
+           (GetComputerNameA, adapter GUIDs via CP_ACP), and switching the process ACP
+           to UTF-8 would change what those return. -->
+    </windowsSettings>
+  </application>
+</assembly>

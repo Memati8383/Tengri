@@ -1,0 +1,56 @@
+#include <windows.h>
+// windows.h does not pull in the VS_VERSION_INFO grammar; without this every keyword
+// below is parsed as a resource file name.
+#include <winver.h>
+
+// Version numbers are kept in one place: src/brand.hpp. The About box reads the
+// product version back out of this resource at runtime rather than carrying a second
+// copy, so the two cannot drift apart.
+#define TENGRI_VER_MAJOR 1
+#define TENGRI_VER_MINOR 0
+#define TENGRI_VER_PATCH 0
+
+#define TENGRI_VERSION_STR      "1.0.0"
+#define TENGRI_PUBLISHER_STR    "TENGRI Project"
+#define TENGRI_DESCRIPTION_STR  "TENGRI - System Optimizer"
+
+// Also declared as brand::kIconId in src/brand.hpp; both sides have to agree or
+// LoadIconW looks up an id that was never compiled into the resource section.
+#define IDI_APPICON 101
+
+IDI_APPICON          ICON            "tengri.ico"
+1 RT_MANIFEST "app.manifest"
+
+VS_VERSION_INFO VERSIONINFO
+  FILEVERSION    TENGRI_VER_MAJOR,TENGRI_VER_MINOR,TENGRI_VER_PATCH,0
+  PRODUCTVERSION TENGRI_VER_MAJOR,TENGRI_VER_MINOR,TENGRI_VER_PATCH,0
+  FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+  FILEFLAGS      VS_FF_DEBUG
+#else
+  FILEFLAGS      0x0L
+#endif
+  FILEOS         VOS_NT_WINDOWS32
+  FILETYPE       VFT_APP
+  FILESUBTYPE    VFT2_UNKNOWN
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0"                       // US English, Unicode
+    BEGIN
+      VALUE "CompanyName",      TENGRI_PUBLISHER_STR
+      VALUE "FileDescription",  TENGRI_DESCRIPTION_STR
+      VALUE "FileVersion",      TENGRI_VERSION_STR
+      VALUE "InternalName",     "TENGRI"
+      VALUE "LegalCopyright",   "Distributed under the MIT License. See LICENSE."
+      VALUE "OriginalFilename", "TENGRI.exe"
+      VALUE "ProductName",      "TENGRI"
+      VALUE "ProductVersion",   TENGRI_VERSION_STR
+    END
+  END
+
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END
