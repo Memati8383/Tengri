@@ -418,13 +418,22 @@ namespace tweaks
         // Birden fazla anahtarın aynı registry değerini sahiplendiği yerler.
         // Bunlardan biri geri alındığında diğeri de sessizce kapanırdı; bu yüzden
         // uygulayıcı, açık olanın değerini yeniden yazar:
-        //   SystemResponsiveness  -> Perf[5], Game[5], FiveM[1]
+        //   SystemResponsiveness   -> Perf[5], Game[5], FiveM[1]
         //   DisablePagingExecutive -> Perf[7], Games[5]
-        //   GameDVR_FSEBehaviorMode -> Game[1], Games[1]
+        //   GameDVR_FSEBehaviorMode-> Game[1], Games[1]
+        //   GPU Priority, Priority, Scheduling Category, SFIO Priority
+        //                         -> Games[0], FiveM[0]
+        //   Affinity, Background Only, Clock Rate
+        //                         -> Games[2], FiveM[0]
+        //
+        // Oyunlar ve FiveM kategorilerinin tamamı aynı "Games" görev anahtarına
+        // yazıyor; paylaşım buradan geliyor. Liste elle tutuluyor ve bu yüzden
+        // yeni bir ayar eklendiğinde gözden geçirilmeli. make_tweak_table.ps1
+        // hangi değerlerin paylaşıldığını hesaplayıp tabloya yazıyor.
         if (cat == 0 && (idx == 5 || idx == 7)) return true;
         if (cat == 1 && (idx == 1 || idx == 5)) return true;
-        if (cat == 4 && idx == 5) return true;
-        if (cat == 5 && idx == 1) return true;
+        if (cat == 4 && (idx == 0 || idx == 1 || idx == 2 || idx == 5)) return true;
+        if (cat == 5 && (idx == 0 || idx == 1)) return true;
         return false;
     }
 

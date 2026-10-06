@@ -16,6 +16,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <string>
 
 static int g_fail = 0;
@@ -131,7 +132,14 @@ static void Test_TweakContracts()
     Check(tweaks::IsShared(1, 1), "Game[1] paylasimli (GameDVR_FSEBehaviorMode)");
     Check(tweaks::IsShared(1, 5), "Game[5] paylasimli");
     Check(tweaks::IsShared(4, 5), "Games[5] paylasimli");
-    Check(tweaks::IsShared(5, 1), "FiveM[1] paylasimli");
+    Check(tweaks::IsShared(5, 1), "FiveM[1] paylasimli (SystemResponsiveness)");
+    // Oyunlar ve FiveM ayni "Games" gorev anahtarini paylasir; hesaplanan liste:
+    //   Games[0] + FiveM[0] : GPU Priority, Priority, Scheduling Category, SFIO Priority
+    //   Games[2] + FiveM[0] : Affinity, Background Only, Clock Rate
+    // Bu uc ayar IsShared'de yoksa biri kapatildiginda digerinin degerleri ezilir.
+    Check(tweaks::IsShared(4, 0), "Games[0] paylasimli (FiveM[0] ile)");
+    Check(tweaks::IsShared(4, 2), "Games[2] paylasimli (FiveM[0] ile)");
+    Check(tweaks::IsShared(5, 0), "FiveM[0] paylasimli (Games[0] ve Games[2] ile)");
 
     // Paylaşımlı olmayan bir anahtar işaretlenmemeli (her şey paylaşımlı olsayd
     // bu işaretlemenin bir anlamı kalmazdı).
@@ -289,6 +297,134 @@ static void Test_ElevateCodec()
     }
 }
 
+// Registry paket govdelerinin acil/kapali simetrisi.
+//
+// Her ayar iki govdeyle saklanir: acikken ne yazilacagi ve kapaliyken ne yazilacagi.
+// Kapali govde her zaman "belgelenmis varsayilani geri yukler ya da degeri siler" --
+// yani kendi varsayilani, kullanicinin daha onceki degeri degil. Bu bir tasarim
+// tercihidir, ama su sonucu dogurur: kapali govde acik govdenin yazdigi tum anahtarlari
+// karsilamiyorsa o ayar geri donussuz kaybolur. Sessizce kaybolan bir ayar, hatali
+// bir hata mesajindan cok daha kotudur.
+//
+// Bu test asagidakileri zorlar:
+//   1) Kapali govde, acik govdenin yazdigi anahtarlarin TAMAMINI ele aliyor
+//   2) Ortak degerler icin acik ve kapali degerler FARKLI (ayniysa anahtar bir sey yapmiyor)
+//   3) Govde yazim bicimi gecerli (.reg basligi, HKEY basligi, deger satiri)
+
+namespace
+{
+    // Bir .reg govdesini ayristirir: anahtar yolu -> deger adi -> deger metni
+    using Parsed = std::map<std::string, std::map<std::string, std::string>>;
+
+    Parsed ParseReg(const char* text)
+    {
+        Parsed out;
+        if (!text) return out;
+
+        std::string key;
+        for (const char* line = text; line && *line; )
+        {
+            const char* eol = std::strchr(line, '\n');
+            std::string ln(line, eol ? (size_t)(eol - line) : std::strlen(line));
+            line = eol ? eol + 1 : nullptr;
+
+            while (!ln.empty() && (ln.back() == '\r' || ln.back() == ' ')) ln.pop_back();
+            if (ln.empty()) continue;
+
+            if (ln[0] == '[')
+            {
+                // [HKEY_...\Yol]  veya  [-HKEY_...] (anahtari sil)
+                const size_t b = ln.find('[');
+                const size_t e = ln.rfind(']');
+                if (b != std::string::npos && e != std::string::npos && e > b)
+                {
+                    std::string k = ln.substr(b + 1, e - b - 1);
+                    if (!k.empty() && k[0] == '-') k.erase(0, 1);
+                    key = k;
+                    out[key];   // anahtari kaydet
+                }
+            }
+            else if (ln[0] == '"' && ln.find('=') != std::string::npos)
+            {
+                const size_t q = ln.find('"', 1);
+                if (q == std::string::npos) continue;
+                std::string ad = ln.substr(1, q - 1);
+                std::string deger = ln.substr(ln.find('=') + 1);
+                while (!deger.empty() && deger.front() == ' ') deger.erase(0, 1);
+                // On ekli - deger silme isaretini koru: "adir" ile "-adir" farklidir.
+                out[key][ad] = deger;
+            }
+        }
+        return out;
+    }
+
+    std::string Join(const Parsed& p)
+    {
+        std::string s;
+        for (const auto& kv : p)
+        {
+            if (!s.empty()) s += "; ";
+            s += kv.first;
+            for (const auto& d : kv.second) s += "[" + d.first + "=" + d.second + "]";
+        }
+        return s;
+    }
+}
+
+static void Test_RegPackSymmetry()
+{
+    std::printf("registry paket simetrisi\n");
+
+    int eksikAnahtar = 0, ayniDeger = 0, bicimHatasi = 0;
+
+    for (int cat = 4; cat <= 6; ++cat)
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            const char* acik  = regpack::Body(cat, i, true);
+            const char* kapali = regpack::Body(cat, i, false);
+            if (!acik || !kapali) { ++bicimHatasi; continue; }
+
+            const Parsed pa = ParseReg(acik);
+            const Parsed pk = ParseReg(kapali);
+
+            if (pa.empty() || pk.empty()) { ++bicimHatasi; continue; }
+
+            // 1) Kapali govde, acik govdenin yazdigi her anahtari ele almali.
+            for (const auto& kv : pa)
+            {
+                if (!kv.second.empty() && pk.find(kv.first) == pk.end())
+                {
+                    ++eksikAnahtar;
+                    std::printf("  BASARISIZ: kategori %d, ayar %d -- kapali govde bu anahtari ele almıyor: %s\n",
+                                cat, i, kv.first.c_str());
+                }
+            }
+
+            // 2) Ortak degerler icin acik ve kapali degerler farkli olmali.
+            for (const auto& kv : pa)
+            {
+                auto kit = pk.find(kv.first);
+                if (kit == pk.end()) continue;
+                for (const auto& d : kv.second)
+                {
+                    auto d2 = kit->second.find(d.first);
+                    if (d2 != kit->second.end() && d2->second == d.second)
+                    {
+                        ++ayniDeger;
+                        std::printf("  BASARISIZ: kategori %d, ayar %d -- %s\\%s icin acik ve kapali deger ayni: %s\n",
+                                    cat, i, kv.first.c_str(), d.first.c_str(), d.second.c_str());
+                    }
+                }
+            }
+        }
+    }
+
+    CheckEq(eksikAnahtar, 0, "kapali govde acik govdenin tum anahtarlarini ele aliyor");
+    CheckEq(ayniDeger, 0, "acik ve kapali degerler birbirinden farkli");
+    CheckEq(bicimHatasi, 0, "tum govdeler ayristirilabildi");
+}
+
 int main()
 {
     std::printf("TENGRI saf mantik testleri\n\n");
@@ -297,6 +433,7 @@ int main()
     Test_RamPresets();
     Test_TweakContracts();
     Test_RegPackBodies();
+    Test_RegPackSymmetry();
     Test_ElevateCodec();
 
     std::printf("\n%d gecti, %d kaldi\n", g_pass, g_fail);

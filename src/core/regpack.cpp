@@ -304,9 +304,9 @@ R"(Windows Registry Editor Version 5.00
 R"(Windows Registry Editor Version 5.00
 
 [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games]
-"Affinity"=dword:00000000
-"Background Only"="True"
-"Clock Rate"=dword:00002710
+"Affinity"=-
+"Background Only"=-
+"Clock Rate"=-
 "GPU Priority"=dword:00000002
 "Priority"=dword:00000002
 "Scheduling Category"="Medium"
