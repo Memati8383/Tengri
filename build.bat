@@ -56,15 +56,20 @@ set SOURCES=src\main.cpp src\app.cpp src\gui\theme.cpp src\gui\fx.cpp src\gui\ic
  %IMGUI%\imgui.cpp %IMGUI%\imgui_draw.cpp %IMGUI%\imgui_tables.cpp %IMGUI%\imgui_widgets.cpp ^
  %IMGUI%\backends\imgui_impl_win32.cpp %IMGUI%\backends\imgui_impl_dx11.cpp
 
+rem Surum basligini uret: tek kaynak src\brand.hpp, cikti build\obj\version.h.
+rem .rc dosyasi bunu include eder, boylece VERSIONINFO kaynak koddan ayrilamaz.
+echo [*] Generating version header ...
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\make_version.ps1 || exit /b 1
+
 rem res\tengri.rc ikonu, uygulama manifestini (yetki + DPI + isletim sistemi uyumlulugu)
 rem ve VERSIONINFO blogunu tasiyor. rc.exe ayri bir adim olarak calismak zorunda: cl bir
 rem .rc argumanini kaynak dosya adi sanir, nesne dosyasinin var oldugunu varsayar ve
 rem atlar; boylece ikonu ve manifesti olmayan bir exe sessizce baglanir.
 echo [*] Compiling resources ...
 if not exist build\obj mkdir build\obj
-rc /nologo /fo build\obj\tengri.res res\tengri.rc
+rc /nologo /DTENGRI_HAS_VERSION_H /I build\obj /fo build\obj\tengri.res res\tengri.rc
 if errorlevel 1 (
-    echo [!] Resource compilation failed.
+    echo [!] Resource derlemesi basarisiz.
     exit /b 1
 )
 

@@ -384,6 +384,10 @@ cmake -B build
 cmake --build build --config Release
 ```
 
+Not: Uzun yol adlarında CMake'in geçici derleme dosyası sığmayabilir
+(`could not be compiled` / `ABI info - failed`). `build.bat` bu sorunu yaşamaz; sorun
+uzunluğuysa CMake'i daha kısa bir yolda çalıştır.
+
 **Gereksinimler:** Windows 10/11 x64, *Desktop development with C++* iş yükü olan Visual
 Studio.
 
@@ -393,12 +397,15 @@ Tüm ürün kimliği — ad, pencere sınıfı, tray metni, `%APPDATA%` klasör�
 geçici dosya öneki, ikon kimliği, bağlantılar — **`src/brand.hpp`** içinde. Yeniden
 markalamak tek dosyalık bir düzenleme.
 
-Sürüm numarası `res/tengri.rc` içinde bir `VERSIONINFO` kaynağı olarak duruyor ve Hakkında
-sayfası ikinci bir kopya taşımak yerine `GetFileVersionInfo` ile çalışan exe'den geri
-okuyor. Kod tabanında hiçbir yerde derleme tarihi gömülü değil: eskiden sürüm dizesine
-gömülüyordu, yani aynı commit'in iki derlemesi farklı sürümler bildiriyordu.
+**Sürüm tek yerde yazılır: `src/brand.hpp`.** `tools\make_version.ps1` her derlemede
+`build\obj\version.h` üretir, `res\tengri.rc` onu include eder. Böylece `VERSIONINFO`
+kaynağı kaynak koddan ayrılamaz. Bu bir kazara yapıldı: bir etiket `v1.0.1` için atıldı,
+kaynak kodu `1.0.0` diyordu ve sürüm ancak derledikten sonra fark edildi.
 
-`res/tengri.ico`, `tools/make_icon.ps1` ile üretiliyor; uygulamanın çalışma anında çizdiği
+Hakkında sayfası sürümü ikinci bir kopya taşımak yerine `GetFileVersionInfo` ile çalışan
+exe'den geri okuyor. Kod tabanında hiçbir yerde derleme tarihi gömülü değil.
+
+`res\tengri.ico`, `tools/make_icon.ps1` ile üretiliyor; uygulamanın çalışma anında çizdiği
 elmas işaretin geometrisinden çiziyor, böylece ikon ile sidebar logosu ayrışamaz.
 
 ---
@@ -428,6 +435,7 @@ res/tengri.rc              İkon, manifest, VERSIONINFO
 res/app.manifest           Yürütme düzeyi, DPI farkındalığı, işletim sistemi uyumluluğu
 tools/make_icon.ps1        Uygulama ikonunu üretir
 tools/make_brand_icons.ps1 Marka siluetlerini üçgenler ve brand_icons.cpp üretir
+tools/make_version.ps1     brand.hpp'den sürüm başlığı üretir (VERSIONINFO kaynağı)
 tools/shoot.ps1            Ekran görüntüsü almak için yardımcı betikler
 .github/workflows/         Etiket itildiğinde sürümü temiz kurulumda derleyip yayınlar
 docs/release-notes/        Sürüm notları (sürüm başına bir dosya)
@@ -458,11 +466,15 @@ anahtar eklemenin blokları bozamaması anlamına geliyor.
 
 ## Sürümleme
 
-Sürüm vermek için etiket yeterli:
+Sürüm vermek için tek bir yer değişir, sonra etiket:
 
 ```bat
+:: src\brand.hpp içindeki kVersionMajor / kVersionMinor / kVersionPatch / kVersion
+:: (üç parça birleşik sürümle uyumlu olmalı, yoksa make_version.ps1 derlemeyi durdurur)
+
+git commit -am "Surum 1.0.1"
 git tag v1.0.1
-git push origin v1.0.1
+git push origin main v1.0.1
 ```
 
 GitHub Actions etiketi görünce temiz bir kurulumda derleyip sürümü `Releases` sayfasına
@@ -470,8 +482,7 @@ ekler. Sürüm notlarını `docs\release-notes\v1.0.1.md` altına koyarsan not o
 kullanılır; yoksa otomatik olarak `TENGRI v1.0.1` yazılır.
 
 İş akışı, etiketteki sürüm ile exe'in içindeki `VERSIONINFO` sürümünün aynı olduğunu da
-kontrol eder. `src/brand.hpp` ve `res/tengri.rc` güncellenmeden etiket atarsan derleme
-düşmüş gibi görünse de iş akışı bunu ayrıca reddeder.
+kontrol eder — sürüm kaynağı artık tek olduğu için bu, son savunma hattıdır.
 
 ## Lisans
 

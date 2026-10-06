@@ -1,21 +1,29 @@
 #include <windows.h>
-// windows.h does not pull in the VS_VERSION_INFO grammar; without this every keyword
-// below is parsed as a resource file name.
+// windows.h, VS_VERSION_INFO dilbilgisini içeri almıyor; aşağıdaki her anahtar
+// olmasaydı kaynak dosya adı sanılıp ayrıştırma hatası verirdi.
 #include <winver.h>
 
-// Version numbers are kept in one place: src/brand.hpp. The About box reads the
-// product version back out of this resource at runtime rather than carrying a second
-// copy, so the two cannot drift apart.
+// Sürüm src\brand.hpp'de tek yerde durur. tools\make_version.ps1 her derlemede
+// build\obj\version.h üretir ve aşağıdaki include onu okur. TENGRI_HAS_VERSION_H
+// tanımlıysa üretilmiş başlık kullanılır; tanımlı değilse (IDE'den elle derlemek gibi
+// durumlarda) dosyanın içindeki varsayılanlara düşülür.
+//
+// About kutusu sürümü çalışan exe'den geri okuduğu için ikinci bir kopya taşımıyor.
+#ifdef TENGRI_HAS_VERSION_H
+#include "version.h"
+#endif
+
+#ifndef TENGRI_VER_MAJOR
 #define TENGRI_VER_MAJOR 1
 #define TENGRI_VER_MINOR 0
 #define TENGRI_VER_PATCH 0
-
 #define TENGRI_VERSION_STR      "1.0.0"
 #define TENGRI_PUBLISHER_STR    "TENGRI Project"
 #define TENGRI_DESCRIPTION_STR  "TENGRI - System Optimizer"
+#endif
 
-// Also declared as brand::kIconId in src/brand.hpp; both sides have to agree or
-// LoadIconW looks up an id that was never compiled into the resource section.
+// Ayrıca src\brand.hpp içinde brand::kIconId olarak tanımlı; iki tarafın uyuşması
+// gerekir, aksi hâlde LoadIconW hiç derlenmemiş bir kimliği arar.
 #define IDI_APPICON 101
 
 IDI_APPICON          ICON            "tengri.ico"
@@ -36,7 +44,7 @@ VS_VERSION_INFO VERSIONINFO
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
-    BLOCK "040904b0"                       // US English, Unicode
+    BLOCK "040904b0"                       // İngilizce, Unicode
     BEGIN
       VALUE "CompanyName",      TENGRI_PUBLISHER_STR
       VALUE "FileDescription",  TENGRI_DESCRIPTION_STR
