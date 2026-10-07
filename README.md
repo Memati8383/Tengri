@@ -64,7 +64,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 |---|---|
 | İşletim sistemi | Windows 10 ve Windows 11 (x64) |
 | Mimari | 64-bit |
-| Disk | 1.6 MB (1.681.408 bayt) |
+| Disk | 1.6 MB — Releases'taki `TENGRI.exe` 1.673.728 bayt, yerel derleme 1.681.408 bayt (araç seti yamasına göre birkaç KB oynar) |
 | Ek bağımlılık | Yok — .NET, Python veya çalışma zamanı gerekmez |
 | Yönetici | Yalnızca ayar uygularken gerekir; açılışta gerekmez |
 
