@@ -72,5 +72,9 @@ $content = @"
 # preprocessor treats that as an unterminated file (RC1004).
 $content += "`r`n"
 
-[System.IO.File]::WriteAllText($outPath, $content, (New-Object System.Text.UTF8Encoding $false))
+# BOM is required, not cosmetic. rc.exe is invoked without /utf8, so it reads this
+# header in the system ANSI code page unless a BOM tells it otherwise; without one
+# a publisher name carrying the dotted Turkish capital renders as "TENGRI" or, if
+# the code page disagrees, as "TÃ¯". Same rule as res\tengri.rc.
+[System.IO.File]::WriteAllText($outPath, $content, (New-Object System.Text.UTF8Encoding $true))
 Write-Output ("    surum basligi yazildi: {0}  ({1})" -f $outPath, $ver)

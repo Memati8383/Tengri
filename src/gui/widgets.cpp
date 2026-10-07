@@ -107,7 +107,7 @@ namespace ui
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         const ImVec2 sz  = SpacedSize(theme::fonts.medium,theme::size::Meta, text, px(theme::track::Micro));
-        TextSpaced(dl, theme::fonts.medium, theme::size::Meta, pos, Gray(0.40f), text, px(theme::track::Micro));
+        TextSpaced(dl, theme::fonts.medium, theme::size::Meta, pos, theme::ink::Tertiary,  text, px(theme::track::Micro));
         ImGui::Dummy(sz);
     }
 
@@ -151,11 +151,11 @@ namespace ui
 
         if (title)
         {
-            Label(theme::fonts.bold,theme::size::Title, 0.96f, title);
+            Label(theme::fonts.bold,theme::size::Title, theme::ink::Primary, title);
             if (subtitle)
             {
                 ImGui::SetCursorPosY(ImGui::GetCursorPosY() - px(4));
-                Label(theme::fonts.regular,theme::size::Body, 0.48f, subtitle);
+                Label(theme::fonts.regular,theme::size::Body, theme::ink::Secondary, subtitle);
             }
             ImGui::Dummy(ImVec2(0, px(4)));
         }
@@ -464,7 +464,7 @@ namespace ui
         dl->PushClipRect(bb.Min, ImVec2(bb.Max.x - px(16) - rightW, bb.Max.y), true);
         Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(tx, bb.Min.y + px(12)), Gray(0.78f + 0.2f * ImMax(on, hv)), label, VisibleEnd(label));
         if (desc)
-            Text(dl, theme::fonts.regular,theme::size::Body, ImVec2(tx, bb.Min.y + px(33)), Gray(0.46f), desc);
+            Text(dl, theme::fonts.regular,theme::size::Body, ImVec2(tx, bb.Min.y + px(33)), theme::ink::Secondary, desc);
         dl->PopClipRect();
         return pressed;
     }

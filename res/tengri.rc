@@ -1,3 +1,10 @@
+﻿// Bu dosya UTF-8 BOM ile saklanmalıdır. rc.exe, /utf8 bayrağı olmayan tek bir
+// derleyici çağrısında kaynak dosyayı sistem ANSI kod sayfasında okur; BOM
+// olmadan "TENGRİ" içeren bir dize kaynakta "TENGRI" gibi görünür hatta "TÃ¯"
+// gibi bozuk çıkar. BOM, rc.exe'e "bu UTF-8" dedirir.
+//
+// Aynı kural build\obj\version.h için de geçerli; onu üreten make_version.ps1
+// BOM ile yazar. Editör BOM'u sessizce atabilir: kaydedip şu komutla doğrula.
 #include <windows.h>
 // windows.h, VS_VERSION_INFO dilbilgisini içeri almıyor; aşağıdaki her anahtar
 // olmasaydı kaynak dosya adı sanılıp ayrıştırma hatası verirdi.
@@ -52,7 +59,7 @@ BEGIN
       VALUE "InternalName",     "TENGRI"
       VALUE "LegalCopyright",   "Distributed under the MIT License. See LICENSE."
       VALUE "OriginalFilename", "TENGRI.exe"
-      VALUE "ProductName",      "TENGRI"
+      VALUE "ProductName",      "TENGRİ"
       VALUE "ProductVersion",   TENGRI_VERSION_STR
     END
   END

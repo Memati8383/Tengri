@@ -808,7 +808,7 @@ namespace app
             // sol üstte marka
             ui::TextSpaced(dl, F.bold,theme::size::Body, px(22, 19), Gray(0.9f), brand::kNameA, px(theme::track::Micro));
             const float bw = ui::SpacedSize(F.bold,theme::size::Body, brand::kNameA, px(theme::track::Micro)).x;
-            ui::Text(dl, F.regular,theme::size::Body, ImVec2(px(22) + bw + px(10), px(19)), Gray(0.38f), L(SecureLoader));
+            ui::Text(dl, F.regular,theme::size::Body, ImVec2(px(22) + bw + px(10), px(19)), theme::ink::Tertiary,  L(SecureLoader));
 
             // kart (hata durumunda titrer)
             const float cw = px(380), ch = px(468);
@@ -832,7 +832,7 @@ namespace app
 
             // form alanları
             const float fx0 = cmin.x + px(32), fw = cw - px(64);
-            ui::TextSpaced(dl, F.medium,theme::size::Meta, ImVec2(fx0, cmin.y + px(188)), Gray(0.42f), L(LicenseKey), px(theme::track::Micro));
+            ui::TextSpaced(dl, F.medium,theme::size::Meta, ImVec2(fx0, cmin.y + px(188)), theme::ink::Tertiary,  L(LicenseKey), px(theme::track::Micro));
 
             const float gbw = px(88);
             ImGui::SetCursorScreenPos(ImVec2(fx0 + fw - gbw, cmin.y + px(183)));
@@ -872,18 +872,18 @@ namespace app
             {
                 char demoMsg[128];
                 snprintf(demoMsg, sizeof(demoMsg), "%s \xC2\xB7 %s", L(DemoMode), L(AnyKeyAccepted));
-                TextCentered(dl, F.regular,theme::size::Body, cx, sy, Gray(0.38f), demoMsg);
+                TextCentered(dl, F.regular,theme::size::Body, cx, sy, theme::ink::Tertiary,  demoMsg);
             }
 
             // alt bilgi
             const float fy = cmax.y - px(50);
             dl->AddLine(ImVec2(cmin.x + px(1), fy), ImVec2(cmax.x - px(1), fy), White(0.06f));
-            ui::TextSpaced(dl, F.medium,theme::size::Meta, ImVec2(fx0, fy + px(19)), Gray(0.38f), L(HWID), px(theme::track::Micro));
+            ui::TextSpaced(dl, F.medium,theme::size::Meta, ImVec2(fx0, fy + px(19)), theme::ink::Tertiary,  L(HWID), px(theme::track::Micro));
             ui::Text(dl, F.regular,theme::size::Caption, ImVec2(fx0 + px(44), fy + px(17)), Gray(0.62f), sys::Hwid().c_str());
             char ver[16];
             snprintf(ver, sizeof(ver), "v%s", kVersion);
             const ImVec2 vs = ui::TextSize(F.regular,theme::size::Caption, ver);
-            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(cmax.x - px(32) - vs.x, fy + px(17)), Gray(0.35f), ver);
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(cmax.x - px(32) - vs.x, fy + px(17)), theme::ink::Tertiary,  ver);
         }
 
         // ------------------------------------------------------------------ yükleme
@@ -915,7 +915,7 @@ namespace app
 
             char pct[8];
             snprintf(pct, sizeof(pct), "%d%%", (int)(p * 100.0f));
-            TextCentered(dl, F.medium,theme::size::Meta, c.x, c.y + px(156), Gray(0.42f), pct);
+            TextCentered(dl, F.medium,theme::size::Meta, c.x, c.y + px(156), theme::ink::Secondary, pct);
 
             if (t > dur + 0.3f)
                 GoTo(Screen::Main);
@@ -941,7 +941,7 @@ namespace app
 
             ui::Text(dl, F.medium,theme::size::Body, ImVec2(mn.x + px(56), mn.y + px(22)), Gray(0.60f), label);
             ui::Text(dl, F.bold,theme::size::PageTitle, ImVec2(mn.x + px(16), mn.y + px(54)), Gray(0.97f), value);
-            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(mn.x + px(16), mn.y + px(88)), Gray(0.42f), sub);
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(mn.x + px(16), mn.y + px(88)), theme::ink::Tertiary,  sub);
 
             const ImVec2 b0(mn.x + px(16), mx.y - px(15)), b1(mx.x - px(16), mx.y - px(12));
             dl->AddRectFilled(b0, b1, White(0.07f), px(2));
@@ -984,7 +984,7 @@ namespace app
             const float gw = floorf((cw - gap) * 0.64f), rh = px(236);
             ui::Card(dl, p, p + ImVec2(gw, rh));
             ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(ProcessorLoad));
-            ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(0.45f), L(LiveLast30s));
+            ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), theme::ink::Secondary, L(LiveLast30s));
 
             const float cur = ui::Anim(ImGui::GetID("##cpucur"), g_cpu.back() * 100.0f, 6.0f);
             snprintf(v, sizeof(v), "%.0f%%", cur);
@@ -1000,7 +1000,7 @@ namespace app
             const ImVec2 o(p.x + gw + gap, p.y), osz(cw - gw - gap, rh);
             ui::Card(dl, o, o + osz);
             ui::Text(dl, F.bold,theme::size::Title, o + px(18, 16), Gray(0.96f), L(QuickOptimize));
-            ui::Text(dl, F.regular,theme::size::Body, o + px(18, 38), Gray(0.45f), L(OneClickEvery));
+            ui::Text(dl, F.regular,theme::size::Body, o + px(18, 38), theme::ink::Secondary, L(OneClickEvery));
 
             const float prog  = g_optimizing ? ImSaturate((float)(now - g_optStart) / 3.2f) : 0.0f;
             const float ringV = ui::Anim(ImGui::GetID("##ring"), g_optimizing ? prog : health / 100.0f, 6.0f);
@@ -1008,7 +1008,7 @@ namespace app
             ui::Ring(dl, rc, px(40), px(6), ringV);
             snprintf(v, sizeof(v), g_optimizing ? "%.0f%%" : "%.0f", g_optimizing ? prog * 100.0f : health);
             TextCentered(dl, F.bold,theme::size::PageTitle, rc.x, rc.y - px(19), Gray(0.97f), v);
-            TextCentered(dl, F.regular,theme::size::Meta, rc.x, rc.y + px(8), Gray(0.45f), g_optimizing ? L(Optimizing) : L(HealthScore));
+            TextCentered(dl, F.regular,theme::size::Meta, rc.x, rc.y + px(8), theme::ink::Tertiary,  g_optimizing ? L(Optimizing) : L(HealthScore));
 
             ImGui::SetCursorScreenPos(ImVec2(o.x + px(18), o.y + rh - px(58)));
             if (ui::Button(L(OptimizeNow), ImVec2(osz.x - px(36), px(40)), ButtonStyle::Primary, Icon::Bolt, g_optimizing))
@@ -1197,7 +1197,7 @@ namespace app
             const float  ch = px(238);
             ui::Card(dl, p0, p0 + ImVec2(cw, ch));
             ui::Text(dl, F.bold,theme::size::Title, p0 + px(18, 16), Gray(0.96f), L(RamOptimization));
-            ui::Text(dl, F.regular,theme::size::Body, p0 + px(18, 38), Gray(0.45f), L(RamOptDesc));
+            ui::Text(dl, F.regular,theme::size::Body, p0 + px(18, 38), theme::ink::Secondary, L(RamOptDesc));
 
             // sağ üstte kurulu bellek rozeti
             {
@@ -1351,7 +1351,7 @@ namespace app
                 on += t.on ? 1 : 0;
             char info[128];
             snprintf(info, sizeof(info), L(TweaksEnabledFmt), on, (int)list.size(), cats[g_tweakCat]);
-            ui::Label(theme::fonts.regular,theme::size::Body, 0.45f, info);
+            ui::Label(theme::fonts.regular,theme::size::Body, theme::ink::Secondary, info);
 
             const float a = ImSaturate((float)(now - g_tweakCatTime) / 0.25f);
             ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * a);
@@ -1378,7 +1378,7 @@ namespace app
                 char rtLabel[128];
                 snprintf(rtLabel, sizeof(rtLabel), "%s \xC2\xB7 %s", L(RoundTrip),
                          g_pingSampled ? "1.1.1.1" : L(Simulated));
-                ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(0.45f), rtLabel);
+                ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), theme::ink::Secondary, rtLabel);
             }
 
             const float cur = ui::Anim(ImGui::GetID("##pingcur"), g_latency, 6.0f);
@@ -1399,16 +1399,16 @@ namespace app
 
                 snprintf(v, sizeof(v), "%s %.1f ms", L(Jitter), sqrtf(var));
                 const ImVec2 js = ui::TextSize(F.regular,theme::size::Caption, v);
-                ui::Text(dl, F.regular,theme::size::Caption, ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), Gray(0.45f), v);
+                ui::Text(dl, F.regular,theme::size::Caption, ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), theme::ink::Tertiary,  v);
             }
             else
             {
                 const char* pending = L(PingUnavailable);
                 const ImVec2 cs = ui::TextSize(F.medium,theme::size::Title, pending);
-                ui::Text(dl, F.medium,theme::size::Title, ImVec2(p.x + cw - px(18) - cs.x, p.y + px(18)), Gray(0.35f), pending);
+                ui::Text(dl, F.medium,theme::size::Title, ImVec2(p.x + cw - px(18) - cs.x, p.y + px(18)), theme::ink::Secondary, pending);
             }
             const ImVec2 js = ui::TextSize(F.regular,theme::size::Caption, v);
-            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), Gray(0.45f), v);
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), theme::ink::Tertiary,  v);
 
             ui::Graph(dl, p + px(18, 70), p + ImVec2(cw - px(18), gh - px(18)), g_ping.data(), (int)g_ping.size(), 0.0f, 60.0f,
                       (float)((now - g_lastSample) / 0.5));
@@ -1422,7 +1422,7 @@ namespace app
             const float dh = px(136);
             ui::Card(dl, p, p + ImVec2(cw, dh));
             ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(DnsProvider));
-            ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(0.45f), L(ResolverUsed));
+            ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), theme::ink::Secondary, L(ResolverUsed));
 
             const float fbw = px(160);
             ImGui::SetCursorScreenPos(p + px(18, 78));
@@ -1455,7 +1455,7 @@ namespace app
                 const float ih = px(136);
                 ui::Card(dl, p, p + ImVec2(cw, ih));
                 ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(Connection));
-                ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(0.45f), L(ActiveAdapter));
+                ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), theme::ink::Secondary, L(ActiveAdapter));
                 const float rw = cw - px(36);
                 ImGui::SetCursorScreenPos(p + px(18, 64));
                 ImGui::BeginGroup();
@@ -1696,14 +1696,14 @@ namespace app
 
                 // Lisans ekranı her anahtarı kabul ettiği için bu kart gerçek bir satın alım
                 // aktifmiş gibi okunmamalı.
-                ui::Label(theme::fonts.regular,theme::size::Meta, 0.40f, L(DemoLicenseNote));
+                ui::Label(theme::fonts.regular,theme::size::Meta, theme::ink::Tertiary, L(DemoLicenseNote));
 
                 if (ui::Button(L(SignOut), ImVec2(w, px(40)), ButtonStyle::Secondary, Icon::Logout))
                     SignOut();
 
                 char ver[96];
                 snprintf(ver, sizeof(ver), "%s %s \xC2\xB7 %s", brand::kNameA, DisplayVersion(), L(LicenseLine));
-                ui::Label(theme::fonts.regular,theme::size::Meta, 0.34f, ver);
+                ui::Label(theme::fonts.regular,theme::size::Meta, theme::ink::Tertiary, ver);
             }
             ui::EndCard();
             ImGui::EndGroup();

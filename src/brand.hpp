@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 // Ürünün kimlik bilgileri tek bir yerde toplanır.
 //
@@ -73,8 +73,8 @@ namespace brand
     constexpr const char*    kVersionMinor  = "0";
     constexpr const char*    kVersionPatch  = "0";
     constexpr const char*    kVersion       = "1.0.0";
-    constexpr const char*    kPublisher     = "TENGRI Project";
-    constexpr const char*    kDescription   = "TENGRI - System Optimizer";
+    constexpr const char*    kPublisher     = "TENGRİ Project";
+    constexpr const char*    kDescription   = "TENGRİ - System Optimizer";
 
     // ---- derleme -----------------------------------------------------------
     // Derleme betiği (çıktı adı) ve CMake yapılandırması (proje ve hedef adı)
