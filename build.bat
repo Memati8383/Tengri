@@ -95,7 +95,14 @@ if errorlevel 1 (
 )
 
 echo [*] Building TENGRI.exe ...
-cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 /MP ^
+
+:: _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS: C++/WinRT (src\core\notify.cpp)
+:: <experimental/coroutine> basligini cekiyor. Yeni MSVC surumlerinde bu kullanim
+:: STL1011 ile HATA olarak reddediliyor; release isi bu yuzden kurulumda kirildi.
+:: Uygulama C++20 <coroutine> kullanmiyor, dolayisiyla bu yalnizca bir gecislik
+:: uyarisidir ve susturulmasinda kayip yok. Test derlemesi WinRT kullanmadigi
+:: icin bayraagi almaz.
+cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 /MP /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS ^
    /DNDEBUG /DUNICODE /D_UNICODE /DIMGUI_DEFINE_MATH_OPERATORS ^
    /DTENGRI_HAS_TWEAK_KEYS ^
    /I src /I build\obj /I %IMGUI% /I %IMGUI%\backends ^
