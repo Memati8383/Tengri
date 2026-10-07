@@ -1,5 +1,5 @@
 #include "logo.hpp"
-#include "brand.hpp"
+#include "logo_data.hpp"
 #include <windows.h>
 #include <wincodec.h>
 #include <d3d11.h>
@@ -16,7 +16,29 @@ namespace logo
         ID3D11ShaderResourceView* g_tex   = nullptr;
         bool                     g_tried = false;
 
-        // Kaynaktaki PNG'yi kaynak sırasında BGRA olarak çözer.
+        // COM'yi bu dosya başlatmışsa kapatmak da bu dosyanın işidir. Uygulamanın geri
+        // kalanı COM kullanmıyor, bu yüzden sahiplik bayrağı tutulur: bir başkası
+        // zaten başlatmışsa bizim kapatmamız o işi bozar.
+        bool g_comOwned = false;
+
+        void EnsureCom()
+        {
+            if (g_comOwned) return;
+            // RPC_E_CHANGED_MODE: başka biri COM'u farklı bir apartment modeliyle
+            // başlatmış. Bu bizim hatamız değil; WIC yine de çalışır, yalnızca
+            // şu çağrı S_FALSE döner ve bu da "zaten başlatılmış" demektir.
+            g_comOwned = SUCCEEDED(::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED |
+                                                            COINIT_DISABLE_OLE1DDE));
+        }
+
+        void ReleaseCom()
+        {
+            if (!g_comOwned) return;
+            ::CoUninitialize();
+            g_comOwned = false;
+        }
+
+        // Gömülü PNG'yi kaynak sırasında BGRA olarak çözer.
         //
         // WIC kendi decoder'ını taşır, bu yüzden projeye üçüncü taraf bir görüntü
         // kitaplığı eklemeye gerek kalmaz. Sonuç üst satırdan başlayan sıralı
@@ -26,23 +48,13 @@ namespace logo
             out->clear();
             *outW = *outH = 0;
 
-            HRSRC res = ::FindResourceW(nullptr, MAKEINTRESOURCEW(brand::kLogoResId), RT_RCDATA);
-            HGLOBAL glob = res ? ::LoadResource(nullptr, res) : nullptr;
-            if (!glob) return false;
-
-            const SIZE_T bytes = ::SizeofResource(nullptr, res);
-            const BYTE*  data  = static_cast<const BYTE*>(::LockResource(glob));
-            if (!data || bytes == 0) return false;
-
-            IWICImagingFactory*     factory = nullptr;
-            IWICStream*             stream  = nullptr;
-            IWICBitmapDecoder*      decoder = nullptr;
-            IWICBitmapFrameDecode*  frame   = nullptr;
-            IWICFormatConverter*    conv    = nullptr;
-            // goto etiketi yalnızca ileri atladığı için, aradaki her yerel
-            // değişken burada tanımlanmalı; yoksa etiket geçişi onları atlar.
-            std::vector<BYTE> pixels;
-            UINT w = 0, h = 0;
+            IWICImagingFactory*        factory = nullptr;
+            IWICStream*                stream  = nullptr;
+            IWICBitmapDecoder*         decoder = nullptr;
+            IWICBitmapFrameDecode*     frame   = nullptr;
+            IWICFormatConverter*       conv    = nullptr;
+            std::vector<BYTE>          pixels;
+            HRESULT hr = S_OK;
             bool ok = false;
 
             auto cleanup = [&] {
@@ -53,26 +65,33 @@ namespace logo
                 if (factory) factory->Release();
             };
 
-            if (FAILED(::CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
-                                         IID_PPV_ARGS(&factory))))               goto done;
-            if (FAILED(factory->CreateStream(&stream)))                        goto done;
-            if (FAILED(stream->InitializeFromMemory(const_cast<BYTE*>(data),
-                                                    static_cast<DWORD>(bytes)))) goto done;
-            if (FAILED(factory->CreateDecoderFromStream(stream, nullptr, WICDecodeMetadataCacheOnLoad,
-                                                        &decoder)))          goto done;
-            if (FAILED(decoder->GetFrame(0, &frame)))                         goto done;
+            // Veriyi kopyalamadan WIC'e açmak için sabit bir arabelleğe ihtiyaç
+            // var: InitializeFromMemory işaretçi tutar ve baytların hayatta kalmasını
+            // ister. Baytlar statik olduğu için bu güvenli.
+            if (FAILED(hr = ::CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                                          IID_PPV_ARGS(&factory))))               goto done;
+            if (FAILED(hr = factory->CreateStream(&stream)))                   goto done;
+            if (FAILED(hr = stream->InitializeFromMemory(const_cast<unsigned char*>(logodata::kLogoPng),
+                                                         logodata::kLogoPngSize))) goto done;
+            if (FAILED(hr = factory->CreateDecoderFromStream(stream, nullptr, WICDecodeMetadataCacheOnLoad,
+                                                             &decoder)))        goto done;
+            if (FAILED(hr = decoder->GetFrame(0, &frame)))                     goto done;
 
             // wincodec.h dönüştürücü türlerini GUID olarak vermez, elle kurulur.
-            if (FAILED(factory->CreateFormatConverter(&conv)))                 goto done;
-            if (FAILED(conv->Initialize(frame, GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone,
-                                        nullptr, 0.0, WICBitmapPaletteTypeCustom))) goto done;
+            if (FAILED(hr = factory->CreateFormatConverter(&conv)))            goto done;
+            if (FAILED(hr = conv->Initialize(frame, GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone,
+                                              nullptr, 0.0, WICBitmapPaletteTypeCustom))) goto done;
 
-            UINT w2 = 0, h2 = 0;
-            if (FAILED(conv->GetSize(&w2, &h2)) || w2 == 0 || h2 == 0)        goto done;
-            w = w2; h = h2;
+            UINT w = 0, h = 0;
+            if (FAILED(hr = conv->GetSize(&w, &h)) || w == 0 || h == 0)       goto done;
 
-            pixels.resize(static_cast<SIZE_T>(w) * h * 4);
-            if (FAILED(conv->CopyPixels(nullptr, w * 4, w * 4, pixels.data()))) goto done;
+            const UINT stride = w * 4;
+            pixels.resize(static_cast<SIZE_T>(stride) * h);
+
+            // cbStride satır adımı, cbBufferSize ise arabelleğin TOPLAM boyutudur;
+            // ikisi karıştırıldığında CopyPixels WINCODEC_ERR_INVALIDPARAMETER verir.
+            if (FAILED(hr = conv->CopyPixels(nullptr, stride, static_cast<UINT>(pixels.size()),
+                                            pixels.data())))                    goto done;
 
             out->swap(pixels);
             *outW = w;
@@ -93,6 +112,8 @@ namespace logo
         g_tried = true;
         if (!device) return false;
 
+        EnsureCom();   // CoCreateInstance bunu olmadan her zaman başarısız olur
+
         std::vector<BYTE> pixels;
         UINT w = 0, h = 0;
         if (!DecodePng(&pixels, &w, &h)) return false;
@@ -112,7 +133,8 @@ namespace logo
         init.SysMemPitch = w * 4;
 
         ID3D11Texture2D* tex2d = nullptr;
-        if (FAILED(device->CreateTexture2D(&td, &init, &tex2d))) return false;
+        HRESULT hr = device->CreateTexture2D(&td, &init, &tex2d);
+        if (FAILED(hr)) return false;
 
         // Varsayılan nokta örneklemesi 16px'te kurtu gözle okunmaz hâle getiriyor;
         // doku küçültülürken doğrusal ara değer şart.
@@ -125,9 +147,9 @@ namespace logo
         sd.MaxLOD = D3D11_FLOAT32_MAX;
 
         ID3D11SamplerState* samp = nullptr;
-        if (FAILED(device->CreateSamplerState(&sd, &samp))) { tex2d->Release(); return false; }
+        if (FAILED(hr = device->CreateSamplerState(&sd, &samp))) { tex2d->Release(); return false; }
 
-        const HRESULT hr = device->CreateShaderResourceView(tex2d, nullptr, &g_tex);
+        hr = device->CreateShaderResourceView(tex2d, nullptr, &g_tex);
         samp->Release();
         tex2d->Release();
         return SUCCEEDED(hr);
@@ -136,6 +158,7 @@ namespace logo
     void Shutdown()
     {
         if (g_tex) { g_tex->Release(); g_tex = nullptr; }
+        ReleaseCom();
         g_tried = false;
     }
 

@@ -97,6 +97,26 @@ cd Tengri
 build.bat
 ```
 
+### Yazı tipi
+
+Arayüz **Inter** kullanır. Uygulamanın gerçekten çizdiği karakterlere (Basic Latin +
+Türkçe + noktalama) göre alt kümelenmiş hâli `res/fonts` altında durur, üç ağırlık
+toplam 75 KB'dır ve exe içine gömülür — yani font dosyası yanında olmadan da arayüz
+doğru çizilir.
+
+Inter, SIL Open Font License 1.1 ile lisanslıdır; tam metin
+[`res/fonts/Inter-OFL.txt`](res/fonts/Inter-OFL.txt) içinde. Alt kümeleri
+yeniden üretmek için:
+
+```bat
+python -m pip install fonttools
+.\tools\make_font_subset.ps1 -Archive <Inter-*.zip>
+.\tools\make_font_data.ps1
+```
+
+Yazı tipi değişikliklerinde tipografi ölçeği `src/gui/theme.hpp` içindedir
+(`theme::size`, `theme::track`, `theme::ink`). Çağrı yerlerinde sayı yazma.
+
 ---
 
 ## Ekran görüntüleri

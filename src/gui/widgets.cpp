@@ -106,8 +106,8 @@ namespace ui
     {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const ImVec2 pos = ImGui::GetCursorScreenPos();
-        const ImVec2 sz  = SpacedSize(theme::fonts.medium, 10.5f, text, px(1.6f));
-        TextSpaced(dl, theme::fonts.medium, 10.5f, pos, Gray(0.40f), text, px(1.6f));
+        const ImVec2 sz  = SpacedSize(theme::fonts.medium,theme::size::Meta, text, px(theme::track::Micro));
+        TextSpaced(dl, theme::fonts.medium, theme::size::Meta, pos, Gray(0.40f), text, px(theme::track::Micro));
         ImGui::Dummy(sz);
     }
 
@@ -151,11 +151,11 @@ namespace ui
 
         if (title)
         {
-            Label(theme::fonts.bold, 15.0f, 0.96f, title);
+            Label(theme::fonts.bold,theme::size::Title, 0.96f, title);
             if (subtitle)
             {
                 ImGui::SetCursorPosY(ImGui::GetCursorPosY() - px(4));
-                Label(theme::fonts.regular, 12.5f, 0.48f, subtitle);
+                Label(theme::fonts.regular,theme::size::Body, 0.48f, subtitle);
             }
             ImGui::Dummy(ImVec2(0, px(4)));
         }
@@ -239,7 +239,7 @@ namespace ui
         }
 
         const char* end   = VisibleEnd(label);
-        const ImVec2 ts   = TextSize(theme::fonts.medium, 14.0f, label, end);
+        const ImVec2 ts   = TextSize(theme::fonts.medium,theme::size::Label, label, end);
         const float  isz  = icon != Icon::None ? px(15) : 0.0f;
         const float  gap  = icon != Icon::None && ts.x > 0 ? px(8) : 0.0f;
         const float  tw   = isz + gap + ts.x;
@@ -249,7 +249,7 @@ namespace ui
             icons::Draw(dl, icon, ImVec2(x + isz * 0.5f, center.y), isz, textCol, px(1.6f));
             x += isz + gap;
         }
-        Text(dl, theme::fonts.medium, 14.0f, ImVec2(x, center.y - ts.y * 0.5f), textCol, label, end);
+        Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(x, center.y - ts.y * 0.5f), textCol, label, end);
         return pressed;
     }
 
@@ -316,8 +316,8 @@ namespace ui
         icons::Draw(dl, icon, ImVec2(bb.Min.x + px(22), cy), px(16), Gray(v), px(1.5f));
 
         const char* end = VisibleEnd(label);
-        const ImVec2 ts = TextSize(theme::fonts.medium, 14.0f, label, end);
-        Text(dl, theme::fonts.medium, 14.0f, ImVec2(bb.Min.x + px(42) + sel * px(2), cy - ts.y * 0.5f), Gray(v), label, end);
+        const ImVec2 ts = TextSize(theme::fonts.medium,theme::size::Label, label, end);
+        Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(bb.Min.x + px(42) + sel * px(2), cy - ts.y * 0.5f), Gray(v), label, end);
         return pressed;
     }
 
@@ -385,13 +385,13 @@ namespace ui
         const char* end = VisibleEnd(label);
         if (desc)
         {
-            Text(dl, theme::fonts.medium, 14.0f, ImVec2(bb.Min.x + padX, bb.Min.y + px(12)), titleCol, label, end);
-            Text(dl, theme::fonts.regular, 12.5f, ImVec2(bb.Min.x + padX, bb.Min.y + px(33)), Gray(0.48f), desc);
+            Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(bb.Min.x + padX, bb.Min.y + px(12)), titleCol, label, end);
+            Text(dl, theme::fonts.regular,theme::size::Body, ImVec2(bb.Min.x + padX, bb.Min.y + px(33)), Gray(0.48f), desc);
         }
         else
         {
-            const ImVec2 ts = TextSize(theme::fonts.medium, 14.0f, label, end);
-            Text(dl, theme::fonts.medium, 14.0f, ImVec2(bb.Min.x + padX, cy - ts.y * 0.5f), titleCol, label, end);
+            const ImVec2 ts = TextSize(theme::fonts.medium,theme::size::Label, label, end);
+            Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(bb.Min.x + padX, cy - ts.y * 0.5f), titleCol, label, end);
         }
         dl->PopClipRect();
 
@@ -456,15 +456,15 @@ namespace ui
         float rightW = 0.0f;
         if (right && *right)
         {
-            const ImVec2 rs = TextSize(theme::fonts.medium, 13.5f, right);
+            const ImVec2 rs = TextSize(theme::fonts.medium,theme::size::Body, right);
             rightW = rs.x + px(12);
-            Text(dl, theme::fonts.medium, 13.5f, ImVec2(bb.Max.x - px(16) - rs.x, bb.GetCenter().y - rs.y * 0.5f), Gray(0.55f + 0.4f * on), right);
+            Text(dl, theme::fonts.medium,theme::size::Body, ImVec2(bb.Max.x - px(16) - rs.x, bb.GetCenter().y - rs.y * 0.5f), Gray(0.55f + 0.4f * on), right);
         }
 
         dl->PushClipRect(bb.Min, ImVec2(bb.Max.x - px(16) - rightW, bb.Max.y), true);
-        Text(dl, theme::fonts.medium, 14.0f, ImVec2(tx, bb.Min.y + px(12)), Gray(0.78f + 0.2f * ImMax(on, hv)), label, VisibleEnd(label));
+        Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(tx, bb.Min.y + px(12)), Gray(0.78f + 0.2f * ImMax(on, hv)), label, VisibleEnd(label));
         if (desc)
-            Text(dl, theme::fonts.regular, 12.5f, ImVec2(tx, bb.Min.y + px(33)), Gray(0.46f), desc);
+            Text(dl, theme::fonts.regular,theme::size::Body, ImVec2(tx, bb.Min.y + px(33)), Gray(0.46f), desc);
         dl->PopClipRect();
         return pressed;
     }
@@ -525,8 +525,8 @@ namespace ui
 
         if (buf[0] == 0 && hint)
         {
-            const ImVec2 hs = TextSize(theme::fonts.medium, 14.5f, hint);
-            Text(dl, theme::fonts.medium, 14.5f, ImVec2(textX, cy - hs.y * 0.5f), Gray(0.32f + 0.06f * focus), hint);
+            const ImVec2 hs = TextSize(theme::fonts.medium,theme::size::Label, hint);
+            Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(textX, cy - hs.y * 0.5f), Gray(0.32f + 0.06f * focus), hint);
         }
         (void)fontSize;
 
@@ -581,12 +581,12 @@ namespace ui
 
         ImDrawList* dl = win->DrawList;
         const char* end = VisibleEnd(label);
-        Text(dl, theme::fonts.regular, 13.5f, bb.Min, Gray(0.75f + 0.15f * hv), label, end);
+        Text(dl, theme::fonts.regular,theme::size::Body, bb.Min, Gray(0.75f + 0.15f * hv), label, end);
 
         char vb[32];
         snprintf(vb, sizeof vb, fmt, *v);
-        const ImVec2 vs = TextSize(theme::fonts.medium, 13.5f, vb);
-        Text(dl, theme::fonts.medium, 13.5f, ImVec2(bb.Max.x - vs.x, bb.Min.y), Gray(0.95f), vb);
+        const ImVec2 vs = TextSize(theme::fonts.medium,theme::size::Body, vb);
+        Text(dl, theme::fonts.medium,theme::size::Body, ImVec2(bb.Max.x - vs.x, bb.Min.y), Gray(0.95f), vb);
 
         const float tr = track.GetHeight() * 0.5f;
         dl->AddRectFilled(track.Min, track.Max, White(0.08f), tr);
@@ -656,9 +656,9 @@ namespace ui
             }
             const float hv = Anim(Key(sid, "h"), hovered ? 1.0f : 0.0f, 14.0f);
             const float s  = ImSaturate(1.0f - fabsf(at - (float)i));
-            const ImVec2 ts = TextSize(theme::fonts.medium, 13.5f, items[i]);
+            const ImVec2 ts = TextSize(theme::fonts.medium,theme::size::Body, items[i]);
             const float g = ImLerp(0.55f + 0.3f * hv, 0.05f, s);
-            Text(dl, theme::fonts.medium, 13.5f, sb.GetCenter() - ts * 0.5f, Gray(g), items[i]);
+            Text(dl, theme::fonts.medium,theme::size::Body, sb.GetCenter() - ts * 0.5f, Gray(g), items[i]);
         }
         return changed;
     }
@@ -827,8 +827,8 @@ namespace ui
             icons::Draw(dl, icon, ic, px(14), Gray(0.05f, a), px(1.8f));
 
             dl->PushClipRect(mn, mx - ImVec2(px(12), 0), true);
-            Text(dl, theme::fonts.medium, 14.0f, ImVec2(mn.x + px(56), mn.y + px(13)), Gray(0.96f, a), n.title.c_str());
-            Text(dl, theme::fonts.regular, 12.5f, ImVec2(mn.x + px(56), mn.y + px(33)), Gray(0.52f, a), n.message.c_str());
+            Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(mn.x + px(56), mn.y + px(13)), Gray(0.96f, a), n.title.c_str());
+            Text(dl, theme::fonts.regular,theme::size::Body, ImVec2(mn.x + px(56), mn.y + px(33)), Gray(0.52f, a), n.message.c_str());
             dl->PopClipRect();
 
             const float life = ImSaturate(1.0f - age / n.duration);

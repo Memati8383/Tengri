@@ -51,7 +51,7 @@ if not exist build mkdir build
 if not exist build\obj mkdir build\obj
 
 set IMGUI=third_party\imgui
-set SOURCES=src\main.cpp src\app.cpp src\gui\theme.cpp src\gui\fx.cpp src\gui\icons.cpp src\gui\brand_icons.cpp src\gui\logo.cpp src\gui\widgets.cpp ^
+set SOURCES=src\main.cpp src\app.cpp src\gui\theme.cpp src\gui\fx.cpp src\gui\icons.cpp src\gui\brand_icons.cpp src\gui\logo.cpp src\gui\logo_data.cpp src\gui\font_data.cpp src\gui\widgets.cpp ^
  src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\core\backup.cpp src\tray.cpp ^
  %IMGUI%\imgui.cpp %IMGUI%\imgui_draw.cpp %IMGUI%\imgui_tables.cpp %IMGUI%\imgui_widgets.cpp ^
  %IMGUI%\backends\imgui_impl_win32.cpp %IMGUI%\backends\imgui_impl_dx11.cpp
@@ -65,6 +65,23 @@ rem Registry tablosunu yenile: tweaks.cpp ve regpack.cpp degistiyse docs\tweaks-
 rem eski kalmasin. Derleme ciktisi degil, yanlisi hali derlemeyi bozmaz; yine de
 rem tutarsizlik gorunur olsun.
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\make_tweak_table.ps1 || exit /b 1
+
+rem Marka varliklarini yeniden uret:
+rem   - make_icon_from_png.ps1 -> res\tengri.ico (pencere, gorev cubugu, bildirim)
+rem   - make_logo_data.ps1     -> src\gui\logo_data.cpp (arayuzde cizilen doku)
+rem Artwork tek dosyada durur (res\tengri-logo.png); resim degistiginde iki cikti
+rem da elle yenilenmez.
+echo [*] Generating brand assets ...
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\make_icon_from_png.ps1 || exit /b 1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\make_logo_data.ps1 -WhiteArtwork || exit /b 1
+
+rem Yazi tipini res\fonts altindaki alt kumelerden gom:
+rem   - make_font_data.ps1 -> src\gui\font_data.cpp
+rem Alt kume uretimi (fontTools, Python) burada degil; sadece gomme isini yapar,
+rem boylece derleme yalnizca PowerShell ister. Onemli: bu adim birakilsa bir
+onceki surumden kalan font_data.cpp derlenir ve degisiklikler sessizce yoksayilir.
+echo [*] Embedding fonts ...
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\make_font_data.ps1 || exit /b 1
 
 rem res\tengri.rc ikonu, uygulama manifestini (yetki + DPI + isletim sistemi uyumlulugu)
 rem ve VERSIONINFO blogunu tasiyor. rc.exe ayri bir adim olarak calismak zorunda: cl bir

@@ -419,10 +419,10 @@ namespace app
             ImDrawList* dl = ImGui::GetWindowDrawList();
             const ImVec2 p = ImGui::GetCursorScreenPos();
             const float  h = px(30);
-            const ImVec2 ks = ui::TextSize(theme::fonts.regular, 13.0f, k);
-            const ImVec2 vs = ui::TextSize(theme::fonts.medium, 13.0f, v);
-            ui::Text(dl, theme::fonts.regular, 13.0f, ImVec2(p.x, p.y + (h - ks.y) * 0.5f), Gray(0.50f), k);
-            ui::Text(dl, theme::fonts.medium, 13.0f, ImVec2(p.x + w - vs.x, p.y + (h - vs.y) * 0.5f), Gray(0.92f), v);
+            const ImVec2 ks = ui::TextSize(theme::fonts.regular,theme::size::Body, k);
+            const ImVec2 vs = ui::TextSize(theme::fonts.medium,theme::size::Body, v);
+            ui::Text(dl, theme::fonts.regular,theme::size::Body, ImVec2(p.x, p.y + (h - ks.y) * 0.5f), Gray(0.50f), k);
+            ui::Text(dl, theme::fonts.medium,theme::size::Body, ImVec2(p.x + w - vs.x, p.y + (h - vs.y) * 0.5f), Gray(0.92f), v);
             if (sep)
                 dl->AddLine(ImVec2(p.x, p.y + h + px(3)), ImVec2(p.x + w, p.y + h + px(3)), White(0.05f));
             ImGui::Dummy(ImVec2(w, h));
@@ -806,9 +806,9 @@ namespace app
             const auto& F = theme::fonts;
 
             // sol üstte marka
-            ui::TextSpaced(dl, F.bold, 12.5f, px(22, 19), Gray(0.9f), brand::kNameA, px(2.0f));
-            const float bw = ui::SpacedSize(F.bold, 12.5f, brand::kNameA, px(2.0f)).x;
-            ui::Text(dl, F.regular, 12.5f, ImVec2(px(22) + bw + px(10), px(19)), Gray(0.38f), L(SecureLoader));
+            ui::TextSpaced(dl, F.bold,theme::size::Body, px(22, 19), Gray(0.9f), brand::kNameA, px(theme::track::Micro));
+            const float bw = ui::SpacedSize(F.bold,theme::size::Body, brand::kNameA, px(theme::track::Micro)).x;
+            ui::Text(dl, F.regular,theme::size::Body, ImVec2(px(22) + bw + px(10), px(19)), Gray(0.38f), L(SecureLoader));
 
             // kart (hata durumunda titrer)
             const float cw = px(380), ch = px(468);
@@ -826,13 +826,13 @@ namespace app
 
             // marka bloğu
             DrawLogo(dl, ImVec2(cx, cmin.y + px(66)), px(40));
-            const ImVec2 ts = ui::SpacedSize(F.bold, 26.0f, brand::kNameA, px(6));
-            ui::TextSpaced(dl, F.bold, 26.0f, ImVec2(cx - ts.x * 0.5f, cmin.y + px(104)), Gray(0.97f), brand::kNameA, px(6));
-            TextCentered(dl, F.regular, 13.5f, cx, cmin.y + px(144), Gray(0.50f), L(Tagline));
+            const ImVec2 ts = ui::SpacedSize(F.bold,theme::size::Display, brand::kNameA, px(theme::track::Wide));
+            ui::TextSpaced(dl, F.bold,theme::size::Display, ImVec2(cx - ts.x * 0.5f, cmin.y + px(104)), Gray(0.97f), brand::kNameA, px(theme::track::Wide));
+            TextCentered(dl, F.regular,theme::size::Body, cx, cmin.y + px(144), Gray(0.50f), L(Tagline));
 
             // form alanları
             const float fx0 = cmin.x + px(32), fw = cw - px(64);
-            ui::TextSpaced(dl, F.medium, 10.5f, ImVec2(fx0, cmin.y + px(188)), Gray(0.42f), L(LicenseKey), px(1.6f));
+            ui::TextSpaced(dl, F.medium,theme::size::Meta, ImVec2(fx0, cmin.y + px(188)), Gray(0.42f), L(LicenseKey), px(theme::track::Micro));
 
             const float gbw = px(88);
             ImGui::SetCursorScreenPos(ImVec2(fx0 + fw - gbw, cmin.y + px(183)));
@@ -858,32 +858,32 @@ namespace app
             const float sy = cmin.y + px(384);
             if (g_waiting)
             {
-                TextCentered(dl, F.regular, 12.5f, cx, sy, Gray(0.55f), L(ContactingServer));
+                TextCentered(dl, F.regular,theme::size::Body, cx, sy, Gray(0.55f), L(ContactingServer));
             }
             else if (!g_loginError.empty())
             {
-                const ImVec2 es = ui::TextSize(F.medium, 12.5f, g_loginError.c_str());
+                const ImVec2 es = ui::TextSize(F.medium,theme::size::Body, g_loginError.c_str());
                 const float  x  = cx - (es.x + px(22)) * 0.5f;
                 dl->AddCircleFilled(ImVec2(x + px(8), sy + es.y * 0.5f), px(8), White(0.92f), 20);
                 icons::Draw(dl, Icon::Warning, ImVec2(x + px(8), sy + es.y * 0.5f), px(9), Gray(0.05f), px(1.6f));
-                ui::Text(dl, F.medium, 12.5f, ImVec2(x + px(22), sy), Gray(0.88f), g_loginError.c_str());
+                ui::Text(dl, F.medium,theme::size::Body, ImVec2(x + px(22), sy), Gray(0.88f), g_loginError.c_str());
             }
             else
             {
                 char demoMsg[128];
                 snprintf(demoMsg, sizeof(demoMsg), "%s \xC2\xB7 %s", L(DemoMode), L(AnyKeyAccepted));
-                TextCentered(dl, F.regular, 12.5f, cx, sy, Gray(0.38f), demoMsg);
+                TextCentered(dl, F.regular,theme::size::Body, cx, sy, Gray(0.38f), demoMsg);
             }
 
             // alt bilgi
             const float fy = cmax.y - px(50);
             dl->AddLine(ImVec2(cmin.x + px(1), fy), ImVec2(cmax.x - px(1), fy), White(0.06f));
-            ui::TextSpaced(dl, F.medium, 10.0f, ImVec2(fx0, fy + px(19)), Gray(0.38f), L(HWID), px(1.4f));
-            ui::Text(dl, F.regular, 12.0f, ImVec2(fx0 + px(44), fy + px(17)), Gray(0.62f), sys::Hwid().c_str());
+            ui::TextSpaced(dl, F.medium,theme::size::Meta, ImVec2(fx0, fy + px(19)), Gray(0.38f), L(HWID), px(theme::track::Micro));
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(fx0 + px(44), fy + px(17)), Gray(0.62f), sys::Hwid().c_str());
             char ver[16];
             snprintf(ver, sizeof(ver), "v%s", kVersion);
-            const ImVec2 vs = ui::TextSize(F.regular, 12.0f, ver);
-            ui::Text(dl, F.regular, 12.0f, ImVec2(cmax.x - px(32) - vs.x, fy + px(17)), Gray(0.35f), ver);
+            const ImVec2 vs = ui::TextSize(F.regular,theme::size::Caption, ver);
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(cmax.x - px(32) - vs.x, fy + px(17)), Gray(0.35f), ver);
         }
 
         // ------------------------------------------------------------------ yükleme
@@ -902,20 +902,20 @@ namespace app
             DrawLogo(dl, c, px(44));
 
             const std::string welcome = std::string(L(WelcomeBack)) + license::Current().user;
-            TextCentered(dl, F.bold, 20.0f, c.x, c.y + px(76), Gray(0.97f), welcome.c_str());
+            TextCentered(dl, F.bold, theme::size::PageTitle, c.x, c.y + px(76), Gray(0.97f), welcome.c_str());
 
             static const char* const steps[] = {
                 L(LoadingStep1), L(LoadingStep2), L(LoadingStep3), L(LoadingStep4)
             };
             const int idx = ImMin((int)(p * 4.0f), 3);
-            TextCentered(dl, F.regular, 13.0f, c.x, c.y + px(108), Gray(0.50f), steps[idx]);
+            TextCentered(dl, F.regular,theme::size::Body, c.x, c.y + px(108), Gray(0.50f), steps[idx]);
 
             ImGui::SetCursorScreenPos(ImVec2(c.x - px(150), c.y + px(142)));
             ui::ProgressBar("##boot", p, ImVec2(px(300), px(4)));
 
             char pct[8];
             snprintf(pct, sizeof(pct), "%d%%", (int)(p * 100.0f));
-            TextCentered(dl, F.medium, 11.5f, c.x, c.y + px(156), Gray(0.42f), pct);
+            TextCentered(dl, F.medium,theme::size::Meta, c.x, c.y + px(156), Gray(0.42f), pct);
 
             if (t > dur + 0.3f)
                 GoTo(Screen::Main);
@@ -939,9 +939,9 @@ namespace app
             dl->AddRect(ib, ib + px(30, 30), White(0.08f), px(8), 0, ImMax(1.0f, px(1)));
             icons::Draw(dl, icon, ib + px(15, 15), px(15), Gray(0.92f), px(1.4f));
 
-            ui::Text(dl, F.medium, 13.0f, ImVec2(mn.x + px(56), mn.y + px(22)), Gray(0.60f), label);
-            ui::Text(dl, F.bold, 24.0f, ImVec2(mn.x + px(16), mn.y + px(54)), Gray(0.97f), value);
-            ui::Text(dl, F.regular, 12.0f, ImVec2(mn.x + px(16), mn.y + px(88)), Gray(0.42f), sub);
+            ui::Text(dl, F.medium,theme::size::Body, ImVec2(mn.x + px(56), mn.y + px(22)), Gray(0.60f), label);
+            ui::Text(dl, F.bold,theme::size::PageTitle, ImVec2(mn.x + px(16), mn.y + px(54)), Gray(0.97f), value);
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(mn.x + px(16), mn.y + px(88)), Gray(0.42f), sub);
 
             const ImVec2 b0(mn.x + px(16), mx.y - px(15)), b1(mx.x - px(16), mx.y - px(12));
             dl->AddRectFilled(b0, b1, White(0.07f), px(2));
@@ -983,13 +983,13 @@ namespace app
             p = ImGui::GetCursorScreenPos();
             const float gw = floorf((cw - gap) * 0.64f), rh = px(236);
             ui::Card(dl, p, p + ImVec2(gw, rh));
-            ui::Text(dl, F.bold, 15.0f, p + px(18, 16), Gray(0.96f), L(ProcessorLoad));
-            ui::Text(dl, F.regular, 12.5f, p + px(18, 38), Gray(0.45f), L(LiveLast30s));
+            ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(ProcessorLoad));
+            ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(0.45f), L(LiveLast30s));
 
             const float cur = ui::Anim(ImGui::GetID("##cpucur"), g_cpu.back() * 100.0f, 6.0f);
             snprintf(v, sizeof(v), "%.0f%%", cur);
-            const ImVec2 cs = ui::TextSize(F.bold, 18.0f, v);
-            ui::Text(dl, F.bold, 18.0f, ImVec2(p.x + gw - px(18) - cs.x, p.y + px(18)), Gray(0.97f), v);
+            const ImVec2 cs = ui::TextSize(F.bold,theme::size::Heading, v);
+            ui::Text(dl, F.bold,theme::size::Heading, ImVec2(p.x + gw - px(18) - cs.x, p.y + px(18)), Gray(0.97f), v);
 
             float peak = 0.0f;
             for (float c : g_cpu) peak = ImMax(peak, c);
@@ -999,16 +999,16 @@ namespace app
 
             const ImVec2 o(p.x + gw + gap, p.y), osz(cw - gw - gap, rh);
             ui::Card(dl, o, o + osz);
-            ui::Text(dl, F.bold, 15.0f, o + px(18, 16), Gray(0.96f), L(QuickOptimize));
-            ui::Text(dl, F.regular, 12.5f, o + px(18, 38), Gray(0.45f), L(OneClickEvery));
+            ui::Text(dl, F.bold,theme::size::Title, o + px(18, 16), Gray(0.96f), L(QuickOptimize));
+            ui::Text(dl, F.regular,theme::size::Body, o + px(18, 38), Gray(0.45f), L(OneClickEvery));
 
             const float prog  = g_optimizing ? ImSaturate((float)(now - g_optStart) / 3.2f) : 0.0f;
             const float ringV = ui::Anim(ImGui::GetID("##ring"), g_optimizing ? prog : health / 100.0f, 6.0f);
             const ImVec2 rc(o.x + osz.x * 0.5f, o.y + px(114));
             ui::Ring(dl, rc, px(40), px(6), ringV);
             snprintf(v, sizeof(v), g_optimizing ? "%.0f%%" : "%.0f", g_optimizing ? prog * 100.0f : health);
-            TextCentered(dl, F.bold, 22.0f, rc.x, rc.y - px(19), Gray(0.97f), v);
-            TextCentered(dl, F.regular, 11.0f, rc.x, rc.y + px(8), Gray(0.45f), g_optimizing ? L(Optimizing) : L(HealthScore));
+            TextCentered(dl, F.bold,theme::size::PageTitle, rc.x, rc.y - px(19), Gray(0.97f), v);
+            TextCentered(dl, F.regular,theme::size::Meta, rc.x, rc.y + px(8), Gray(0.45f), g_optimizing ? L(Optimizing) : L(HealthScore));
 
             ImGui::SetCursorScreenPos(ImVec2(o.x + px(18), o.y + rh - px(58)));
             if (ui::Button(L(OptimizeNow), ImVec2(osz.x - px(36), px(40)), ButtonStyle::Primary, Icon::Bolt, g_optimizing))
@@ -1093,8 +1093,8 @@ namespace app
                 snprintf(cap, sizeof(cap), "%s %s \xC2\xB7 %s", FormatSize(g_freed).c_str(), L(Freed), L(Spotless));
                 break;
             }
-            ui::Text(dl, F.bold, 28.0f, p + px(22, 20), Gray(0.97f), big.c_str());
-            ui::Text(dl, F.regular, 13.0f, p + px(22, 62), Gray(0.50f), cap);
+            ui::Text(dl, F.bold,theme::size::Display, p + px(22, 20), Gray(0.97f), big.c_str());
+            ui::Text(dl, F.regular,theme::size::Body, p + px(22, 62), Gray(0.50f), cap);
 
             const bool  scanning = g_cleanState == CleanState::Scanning;
             const bool  cleaning = g_cleanState == CleanState::Cleaning;
@@ -1196,19 +1196,19 @@ namespace app
             const ImVec2 p0 = ImGui::GetCursorScreenPos();
             const float  ch = px(238);
             ui::Card(dl, p0, p0 + ImVec2(cw, ch));
-            ui::Text(dl, F.bold, 15.0f, p0 + px(18, 16), Gray(0.96f), L(RamOptimization));
-            ui::Text(dl, F.regular, 12.5f, p0 + px(18, 38), Gray(0.45f), L(RamOptDesc));
+            ui::Text(dl, F.bold,theme::size::Title, p0 + px(18, 16), Gray(0.96f), L(RamOptimization));
+            ui::Text(dl, F.regular,theme::size::Body, p0 + px(18, 38), Gray(0.45f), L(RamOptDesc));
 
             // sağ üstte kurulu bellek rozeti
             {
                 char badge[64];
                 snprintf(badge, sizeof(badge), "%s \xC2\xB7 %d GB", L(InstalledRam), detected);
-                const ImVec2 bs = ui::TextSize(F.medium, 12.0f, badge);
+                const ImVec2 bs = ui::TextSize(F.medium,theme::size::Caption, badge);
                 const ImVec2 b0(p0.x + cw - px(18) - bs.x - px(20), p0.y + px(18));
                 const ImVec2 b1 = b0 + ImVec2(bs.x + px(20), px(24));
                 dl->AddRectFilled(b0, b1, White(0.06f), px(7));
                 dl->AddRect(b0, b1, White(0.12f), px(7), 0, ImMax(1.0f, px(1)));
-                ui::Text(dl, F.medium, 12.0f, ImVec2(b0.x + px(10), b0.y + (px(24) - bs.y) * 0.5f), Gray(0.80f), badge);
+                ui::Text(dl, F.medium,theme::size::Caption, ImVec2(b0.x + px(10), b0.y + (px(24) - bs.y) * 0.5f), Gray(0.80f), badge);
             }
 
             // çip ızgarası
@@ -1237,8 +1237,8 @@ namespace app
                 dl->AddRect(c0, c1, White(sel ? 0.0f : (rec ? 0.26f : 0.09f)), px(9), 0, ImMax(1.0f, px(1)));
 
                 const char*  nm = ram::PresetName(i);
-                const ImVec2 ts = ui::TextSize(sel ? F.bold : F.medium, 12.5f, nm);
-                ui::Text(dl, sel ? F.bold : F.medium, 12.5f,
+                const ImVec2 ts = ui::TextSize(sel ? F.bold : F.medium,theme::size::Body, nm);
+                ui::Text(dl, sel ? F.bold : F.medium,theme::size::Body,
                          ImVec2((c0.x + c1.x - ts.x) * 0.5f, (c0.y + c1.y - ts.y) * 0.5f),
                          sel ? Gray(0.05f) : Gray(rec ? 0.92f : 0.60f), nm);
 
@@ -1255,7 +1255,7 @@ namespace app
             const int live = ram::CurrentPreset();
             snprintf(cur, sizeof(cur), "%s: %s", L(CurrentProfile),
                      live < 0 ? L(Custom) : ram::PresetName(live));
-            ui::Text(dl, F.regular, 12.0f, ImVec2(p0.x + px(18), by + px(19)), Gray(0.50f), cur);
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(p0.x + px(18), by + px(19)), Gray(0.50f), cur);
 
             const float bw = px(150);
             ImGui::SetCursorScreenPos(ImVec2(p0.x + cw - px(18) - bw, by + px(10)));
@@ -1351,7 +1351,7 @@ namespace app
                 on += t.on ? 1 : 0;
             char info[128];
             snprintf(info, sizeof(info), L(TweaksEnabledFmt), on, (int)list.size(), cats[g_tweakCat]);
-            ui::Label(theme::fonts.regular, 12.5f, 0.45f, info);
+            ui::Label(theme::fonts.regular,theme::size::Body, 0.45f, info);
 
             const float a = ImSaturate((float)(now - g_tweakCatTime) / 0.25f);
             ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * a);
@@ -1373,12 +1373,12 @@ namespace app
             ImVec2 p = ImGui::GetCursorScreenPos();
             const float gh = px(210);
             ui::Card(dl, p, p + ImVec2(cw, gh));
-            ui::Text(dl, F.bold, 15.0f, p + px(18, 16), Gray(0.96f), L(Latency));
+            ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(Latency));
             {
                 char rtLabel[128];
                 snprintf(rtLabel, sizeof(rtLabel), "%s \xC2\xB7 %s", L(RoundTrip),
                          g_pingSampled ? "1.1.1.1" : L(Simulated));
-                ui::Text(dl, F.regular, 12.5f, p + px(18, 38), Gray(0.45f), rtLabel);
+                ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(0.45f), rtLabel);
             }
 
             const float cur = ui::Anim(ImGui::GetID("##pingcur"), g_latency, 6.0f);
@@ -1394,21 +1394,21 @@ namespace app
             if (g_pingSampled)
             {
                 snprintf(v, sizeof(v), "%.0f ms", cur);
-                const ImVec2 cs = ui::TextSize(F.bold, 18.0f, v);
-                ui::Text(dl, F.bold, 18.0f, ImVec2(p.x + cw - px(18) - cs.x, p.y + px(14)), Gray(0.97f), v);
+                const ImVec2 cs = ui::TextSize(F.bold,theme::size::Heading, v);
+                ui::Text(dl, F.bold,theme::size::Heading, ImVec2(p.x + cw - px(18) - cs.x, p.y + px(14)), Gray(0.97f), v);
 
                 snprintf(v, sizeof(v), "%s %.1f ms", L(Jitter), sqrtf(var));
-                const ImVec2 js = ui::TextSize(F.regular, 12.0f, v);
-                ui::Text(dl, F.regular, 12.0f, ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), Gray(0.45f), v);
+                const ImVec2 js = ui::TextSize(F.regular,theme::size::Caption, v);
+                ui::Text(dl, F.regular,theme::size::Caption, ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), Gray(0.45f), v);
             }
             else
             {
                 const char* pending = L(PingUnavailable);
-                const ImVec2 cs = ui::TextSize(F.medium, 15.0f, pending);
-                ui::Text(dl, F.medium, 15.0f, ImVec2(p.x + cw - px(18) - cs.x, p.y + px(18)), Gray(0.35f), pending);
+                const ImVec2 cs = ui::TextSize(F.medium,theme::size::Title, pending);
+                ui::Text(dl, F.medium,theme::size::Title, ImVec2(p.x + cw - px(18) - cs.x, p.y + px(18)), Gray(0.35f), pending);
             }
-            const ImVec2 js = ui::TextSize(F.regular, 12.0f, v);
-            ui::Text(dl, F.regular, 12.0f, ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), Gray(0.45f), v);
+            const ImVec2 js = ui::TextSize(F.regular,theme::size::Caption, v);
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), Gray(0.45f), v);
 
             ui::Graph(dl, p + px(18, 70), p + ImVec2(cw - px(18), gh - px(18)), g_ping.data(), (int)g_ping.size(), 0.0f, 60.0f,
                       (float)((now - g_lastSample) / 0.5));
@@ -1421,8 +1421,8 @@ namespace app
             p = ImGui::GetCursorScreenPos();
             const float dh = px(136);
             ui::Card(dl, p, p + ImVec2(cw, dh));
-            ui::Text(dl, F.bold, 15.0f, p + px(18, 16), Gray(0.96f), L(DnsProvider));
-            ui::Text(dl, F.regular, 12.5f, p + px(18, 38), Gray(0.45f), L(ResolverUsed));
+            ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(DnsProvider));
+            ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(0.45f), L(ResolverUsed));
 
             const float fbw = px(160);
             ImGui::SetCursorScreenPos(p + px(18, 78));
@@ -1454,8 +1454,8 @@ namespace app
                 p = ImGui::GetCursorScreenPos();
                 const float ih = px(136);
                 ui::Card(dl, p, p + ImVec2(cw, ih));
-                ui::Text(dl, F.bold, 15.0f, p + px(18, 16), Gray(0.96f), L(Connection));
-                ui::Text(dl, F.regular, 12.5f, p + px(18, 38), Gray(0.45f), L(ActiveAdapter));
+                ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(Connection));
+                ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(0.45f), L(ActiveAdapter));
                 const float rw = cw - px(36);
                 ImGui::SetCursorScreenPos(p + px(18, 64));
                 ImGui::BeginGroup();
@@ -1525,7 +1525,7 @@ namespace app
             const float  ih = px(24);
             dl->AddRectFilled(p, ImVec2(p.x + px(4), p.y + ih), White(0.80f), px(2));
             icons::Draw(dl, icon, ImVec2(p.x + px(20), p.y + ih * 0.5f), px(10), Gray(0.60f), px(1.2f));
-            ui::TextSpaced(dl, F.bold, 11.5f, ImVec2(p.x + px(36), p.y + (ih - ui::TextSize(F.bold, 11.5f, title).y) * 0.5f),
+            ui::TextSpaced(dl, F.bold,theme::size::Meta, ImVec2(p.x + px(36), p.y + (ih - ui::TextSize(F.bold,theme::size::Meta, title).y) * 0.5f),
                            Gray(0.55f), title, px(1.5f));
             ImGui::Dummy(ImVec2(cw, ih + px(6)));
         }
@@ -1696,14 +1696,14 @@ namespace app
 
                 // Lisans ekranı her anahtarı kabul ettiği için bu kart gerçek bir satın alım
                 // aktifmiş gibi okunmamalı.
-                ui::Label(theme::fonts.regular, 11.5f, 0.40f, L(DemoLicenseNote));
+                ui::Label(theme::fonts.regular,theme::size::Meta, 0.40f, L(DemoLicenseNote));
 
                 if (ui::Button(L(SignOut), ImVec2(w, px(40)), ButtonStyle::Secondary, Icon::Logout))
                     SignOut();
 
                 char ver[96];
                 snprintf(ver, sizeof(ver), "%s %s \xC2\xB7 %s", brand::kNameA, DisplayVersion(), L(LicenseLine));
-                ui::Label(theme::fonts.regular, 11.5f, 0.34f, ver);
+                ui::Label(theme::fonts.regular,theme::size::Meta, 0.34f, ver);
             }
             ui::EndCard();
             ImGui::EndGroup();
@@ -1748,9 +1748,9 @@ namespace app
             icons::Draw(dl, icon, ImVec2(iconX, midY), px(21), Gray(0.80f + 0.18f * hv));
 
             const float textX = iconX + px(22);
-            ui::Text(dl, theme::fonts.medium, 13.5f,
+            ui::Text(dl, theme::fonts.medium,theme::size::Body,
                      ImVec2(textX, midY - px(15)), Gray(0.80f + 0.18f * hv), label);
-            ui::Text(dl, theme::fonts.regular, 11.5f,
+            ui::Text(dl, theme::fonts.regular,theme::size::Meta,
                      ImVec2(textX, midY + px(2)), Gray(0.40f + 0.15f * hv), handle);
 
             // Sağa bakan chevron, her yerde "bu uygulamadan çıkıyor" işareti.
@@ -1823,14 +1823,14 @@ namespace app
 
             // marka
             DrawLogo(dl, ImVec2(px(34), px(39)), px(24), 0.8f);
-            ui::TextSpaced(dl, F.bold, 16.0f, ImVec2(px(58), px(27)), Gray(0.97f), brand::kNameA, px(3));
-            const float vw = ui::SpacedSize(F.bold, 16.0f, brand::kNameA, px(3)).x;
-            const ImVec2 bs = ui::SpacedSize(F.medium, 8.5f, L(OpenSource), px(1.2f));
+            ui::TextSpaced(dl, F.bold,theme::size::Title, ImVec2(px(58), px(27)), Gray(0.97f), brand::kNameA, px(theme::track::Wide));
+            const float vw = ui::SpacedSize(F.bold,theme::size::Title, brand::kNameA, px(theme::track::Wide)).x;
+            const ImVec2 bs = ui::SpacedSize(F.medium,theme::size::Micro, L(OpenSource), px(theme::track::Micro));
             const ImVec2 b0(px(58) + vw + px(8), px(31));
             const ImVec2 b1 = b0 + ImVec2(bs.x + px(12), px(16));
             dl->AddRectFilled(b0, b1, White(0.06f), px(5));
             dl->AddRect(b0, b1, White(0.22f), px(5), 0, ImMax(1.0f, px(1)));
-            ui::TextSpaced(dl, F.medium, 8.5f, ImVec2(b0.x + px(6), b0.y + (px(16) - bs.y) * 0.5f), Gray(0.85f), L(OpenSource), px(1.2f));
+            ui::TextSpaced(dl, F.medium,theme::size::Micro, ImVec2(b0.x + px(6), b0.y + (px(16) - bs.y) * 0.5f), Gray(0.85f), L(OpenSource), px(theme::track::Micro));
             const float bsh = fmodf((float)now, 4.0f) / 1.2f;
             if (bsh < 1.0f)
                 fx::Shine(dl, b0, b1, bsh, White(0.35f));
@@ -1861,18 +1861,31 @@ namespace app
             const float  cy = (u0.y + u1.y) * 0.5f;
             ui::Card(dl, u0, u1, px(12));
             const ImVec2 av(u0.x + px(28), cy);
-            fx::RadialGradient(dl, av, px(26), px(26), White(0.12f), White(0.0f), 24);
-            dl->AddCircleFilled(av, px(16), White(0.94f), 32);
 
-            const std::string& user = license::Current().user;
-            const char initial[2] = { user.empty() ? 'U' : (char)toupper((unsigned char)user[0]), 0 };
-            const ImVec2 is = ui::TextSize(F.bold, 15.0f, initial);
-            ui::Text(dl, F.bold, 15.0f, av - is * 0.5f, Gray(0.05f), initial);
+            // Profil resmi olarak markanın kendisi çizilir. Doku hazır değilse
+            // (kaynak eksik) baş harfe düşülür, böylece kart hiçbir koşulda
+            // boş kalmaz.
+            if (logo::Ready())
+            {
+                fx::RadialGradient(dl, av, px(28), px(28), White(0.14f), White(0.0f), 24);
+                const float as = px(30) * 0.5f;
+                logo::Draw(dl, ImVec2(av.x - as, av.y - as), ImVec2(av.x + as, av.y + as),
+                           Gray(0.94f));
+            }
+            else
+            {
+                const std::string& user = license::Current().user;
+                const char initial[2] = { user.empty() ? 'U' : (char)toupper((unsigned char)user[0]), 0 };
+                fx::RadialGradient(dl, av, px(26), px(26), White(0.12f), White(0.0f), 24);
+                dl->AddCircleFilled(av, px(16), White(0.94f), 32);
+                const ImVec2 is = ui::TextSize(F.bold,theme::size::Title, initial);
+                ui::Text(dl, F.bold,theme::size::Title, av - is * 0.5f, Gray(0.05f), initial);
+            }
 
             dl->PushClipRect(u0, ImVec2(u1.x - px(42), u1.y), true);
-            ui::Text(dl, F.medium, 13.5f, ImVec2(u0.x + px(52), cy - px(18)), Gray(0.95f), user.c_str());
+            ui::Text(dl, F.medium,theme::size::Body, ImVec2(u0.x + px(52), cy - px(18)), Gray(0.95f), brand::kNameA);
             dl->AddCircleFilled(ImVec2(u0.x + px(55), cy + px(9)), px(3), White(0.9f), 12);
-            ui::Text(dl, F.regular, 12.0f, ImVec2(u0.x + px(63), cy + px(1)), Gray(0.50f), PlanText(license::Current()));
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(u0.x + px(63), cy + px(1)), Gray(0.50f), PlanText(license::Current()));
             dl->PopClipRect();
 
             ImGui::SetCursorScreenPos(ImVec2(u1.x - px(38), cy - px(14)));
@@ -1890,8 +1903,8 @@ namespace app
             DrawSidebar(ds, sbw);
 
             const float hx = sbw + px(28);
-            ui::Text(dl, F.bold, 22.0f, ImVec2(hx, px(18)), Gray(0.97f), lang::Get(kTabNameKeys[g_tab]));
-            ui::Text(dl, F.regular, 13.0f, ImVec2(hx, px(50)), Gray(0.48f), lang::Get(kTabSubKeys[g_tab]));
+            ui::Text(dl, F.bold,theme::size::PageTitle, ImVec2(hx, px(18)), Gray(0.97f), lang::Get(kTabNameKeys[g_tab]));
+            ui::Text(dl, F.regular,theme::size::Body, ImVec2(hx, px(50)), Gray(0.48f), lang::Get(kTabSubKeys[g_tab]));
             dl->AddRectFilledMultiColor(ImVec2(sbw, px(80)), ImVec2(ds.x, px(80) + ImMax(1.0f, px(1))), White(0.07f), White(0.0f), White(0.0f), White(0.07f));
 
             float pa = ImSaturate((float)(now - g_tabTime) / 0.3f);

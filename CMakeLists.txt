@@ -37,6 +37,21 @@ add_custom_command(
     VERBATIM
 )
 
+# Marka dokusu res\tengri-logo.png kaynagindan uretilir. CMake yolu da ayni resmi
+# tek yonetir; aksi halde iki derleme sistemi farkli marka gosterir.
+add_custom_command(
+    OUTPUT  ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/logo_data.cpp
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+            -File ${CMAKE_CURRENT_SOURCE_DIR}/tools/make_logo_data.ps1
+            -SourcePath ${CMAKE_CURRENT_SOURCE_DIR}/res/tengri-logo.png
+            -Out ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/logo_data.cpp
+            -WhiteArtwork
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/res/tengri-logo.png
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/make_logo_data.ps1
+    COMMENT "Marka dokusu uretiliyor (kaynak: res/tengri-logo.png)"
+    VERBATIM
+)
+
 add_executable(TENGRI WIN32
     src/main.cpp
     src/app.cpp
@@ -45,6 +60,8 @@ add_executable(TENGRI WIN32
     src/gui/icons.cpp
     src/gui/brand_icons.cpp
     src/gui/logo.cpp
+    src/gui/logo_data.cpp
+    src/gui/font_data.cpp
     src/gui/widgets.cpp
     src/core/license.cpp
     src/core/sysinfo.cpp
@@ -78,6 +95,6 @@ set_target_properties(TENGRI PROPERTIES LINK_FLAGS "/MANIFEST:NO")
 target_include_directories(TENGRI PRIVATE src res ${IMGUI_DIR} ${IMGUI_DIR}/backends ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_compile_definitions(TENGRI PRIVATE UNICODE _UNICODE IMGUI_DEFINE_MATH_OPERATORS TENGRI_HAS_VERSION_H TENGRI_HAS_TWEAK_KEYS)
 target_compile_options(TENGRI PRIVATE /utf-8 /W4)
-# windowscodecs: kaynak olarak gömülü marka PNG'sini çözer (gui\logo.cpp)
+# windowscodecs: gömülü marka PNG'sini çözer (gui\logo.cpp)
 # ole32: WIC fabrikasını kullanan CoCreateInstance
 target_link_libraries(TENGRI PRIVATE d3d11 dxgi d3dcompiler dwmapi user32 gdi32 advapi32 shell32 iphlpapi comctl32 version windowscodecs ole32)

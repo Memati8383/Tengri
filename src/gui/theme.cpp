@@ -1,4 +1,5 @@
 #include "theme.hpp"
+#include "font_data.hpp"
 #include <windows.h>
 #include <string>
 
@@ -7,6 +8,9 @@ namespace theme
     float scale = 1.0f;
     Fonts fonts;
 
+    // Yedek yol. Inter gömülü olduğu için normalde hiç devreye girmez; yine de
+    // AddFontFromMemoryTTF başarısız olursa arayüz yazısız kalmak yerine sistem
+    // yazı tipine düşer. Segoe UI de yoksa ImGui'ın kendi yazı tipi gelir.
     static ImFont* LoadSystemFont(const char* file, float size)
     {
         char dir[MAX_PATH] = {};
@@ -14,7 +18,22 @@ namespace theme
         const std::string path = std::string(dir) + "\\Fonts\\" + file;
         if (GetFileAttributesA(path.c_str()) == INVALID_FILE_ATTRIBUTES)
             return nullptr;
-        return ImGui::GetIO().Fonts->AddFontFromFileTTF(path.c_str(), size);
+        return ImGui::GetIO().Fonts->AddFontFromFileTTF(path.c_str(), size,
+                                                        nullptr, fontdata::kRanges);
+    }
+
+    // Gömülü yüzü ekler. Glif aralığı veriliyor çünkü varsayılan aralık
+    // (Latin-1) Türkçe harfleri dışarıda bırakır.
+    static ImFont* LoadFace(const unsigned char* data, unsigned int size, float px_size)
+    {
+        if (!data || size == 0) return nullptr;
+        ImFontConfig cfg;
+        cfg.FontDataOwnedByAtlas = false;   // baytlar statik; atlas serbest bırakmamalı
+        // AddFontFromMemoryTTF imzayı void* ve ayrı GlyphRanges alır; ImFontConfig
+        // içindeki alan bu ImGui sürümünde kullanılmıyor.
+        return ImGui::GetIO().Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(data),
+                                                           (int)size, px_size, &cfg,
+                                                           fontdata::kRanges);
     }
 
     static void ApplyStyle()
@@ -80,7 +99,7 @@ namespace theme
         c[ImGuiCol_TextSelectedBg]       = W(0.22f);
         c[ImGuiCol_ModalWindowDimBg]     = G(0.0f, 0.6f);
 
-        s.FontSizeBase = 15.0f;
+        s.FontSizeBase = size::Title;
         s.ScaleAllSizes(scale);
         s.FontScaleDpi = scale;
     }
@@ -89,17 +108,29 @@ namespace theme
     {
         scale = dpi_scale;
 
-        fonts.regular = LoadSystemFont("segoeui.ttf", 15.0f);
-        if (!fonts.regular)
-            fonts.regular = ImGui::GetIO().Fonts->AddFontDefault();
+        // Yazı tipleri başlangıçta 15pt'de rasterlenir; DPI değişiminde
+        // rasterleme tekrarlanmaz, ölçek FontScaleDpi ile taşınır (bkz main.cpp).
+        const float base = size::Title;
 
-        fonts.medium = LoadSystemFont("seguisb.ttf", 15.0f);
-        if (!fonts.medium)
-            fonts.medium = fonts.regular;
+        fonts.regular = LoadFace(fontdata::kFontRegular, fontdata::kFontRegularSize, base);
+        fonts.medium  = LoadFace(fontdata::kFontMedium,  fontdata::kFontMediumSize,  base);
+        fonts.bold    = LoadFace(fontdata::kFontBold,    fontdata::kFontBoldSize,    base);
 
-        fonts.bold = LoadSystemFont("segoeuib.ttf", 15.0f);
-        if (!fonts.bold)
-            fonts.bold = fonts.medium;
+        // Gömülü yüzlerden biri yüklenemezse ağırlık hiyerarşisinin tamamı tek
+        // seferde çöker; bu yüzden yedek zinciri tek tek değil, hep birlikte
+        // kurulur.
+        if (!fonts.regular || !fonts.medium || !fonts.bold)
+        {
+            fonts.regular = LoadSystemFont("segoeui.ttf", base);
+            if (!fonts.regular)
+                fonts.regular = ImGui::GetIO().Fonts->AddFontDefault();
+
+            fonts.medium = LoadSystemFont("seguisb.ttf", base);
+            if (!fonts.medium) fonts.medium = fonts.regular;
+
+            fonts.bold = LoadSystemFont("segoeuib.ttf", base);
+            if (!fonts.bold)   fonts.bold = fonts.medium;
+        }
 
         ApplyStyle();
     }

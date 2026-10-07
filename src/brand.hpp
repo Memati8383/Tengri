@@ -15,12 +15,18 @@
 namespace brand
 {
     // ---- adlandırma --------------------------------------------------------
-    constexpr const wchar_t* kName         = L"TENGRI";      // görünen ad, pencere başlığı
-    constexpr const char*    kNameA        = "TENGRI";       // dar karakter kullanan çağrılar için
+    // Görünen ad Türkçe yazımdır: noktalı büyük İ (U+0130). Kaynak dosya /utf-8
+    // ile derlendiği için dar karakter hâli de UTF-8 bayt olarak doğru gider ve
+    // ImGui'ın Segoe UI yazı tipinde glif bulunur.
+    //
+    // Disk ve registry adları aşağıda ASCII kaldı: dosya sistemi ve kayıt
+    // defteri için noktalı İ taşımak yalnızca sorun çıkarır.
+    constexpr const wchar_t* kName         = L"TENGRİ";     // görünen ad, pencere başlığı
+    constexpr const char*    kNameA        = "TENGRİ";      // dar karakter kullanan çağrılar için
     constexpr const wchar_t* kWindowClass  = L"TENGRI_MainWindow";
-    constexpr const wchar_t* kTrayTip      = L"TENGRI - System Optimizer";
-    constexpr const wchar_t* kTrayOpen     = L"Open TENGRI";
-    constexpr const wchar_t* kMsgTitle     = L"TENGRI";      // pencere başlıklarında kullanılan ad
+    constexpr const wchar_t* kTrayTip      = L"TENGRİ - System Optimizer";
+    constexpr const wchar_t* kTrayOpen     = L"Open TENGRİ";
+    constexpr const wchar_t* kMsgTitle     = L"TENGRİ";     // pencere başlıklarında kullanılan ad
 
     // ---- disk ve registry kimliği -----------------------------------------
     // Bu adlar, daha önceki sürümlerin yazdığı kayıtları da kapsasın diye
@@ -79,9 +85,4 @@ namespace brand
     // tarafından tanımlı bir sabit olmadığından hem kaynak dosyasında hem de
     // burada bildirilmelidir; aksi hâlde çağrı var olmayan bir kaynağı gösterir.
     constexpr int            kIconId        = 101;
-
-    // Arayüzde çizilen marka resminin kaynak kimliği (RT_RCDATA). Kaynak dosyada
-    // IDI_LOGOPNG olarak tanımlıdır; iki taraf ayrıldığında çizim doku yerine
-    // yedek işarete düşer, bu yüzden eşleşmeleri gerekir.
-    constexpr int            kLogoResId     = 102;
 }
