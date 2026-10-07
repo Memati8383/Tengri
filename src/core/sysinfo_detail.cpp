@@ -176,6 +176,14 @@ namespace sysdetail
         // bunları yansıtmaz. Daha önce BIOSReleaseDate ramSpeed alanına okunuyor ve iki
         // satır sonra "N/A" ile eziliyordu; hiç okunmamış bir değeri göstermemek için
         // iki alan da boş bırakılıyor ve panel o satırları hiç çizmiyor.
+        //
+        // Sonradan: bu değerler WMI'den de okunabiliyor. Gerekçe yanlış değil,
+        // sonucu eksikti — registry'de yok demek "hiçbir yerden okunamaz" demek
+        // değil. Arka planda doldurulan sorgu bu alanları doldurur; henüz
+        // gelmemişse panel o satırları yine çizmez, sonraki karede görünür.
+
+        // Monitör ve TPM de aynı gerekçeyle eksikti: EDID ve TPM durumu
+        // registry'de tutulmaz, ikisi de WMI'de vardır.
 
         // Anakart: BaseBoardProduct her makinede dolu değildir, bu yüzden eksikse ürün adına
         // düşülür; ikisi de yoksa N/A gösterilir.
@@ -316,6 +324,11 @@ namespace sysdetail
             WideCharToMultiByte(CP_UTF8, 0, buf, -1, out, sizeof(out), nullptr, nullptr);
             g_info.systemLocale = out;
         }
+
+        // WMI alanları buraya yazılmaz: Gather() bir kez çalışır, WMI sorgusu ise
+        // sonradan tamamlanır. Alanları buraya kopyalamak onları hep boş
+        // göstermek anlamına gelirdi. Panel her kare syswmi::Get()'i doğrudan
+        // okur (yalnızca bir tutamç).
     }
 
     const Info& Get()

@@ -15,6 +15,7 @@
 #include "core/elevate.hpp"
 #include "core/backup.hpp"
 #include "core/notify.hpp"
+#include "core/sysinfo_wmi.hpp"
 #include "tray.hpp"
 #include "brand.hpp"
 #include <shellapi.h>
@@ -1766,7 +1767,18 @@ void NotifyDelegating(const elevate::Pending& p);
             ui::BeginCard("##siram", hw, L(RAMTotal));
             {
                 const float w = ImGui::GetContentRegionAvail().x;
-                InfoRow(L(RAMTotal), d.ramTotal.c_str(), w, false);
+                // WMI sorgusu arka planda çalışır ve bu değerler her kare
+                // doğrudan okunur. Sorgu henüz bitmemişse alanlar boştur ve
+                // satırlar çizilmez — "N/A" yazmak, bir saniye sonra
+                // kendiliğinden düzelmesi gereken bir hata gibi görünür.
+                const auto& wmi = syswmi::Get();
+
+                InfoRow(L(RAMTotal), d.ramTotal.c_str(), w,
+                        wmi.ramSpeed.empty() && wmi.ramSlots.empty());
+                if (!wmi.ramSpeed.empty())
+                    InfoRow(L(RAMSpeed), wmi.ramSpeed.c_str(), w, wmi.ramSlots.empty());
+                if (!wmi.ramSlots.empty())
+                    InfoRow(L(RAMSlots), wmi.ramSlots.c_str(), w, false);
             }
             ui::EndCard();
             ImGui::SameLine(0, gap);
@@ -1796,9 +1808,35 @@ void NotifyDelegating(const elevate::Pending& p);
             ui::BeginCard("##sisw", hw, L(SoftwareInfo));
             {
                 const float w = ImGui::GetContentRegionAvail().x;
+                const auto& wmi = syswmi::Get();
+
+                // Monitör EDID'den gelir; registry'de karşılığı yoktur. Satır
+                // ancak sorgu bir değer döndürdüyse çizilir.
+                if (!wmi.monitorName.empty())
+                {
+                    const std::string mon = wmi.monitorVendor.empty()
+                        ? wmi.monitorName
+                        : wmi.monitorVendor + " " + wmi.monitorName;
+                    InfoRow(L(Monitor), mon.c_str(), w);
+                }
+
                 InfoRow(L(OperatingSystem), os.c_str(), w);
                 InfoRow(L(InstallDate), d.installDate.c_str(), w);
                 InfoRow(L(DisplayResolution), d.displayRes.c_str(), w);
+
+                // TPM: Win32_Tpm yalnızca etkin bir TPM varsa bir satır döndürür.
+                // Satır yoksa ya sorgu bitmedi ya da makinede TPM yok — ikisini
+                // ayırmak mümkün değil, bu yüzden sessizce geçilir.
+                if (!wmi.tpmPresent.empty())
+                {
+                    // L() bir derleyici makrosudur (lang::Get(S::k)), dize karşılaştırması için
+                    // kullanılamaz; syswmi düz ASCII "Yes"/"No" saklar.
+                    const char* tpm = (wmi.tpmReady == "Yes") ? L(TpmReadyYes) : L(TpmReadyNo);
+                    std::string t = tpm;
+                    if (!wmi.tpmSpec.empty()) t += ", " + wmi.tpmSpec;
+                    InfoRow(L(TPM), t.c_str(), w);
+                }
+
                 InfoRow(L(SystemLocale), d.systemLocale.c_str(), w);
                 InfoRow(L(Computer), pc.c_str(), w, false);
             }
@@ -2159,6 +2197,11 @@ void NotifyDelegating(const elevate::Pending& p);
         // dilde çizilir ve İngilizce bir flaş olmaz.
         lang::Load();
 
+        // WMI sorgusu burada başlar. Arka planda çalışır; sistem bilgisi
+        // sayfası ilk açıldığında değerler henüz gelmemiş olabilir, o zaman
+        // satırlar çizilmez ve birkaç saniye içinde kendiliğinden belirir.
+        syswmi::StartAsync();
+
         for (int c = 0; c < kTweakCats; ++c)
             for (int i = 0; i < (int)g_tweaks[c].size(); ++i)
                 g_tweaks[c][i].on = tweaks::Read(c, i);
@@ -2298,6 +2341,7 @@ void NotifyDelegating(const elevate::Pending& p);
         // worker thread'in kapanış sırasında serbest bırakılmış global'lere dokunması engellenir.
         JoinAll();
         network::StopLatencyProbe();
+        syswmi::Shutdown();   // WMI iş parçacığı kapanmadan önce beklenir
     }
 
     void Frame()

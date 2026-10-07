@@ -52,7 +52,7 @@ if not exist build\obj mkdir build\obj
 
 set IMGUI=third_party\imgui
 set SOURCES=src\main.cpp src\app.cpp src\gui\theme.cpp src\gui\fx.cpp src\gui\icons.cpp src\gui\brand_icons.cpp src\gui\logo.cpp src\gui\logo_data.cpp src\gui\font_data.cpp src\gui\widgets.cpp ^
- src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\core\backup.cpp src\core\notify.cpp src\tray.cpp ^
+ src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\core\backup.cpp src\core\notify.cpp src\core\sysinfo_wmi.cpp src\tray.cpp ^
  %IMGUI%\imgui.cpp %IMGUI%\imgui_draw.cpp %IMGUI%\imgui_tables.cpp %IMGUI%\imgui_widgets.cpp ^
  %IMGUI%\backends\imgui_impl_win32.cpp %IMGUI%\backends\imgui_impl_dx11.cpp
 
@@ -108,7 +108,7 @@ cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 /MP /D_SILENCE_EXPERIMENTAL_COROU
    /I src /I build\obj /I %IMGUI% /I %IMGUI%\backends ^
    %SOURCES% ^
    /Fobuild\obj\ /Febuild\TENGRI.exe ^
-   /link build\obj\tengri.res /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib d3dcompiler.lib dwmapi.lib user32.lib gdi32.lib advapi32.lib shell32.lib iphlpapi.lib comctl32.lib version.lib windowscodecs.lib ole32.lib windowsapp.lib propsys.lib
+   /link build\obj\tengri.res /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib d3dcompiler.lib dwmapi.lib user32.lib gdi32.lib advapi32.lib shell32.lib iphlpapi.lib comctl32.lib version.lib windowscodecs.lib ole32.lib windowsapp.lib propsys.lib wbemuuid.lib
 if errorlevel 1 (
     echo [!] Build failed.
     exit /b 1

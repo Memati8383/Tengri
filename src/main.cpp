@@ -201,6 +201,11 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
             // kullanıcı pencereyi tamamen kaybetmiş olur.
             if (app::TrayEnabled() && tray::IsAvailable())
             {
+                // Windows 11 yeni tray ikonlarini gizli tasma alanina atabiliyor.
+                // Kullanici kuculttugunde pencere kaybolur ama tepside ikon
+                // gorunmez; "calismiyor" sanir. Ilk kucultmede bir kez balon
+                // gosterilerek ikonun nereye gittigi soylenir.
+                tray::ShowHintBalloon();
                 ::ShowWindow(hWnd, SW_HIDE);
                 return 0;
             }

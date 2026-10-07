@@ -23,6 +23,18 @@ namespace tray
     bool IsAvailable();
     void SetEnabled(bool enabled);
 
+    // İlk küçültmede bir kez balon gösterir.
+    //
+    // Neden gerekiyor: Windows 11 yeni tray ikonlarını çoğu zaman GİZLİ taşma
+    // alanına atar. Ölçüldü — ikon başarıyla ekleniyor (Shell_NotifyIconW S_OK)
+    // ama tepsi çubuğunun görünür kısmında yok, yalnızca "^" taşma okunun
+    // arkasında. Kullanıcı küçültüyor, pencere kayboluyor, tepsiye bakıyor ve
+    // ikonu bulamıyor; "tepsiye küçültme çalışmıyor" diye rapor veriyor.
+    //
+    // Balon nereye gideceğini söyler. Bu Windows'un kendi yerleşik davranışı,
+    // ayrı bir mekanizma değil: NIM_MODIFY + NIF_INFO.
+    void ShowHintBalloon();
+
     // Explorer yeniden başladığında ikonu yok eder; her karede NIM_ADD göndermek
     // gereksiz yük olurdu, bu yüzden ekleme yalnızca saniyede bir yeniden denenir.
     void Tick();

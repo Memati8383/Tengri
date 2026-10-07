@@ -31,6 +31,10 @@ namespace sysdetail
         std::string directX;
         std::string displayRes;
         std::string systemLocale;
+        // NOT: WMI alanları (RAM hızı/yuvası, monitör, TPM) burada DEĞİL.
+        // Bu yapı bir kez doldurulup önbelleklenir, WMI sorgusu ise sonradan
+        // tamamlanır; kopyalansalardı hep boş kalırlardı. Panel her kare
+        // syswmi::Get()'i doğrudan okur.
     };
 
     void        Gather();

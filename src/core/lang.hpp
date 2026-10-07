@@ -75,10 +75,22 @@ namespace S
         CPUName, CPUCores, CPUThreads, CPUClock,
         GPUName, GPUVRAM, GPUDriver,
         RAMTotal,
-        Motherboard, BIOSVersion, BIOSMode,
+        RAMSpeed, RAMSlots, Motherboard, BIOSVersion, BIOSMode,
         SecureBoot, Enabled, Disabled, NotSupported,
         Virtualization, InstallDate, DirectXVersion,
         DisplayResolution, SystemLocale,
+        // Yazılım kartı satırları. Sıra, lang.cpp'deki g_en / g_tr
+        // tablolarındaki "Monitor", "TPM", ... bloğunun GELDIĞI yere denk
+        // düşer.
+        //
+        // Bu blok ilk kez yanlış yere (LicenseShort'tan sonraya) eklenmişti.
+        // Tablolar konumsaldır; iki hâli `static_assert` yalnız BOYUT
+        // karşılaştırdığı için derleme sessiz geçti, uygulama ise onlarca
+        // metni yanlış gösterdi (balon "License", RAM yuvaları "Windows
+        // notifications" gibi). Kayma ancak tablo girdilerini sırayla
+        // dökerek görülebiliyor.
+        Monitor, TPM, TPMYes, TPMNo, TpmPresentYes, TpmReadyYes, TpmReadyNo,
+        RAMModulesFmt, TrayHintBalloon,
 
         // sonradan eklenenler: bildirim metinleri, kategori başlıkları ve ağ satır
         // etiketleri; sıraları metin tablolarıyla birlikte korunmalıdır

@@ -1,6 +1,7 @@
 #include "tray.hpp"
 #include <shellapi.h>
 #include "brand.hpp"
+#include "core/lang.hpp"
 
 namespace tray
 {
@@ -26,6 +27,18 @@ namespace tray
             wcscpy_s(g_nid.szTip, brand::kTrayTip);
             g_added = Shell_NotifyIconW(NIM_ADD, &g_nid) ? true : false;
         }
+
+        // "Simge tepsi çubuğunda gizli olabilir" ipucu.
+        //
+        // NIF_INFO balonları, kullanıcının "uygulama nereye gitti?" sorusunu tek
+        // tıkla yanıtlar. NIF_SHOWTIP gerekir: bildirim ayarlarında "balon
+        // göster" kapatılmışsa bile başlık/ipucu metni Eylem Merkezi'ne düşer.
+        //
+        // Yalnızca bir kez gösterilir; her küçültmede tekrarlanırsa rahatsız
+        // edici olur ve kullanıcı kapatmayı öğrenir, o da tam olarak çözülecek
+        // şeydir.
+        bool g_hintShown = false;
+
 
         void Remove()
         {
@@ -60,6 +73,24 @@ namespace tray
         Add();
         g_have = g_added;
         return g_added;
+    }
+
+    void ShowHintBalloon()
+    {
+        if (g_hintShown || !g_added) return;
+        g_hintShown = true;
+
+        NOTIFYICONDATAW nid = g_nid;
+        nid.uFlags = NIF_INFO | NIF_SHOWTIP;
+        wcscpy_s(nid.szInfoTitle, 128, brand::kName);
+        // L() bir makro: lang::Get(S::key) çağırır ve const char* döndürür. Balon
+            // alanları wchar_t dizisi olduğu için dar karakterden çevrilir.
+            wchar_t info[256] = {};
+            ::MultiByteToWideChar(CP_UTF8, 0, L(TrayHintBalloon), -1, info, 256);
+            wcscpy_s(nid.szInfo, 256, info);
+        // HINT_SHOWTIP: balon tepsi alanına bağlanır, kullanıcı oradan yönlendirilir.
+        nid.dwInfoFlags = NIIF_INFO;
+        Shell_NotifyIconW(NIM_MODIFY, &nid);
     }
 
     bool HandleMessage(UINT msg, LPARAM lparam, bool* restore)
