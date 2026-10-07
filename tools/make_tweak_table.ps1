@@ -112,16 +112,41 @@ if ($hdr) {
 # var, o yuzden sayimi burada da yapmak ayni mantigi paylasir.
 $flatEnd = 0
 if ($hdr) {
-    $me = [regex]::Match($hdr, 'enum\s+Key\s*\{(.*?)FlatEnd', 'Singleline')
+    # Yorumlar FlatEnd aramadan ONCE dusurulur. Duz metin uzerinde esleşen
+    # kisisiz `(.*?)FlatEnd`, lang.hpp'e "FlatEnd'den hemen once olmali" diye
+    # yazilmis bir yorum cumlesinde duruyor ve sonradan eklenen 44 anahtarin
+    # hicbiri sayilmiyordu: tablo 44 girdi geriye kaydi, 56 tweak etiketinin
+    # hepsi yanlis satirdan okundu. Derleme sessiz gecirdi cunku static_assert
+    # yalnizca boyuta bakiyor.
+    $me = [regex]::Match($hdr, 'enum\s+Key\s*\{(.*?)\r?\n\s*\};', 'Singleline')
     if ($me.Success) {
-        # Virgulle ayrilmis tanimlayicilar; yorum satirlarini once at.
         $body = [regex]::Replace($me.Groups[1].Value, '//[^\r\n]*', '')
-        # Acilis susgusunun ardindaki ilk deger 0'dir ve sayima dahil edilmemeli
-        # ("SecureLoader, ..." virgulunun solunda hicbirsey yok), sonrakiler sayilir.
-        $flatEnd = [regex]::Matches($body, '(?<![A-Za-z0-9_])[A-Za-z_]\w*(?=\s*(,|$))').Count
+        $cut  = $body.IndexOf('FlatEnd')
+        if ($cut -lt 0) { throw "lang.hpp icinde FlatEnd bulunamadi" }
+        $body = $body.Substring(0, $cut)
+        # FlatEnd'den onceki her tanimlayici bir enum degeridir; ilki 0'dan
+        # basladigi icin toplam dogrudan FlatEnd'in sayisina esittir.
+        # (?m): satir sonunda virgul olmayan son deger de sayilsin.
+        $flatEnd = [regex]::Matches($body, '(?m)(?<![A-Za-z0-9_])[A-Za-z_]\w*(?=\s*(,|$))').Count
     }
 }
 if ($flatEnd -le 0) { throw "FlatEnd sayilamadi ($flatEnd)" }
+
+# CAPRAZ DENETIM. $flatEnd enum metninden sayildi; ayni deger lang.cpp'deki
+# "---- TweakNames ----" ayracina kadar olan dize literallerinden de bulunabilir.
+# Ikisi farkliysa bir yerde siralama degismistir ve tablo kaymis olurdu - 1.2.0'da
+# tam olarak bu oldu: lang.hpp'e yazilmis bir yorum cumlesi "FlatEnd" sozcugunu
+# iceriyor, kisisiz eslesme orada kaliyor ve sonradan eklenen 44 anahtar sayilmiyordu.
+# Uygulama dogru ciziyordu (enum'u derleyici cozer), yanlis olan uretilen tabloydu.
+if ($langText) {
+    $mk = [regex]::Match($langText, 'g_tr\[\].*?//\s*-{4}\s*TweakNames', 'Singleline')
+    if (-not $mk.Success) { throw "lang.cpp'de TweakNames ayraci bulunamadi" }
+    $mkMerged = $mk.Value -replace '"\s*"', ''
+    $before = [regex]::Matches($mkMerged, '"((?:[^"\\]|\\.)*)"').Count
+    if ($before -ne $flatEnd) {
+        throw "FlatEnd cakismasi: enum $flatEnd diyor, lang.cpp ayraci $before. Tweak tablosu kaymis olurdu."
+    }
+}
 
 function Get-Name([int]$cat, [int]$idx) {
     $k = $flatEnd + ($cat * $rowsPerCat) + $idx
