@@ -843,6 +843,7 @@ docs/screenshots/            Arayüz görselleri (capture_all.ps1 üretir)
 docs/release-notes/          Sürüm notları (sürüm başına bir dosya)
 SECURITY.md                  Antivirüs uyarıları ve güvenlik bildirimi
 CONTRIBUTING.md              Katkı rehberi (derleme, neyi nereden değiştirmek, geri alınabilirlik)
+NOTICE.md                    Üçüncü taraf lisansları (ImGui, Inter) ve "AS IS" ayrımı
 ```
 
 > **`src/core/restore.cpp` derleniyor ama arayüzden bağlı değil.** Sistem geri yükleme
@@ -941,4 +942,15 @@ rakamı tahmin değil ölçüm olur.
 
 ## Lisans
 
-[MIT](LICENSE)
+[MIT](LICENSE) — Copyright (c) 2026 TENGRİ Project.
+
+Lisans metni bilerek **düz MIT gövdesidir**, sonuna hiçbir ek bölüm
+yazılmadı: GitHub lisans dedektörü dosyanın bilinen bir lisansla birebir
+eşleşmesini bekliyor, araya üçüncü taraf bildirimleri girdiğinde algılama
+kayboluyor. ImGui ve gömülü Inter yazı tipi ayrısı kendi dosyasında:
+**[NOTICE.md](NOTICE.md)**.
+
+MIT'in "AS IS" cümlesi bu projede formalite değil: uygulama registry'ye yazar,
+`reg.exe` çağırır ve hizmet yapılandırmasını değiştirir. Ne yaptığı, ne
+yapmadığı ve neden antivirüslerin bunu işaretlediği [SECURITY.md](SECURITY.md)
+içinde.
