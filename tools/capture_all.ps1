@@ -46,6 +46,8 @@ $pages = @(
     @{ File = '05-system-info'; Y = 304; WaitMs = $SettleMs }
     @{ File = '06-settings';    Y = 348; WaitMs = $SettleMs }
     @{ File = '07-about';       Y = 392; WaitMs = $SettleMs }
+    @{ File = '08-startup';     Y = 436; WaitMs = $SettleMs }
+    @{ File = '09-services';    Y = 480; WaitMs = $SettleMs }
 )
 
 foreach ($page in $pages) {

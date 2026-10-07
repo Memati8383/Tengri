@@ -52,7 +52,7 @@ if not exist build\obj mkdir build\obj
 
 set IMGUI=third_party\imgui
 set SOURCES=src\main.cpp src\app.cpp src\gui\theme.cpp src\gui\fx.cpp src\gui\icons.cpp src\gui\brand_icons.cpp src\gui\logo.cpp src\gui\logo_data.cpp src\gui\font_data.cpp src\gui\widgets.cpp ^
- src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\core\backup.cpp src\core\notify.cpp src\core\sysinfo_wmi.cpp src\tray.cpp ^
+ src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\core\backup.cpp src\core\restore.cpp src\core\startup.cpp src\core\services.cpp src\core\notify.cpp src\core\sysinfo_wmi.cpp src\tray.cpp ^
  %IMGUI%\imgui.cpp %IMGUI%\imgui_draw.cpp %IMGUI%\imgui_tables.cpp %IMGUI%\imgui_widgets.cpp ^
  %IMGUI%\backends\imgui_impl_win32.cpp %IMGUI%\backends\imgui_impl_dx11.cpp
 
@@ -141,3 +141,80 @@ if errorlevel 1 (
     exit /b 1
 )
 echo [+] Tests passed
+
+rem --- yeni modul testleri ----------------------------------------------------
+rem restore / startup / services / shader temizleyicisinin salt-okunur yuzeyi ve
+rem guvenlik kapisilari. Bu test de registry YAZMAZ, dosya SILMEZ, hizmet
+rem durumunu DEGISTIRMEZ: yalnizca okuma ve beyaz-liste-disi reddi denenir. Yetki
+rem gerektirmez, yukseltilmemis surecte de ayni sonucu verir.
+echo [*] Building module tests ...
+cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 ^
+   /DUNICODE /D_UNICODE /I src ^
+   tests\test_modules.cpp src\core\restore.cpp src\core\startup.cpp src\core\services.cpp src\core\cleaner.cpp ^
+   /Fobuild\tobj\ /Febuild\test_modules.exe ^
+   /link advapi32.lib shell32.lib version.lib ole32.lib
+if errorlevel 1 (
+    echo [!] Modul testi derlemesi basarisiz.
+    exit /b 1
+)
+
+echo [*] Running module tests ...
+build\test_modules.exe
+if errorlevel 1 (
+    echo [!] Modul testleri basarisiz.
+    exit /b 1
+)
+echo [+] Module tests passed
+
+rem --- lisans / donanim kimligi testleri --------------------------------------
+rem Mask (anahtar maskeleme), sys::Hwid (deterministik ozet) ve "beni hatirla"
+rem kaliciligi. Validate() BILINCLI olarak test disidir: gecici bir demo stub'i
+rem sabitlemek anlamsiz olurdu. Kalicilik testi APPDATA'yi _putenv_s ile gecici bir
+rem klasore yonlendirir; SetEnvironmentVariableA CRT environ'ini guncellemedigi icin
+rem YANLISTIR ve gercek %APPDATA%\TENGRI\license.dat'i silerdi. Test bu yonlendirme-
+rem yi dogruluyor, dolayisiyla gercek kullanici verisine dokunmaz.
+echo [*] Building license tests ...
+cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 ^
+   /DUNICODE /D_UNICODE /I src ^
+   tests\test_license.cpp src\core\license.cpp src\core\sysinfo.cpp src\core\lang.cpp ^
+   /Fobuild\tobj\ /Febuild\test_license.exe ^
+   /link advapi32.lib shell32.lib dxgi.lib ole32.lib
+if errorlevel 1 (
+    echo [!] Lisans testi derlemesi basarisiz.
+    exit /b 1
+)
+
+echo [*] Running license tests ...
+build\test_license.exe
+if errorlevel 1 (
+    echo [!] Lisans testleri basarisiz.
+    exit /b 1
+)
+echo [+] License tests passed
+
+rem --- guvenli yazma-yolu testleri --------------------------------------------
+rem cleaner (shader + TEMP) ve backup'in GERCEK kodunu dosya/varin-etkiyle calistirir
+rem ama ortam degiskenlerini (TEMP/LOCALAPPDATA/WINDIR/ProgramData/ProgramFiles(x86))
+rem _putenv_s ile izole bir gecici agaca yonlendirerek. Boylece gercek onbellekler
+rem ya da Windows klasoru ASLA silinmez; "once yaz sonra sil -> tersinir" garantisi
+rem dogrulanir. backup yalnizca reg.exe EXPORT (salt-okuma) yapar; Restore/import ve
+rem Geri Donusum Kutusu (kategori 3) HIC cagrilmaz. tweak_keys.h (build\obj) gerekir;
+rem onceki adimlarda uretilir.
+echo [*] Building write-path tests ...
+cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 ^
+   /DUNICODE /D_UNICODE /DTENGRI_HAS_TWEAK_KEYS /I src /I build\obj ^
+   tests\test_write_paths.cpp src\core\cleaner.cpp src\core\backup.cpp ^
+   /Fobuild\tobj\ /Febuild\test_write_paths.exe ^
+   /link shell32.lib ole32.lib advapi32.lib
+if errorlevel 1 (
+    echo [!] Yazma-yolu testi derlemesi basarisiz.
+    exit /b 1
+)
+
+echo [*] Running write-path tests ...
+build\test_write_paths.exe
+if errorlevel 1 (
+    echo [!] Yazma-yolu testleri basarisiz.
+    exit /b 1
+)
+echo [+] Write-path tests passed

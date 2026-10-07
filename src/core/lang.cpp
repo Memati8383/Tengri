@@ -111,6 +111,25 @@ namespace lang
             "Windows notifications", "Errors only",
             "View results", "Undo", "Retry", "OK", "Working",
 
+            // ---- Startup / Services sekmeleri ----
+            "Startup", "Services",
+            "Enable or disable programs that launch at sign-in",
+            "Tune Windows background services for gaming",
+            "No startup entries found", "No services found",
+            "Name", "Publisher", "Scope", "Command", "State", "Start type",
+            "HKCU \\ Run", "HKCU \\ RunOnce", "HKLM \\ Run", "HKLM \\ RunOnce",
+            "Low", "Medium", "High", "Unknown",
+            "Automatic", "Automatic (Delayed)", "Manual", "Disabled", "Unknown", "Running",
+            "Enable", "Disable", "Remove", "Refresh", "Rescan",
+            "Apply game profile", "Restore defaults",
+            "Game profile applied", "Defaults restored",
+            "System protection is disabled - open System Properties to enable it",
+            "Administrator rights required for HKLM entries",
+            "Administrator rights required to change services",
+            "TENGRI auto-start", "Where this entry lives in the registry",
+            "Safe", "Caution", "Risky",
+            "All",
+
             // ---- TweakNames: 7 kategori x 8 satır ----
             // Performans
             "Ultimate power plan", "Disable background apps", "Optimize visual effects",
@@ -325,9 +344,31 @@ namespace lang
             "Windows bildirimleri", "Sadece hatalar",
             "Sonu\xC4\xB1lar\xC4\xB1 g\xC3\xB6r", "Geri al", "Tekrar dene", "Tamam", "\xC3\x87" "al\xC4\xB1\xC4\xB1\xC5\x9F\xC4\xB1yor",
 
+            // ---- Startup / Services sekmeleri ----
+            // Ham UTF-8: kaynak /utf-8 ile derleniyor. \xNN kaçış dizileri,
+            // hemen ardından gelen a-f gibi bir onaltılık harf olduğunda
+            // MSVC'de '\x9Fa' gibi taşan tek bir kaçış olarak okunup bozulur.
+            "Başlatma", "Hizmetler",
+            "Oturum açıldığında çalışan programları yönet",
+            "Windows arka plan hizmetlerini oyun için ayarla",
+            "Başlatma öğesi bulunamadı", "Hizmet bulunamadı",
+            "Ad", "Yayıncı", "Kapsam", "Komut", "Durum", "Başlangıç türü",
+            "HKCU \\ Run", "HKCU \\ RunOnce", "HKLM \\ Run", "HKLM \\ RunOnce",
+            "Düşük", "Orta", "Yüksek", "Bilinmiyor",
+            "Otomatik", "Otomatik (Gecikmeli)", "Elle", "Devre dışı", "Bilinmiyor", "Çalışıyor",
+            "Etkinleştir", "Devre dışı bırak", "Kaldır", "Yenile", "Tara",
+            "Oyun profilini uygula", "Varsayılanlara dön",
+            "Oyun profili uygulandı", "Varsayılanlar geri yüklendi",
+            "Sistem koruması kapalı - Sistem Özellikleri'nden aç",
+            "HKLM kayıtları için yönetici yetkisi gerekir",
+            "Hizmetleri değiştirmek için yönetici yetkisi gerekir",
+            "TENGRİ otobaşlatma", "Kaydın registry'de bulunduğu konum",
+            "Güvenli", "Dikkat", "Riskli",
+            "Tümü",
+
             // ---- TweakNames: 7 kategori x 8 satır ----
             // Performans
-            "Maksimum g\xC3\xBC\xC3\xA7 performans plan\xC4\xB1", "Arka plan uygulamalar\xC4\xB1 kapat",
+            "Maksimum güç performans planı", "Arka plan uygulamaları kapat",
             "G\xC3\xB6rsel efektleri optimize et", "SysMain'i kapat", "Hibernation'\xC4\xB1 kapat",
             "Sistem duyarl\xC4\xB1l\xC4\xB1\u011F\xC4\xB1", "G\xC3\xBC\xC3\xA7 kısıtlamas\xC4\xB1 kapat",
             "Bellek y\xC3\xB6netimi",

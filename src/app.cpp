@@ -16,6 +16,8 @@
 #include "core/backup.hpp"
 #include "core/notify.hpp"
 #include "core/sysinfo_wmi.hpp"
+#include "core/startup.hpp"
+#include "core/services.hpp"
 #include "tray.hpp"
 #include "brand.hpp"
 #include <shellapi.h>
@@ -349,10 +351,10 @@ void NotifyDelegating(const elevate::Pending& p);
         bool g_startup = false;   // gerçek durum HKCU Run girdisinden okunur
         bool g_tray    = true;    // gerçek tray ikonu: küçült gizler, ikon geri getirir
 
-        constexpr int kTabCount = 7;
-        const Icon kTabIcons[] = { Icon::Dashboard, Icon::Cleaner, Icon::Tweaks, Icon::Network, Icon::Monitor, Icon::Settings, Icon::Info };
-        const S::Key kTabNameKeys[] = { S::Dashboard, S::Cleaner, S::Tweaks, S::Network, S::SystemInfo, S::Settings, S::About };
-        const S::Key kTabSubKeys[]  = { S::DashOverview, S::CleanDesc, S::TweakDesc, S::NetDesc, S::SysInfoDesc, S::SettDesc, S::AboutDesc };
+        constexpr int kTabCount = 9;
+        const Icon kTabIcons[] = { Icon::Dashboard, Icon::Cleaner, Icon::Tweaks, Icon::Network, Icon::Monitor, Icon::Settings, Icon::Info, Icon::Bolt, Icon::Chip };
+        const S::Key kTabNameKeys[] = { S::Dashboard, S::Cleaner, S::Tweaks, S::Network, S::SystemInfo, S::Settings, S::About, S::Startup, S::Services };
+        const S::Key kTabSubKeys[]  = { S::DashOverview, S::CleanDesc, S::TweakDesc, S::NetDesc, S::SysInfoDesc, S::SettDesc, S::AboutDesc, S::StartupDesc, S::ServicesDesc };
 
         // Plan ve bitiş metni license.cpp'de önceden biçimlenmiş olarak saklanmaz, burada çözülür.
         const char* PlanText(const license::Info& li)
@@ -2058,8 +2060,287 @@ void NotifyDelegating(const elevate::Pending& p);
             ui::EndCard();
         }
 
-        // ------------------------------------------------------------------ ana iskelet
+        // ---------------------------------------------------------- başlangıç yöneticisi
+        // Geniş karakterli registry metinlerini arayüzde göstermek için dar
+        // UTF-8'e indirger. ImGui 1.92+ std::string_view taşır ama metni
+        // elde tutmanın en güvenli yolu hâlâ NUL-sonlu dar dize.
+        std::string W2S(const std::wstring& w)
+        {
+            if (w.empty()) return {};
+            int n = ::WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(),
+                                          nullptr, 0, nullptr, nullptr);
+            std::string s((size_t)n, '\0');
+            ::WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(),
+                                  &s[0], n, nullptr, nullptr);
+            return s;
+        }
 
+        int      g_startupFilter = 0;    // 0=Tümü, 1=HKCU, 2=HKLM
+        bool     g_startupLoaded = false;
+        std::vector<startup::Entry> g_startupEntries;
+
+        const char* ScopeText(startup::Scope s)
+        {
+            switch (s)
+            {
+                case startup::Scope::UserRun:        return L(ScopeUserRun);
+                case startup::Scope::UserRunOnce:    return L(ScopeUserRunOnce);
+                case startup::Scope::MachineRun:     return L(ScopeMachineRun);
+                case startup::Scope::MachineRunOnce: return L(ScopeMachineRunOnce);
+            }
+            return "?";
+        }
+
+        const char* ImpactText(startup::Impact i)
+        {
+            switch (i)
+            {
+                case startup::Impact::Low:    return L(ImpactLow);
+                case startup::Impact::Medium: return L(ImpactMedium);
+                case startup::Impact::High:   return L(ImpactHigh);
+                default:                      return L(ImpactUnknown);
+            }
+        }
+
+        void RefreshStartup()
+        {
+            g_startupEntries = startup::Enumerate();
+            g_startupLoaded  = true;
+        }
+
+        void PageStartup(float cw)
+        {
+            if (!g_startupLoaded) RefreshStartup();
+
+            const float bh = px(34), bw = px(120);
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            const float segW = ImMin(px(360), cw - bw - px(12));
+            // L() tabloyu çizim anında çözüyor; static bir dizi dil değişiminde
+            // eski tabloyu göstermeye devam ederdi.
+            const char* const filters[] = { L(FilterAll), "HKCU", "HKLM" };
+            ui::Segmented("##startupfilter", filters, 3, &g_startupFilter, segW);
+
+            ImGui::SetCursorScreenPos(ImVec2(p.x + cw - bw, p.y));
+            if (ui::Button(L(BtnRefresh), ImVec2(bw, bh), ButtonStyle::Secondary, Icon::Refresh))
+                RefreshStartup();
+            ImGui::SetCursorScreenPos(p);
+            ImGui::Dummy(ImVec2(cw, bh));
+
+            const bool admin = elevate::IsElevated();
+
+            // Filtrelenmiş satırlar.
+            std::vector<const startup::Entry*> rows;
+            rows.reserve(g_startupEntries.size());
+            for (const startup::Entry& e : g_startupEntries)
+            {
+                const bool machine = (e.scope == startup::Scope::MachineRun ||
+                                      e.scope == startup::Scope::MachineRunOnce);
+                if (g_startupFilter == 1 && machine) continue;
+                if (g_startupFilter == 2 && !machine) continue;
+                rows.push_back(&e);
+            }
+
+            if (rows.empty())
+            {
+                ui::Label(theme::fonts.regular, theme::size::Body, theme::ink::Secondary, L(StartupEmpty));
+                return;
+            }
+
+            // Bir tuşlama ya da silme, listedeki index'i kaydırır; işlem
+            // sonrası taze tarama yapılır.
+            int pendingToggle = -1;   // rows içinden
+            bool pendingEnable = false;
+            int pendingRemove = -1;
+
+            for (size_t ri = 0; ri < rows.size(); ++ri)
+            {
+                const startup::Entry& e = *rows[ri];
+                const float rowW = cw - px(8);
+
+                // Satır kartı: başlık satırında ad + kapsam, altında komut.
+                char cardId[48];
+                snprintf(cardId, sizeof(cardId), "##su%zu", ri);
+                ui::BeginCard(cardId, rowW, e.isTengri ? L(StartupSelf) : W2S(e.name).c_str(),
+                              ScopeText(e.scope));
+
+                const std::string pub = W2S(e.publisher);
+                std::string sub = pub.empty() ? W2S(e.resolvedPath) : pub;
+                sub += " \xC2\xB7 ";
+                sub += ImpactText(e.impact);
+                if (!e.enabled) { sub += " \xC2\xB7 "; sub += L(StDisabled); }
+                ImGui::TextWrapped("%s", sub.c_str());
+                ImGui::TextWrapped("%s", W2S(e.command).c_str());
+
+                const float smallW = px(96);
+                ImGui::Dummy(ImVec2(0, px(2)));
+                ImGui::BeginGroup();
+                if (e.enabled)
+                {
+                    if (ui::Button(L(BtnDisable), ImVec2(smallW, px(28)), ButtonStyle::Secondary, Icon::EyeOff))
+                    { pendingToggle = (int)ri; pendingEnable = false; }
+                }
+                else
+                {
+                    if (ui::Button(L(BtnEnable), ImVec2(smallW, px(28)), ButtonStyle::Primary, Icon::Eye))
+                    { pendingToggle = (int)ri; pendingEnable = true; }
+                }
+                ImGui::SameLine();
+                ImGui::BeginDisabled(e.isTengri);
+                if (ui::Button(L(BtnRemove), ImVec2(smallW, px(28)), ButtonStyle::Ghost, Icon::Close))
+                    pendingRemove = (int)ri;
+                ImGui::EndDisabled();
+                ImGui::EndGroup();
+
+                ui::EndCard();
+            }
+
+            if (pendingToggle >= 0 || pendingRemove >= 0)
+            {
+                const int idx = (pendingToggle >= 0) ? pendingToggle : pendingRemove;
+                const startup::Entry& target = *rows[idx];
+                const bool machine = (target.scope == startup::Scope::MachineRun ||
+                                      target.scope == startup::Scope::MachineRunOnce);
+
+                bool ok = false;
+                if (pendingToggle >= 0) ok = startup::SetEnabled(target, pendingEnable);
+                else                    ok = startup::Remove(target);
+
+                if (!ok && machine && !admin)
+                {
+                    ui::Notify(Toast::Warning, L(Startup), L(StartupAdminRequired));
+                }
+                else if (ok)
+                {
+                    ui::Notify(Toast::Success, L(Startup),
+                               pendingRemove >= 0 ? L(BtnRemove)
+                               : (pendingEnable ? L(BtnEnable) : L(BtnDisable)));
+                }
+                RefreshStartup();
+            }
+        }
+
+        // ------------------------------------------------------------- hizmet yöneticisi
+        bool g_servicesLoaded = false;
+        std::vector<services::Entry> g_serviceEntries;
+
+        void RefreshServices()
+        {
+            g_serviceEntries = services::Query();
+            g_servicesLoaded = true;
+        }
+
+        const char* StartTypeText(services::StartType t)
+        {
+            switch (t)
+            {
+                case services::StartType::Automatic:        return L(StAutomatic);
+                case services::StartType::AutomaticDelayed: return L(StAutoDelayed);
+                case services::StartType::Manual:           return L(StManual);
+                case services::StartType::Disabled:         return L(StDisabled);
+                default:                                    return L(StUnknown);
+            }
+        }
+
+        const char* SeverityText(services::Severity s)
+        {
+            switch (s)
+            {
+                case services::Severity::Safe:    return L(SeveritySafe);
+                case services::Severity::Caution: return L(SeverityCaution);
+                default:                          return L(SeverityRisky);
+            }
+        }
+
+        void PageServices(float cw)
+        {
+            if (!g_servicesLoaded) RefreshServices();
+
+            const bool admin = elevate::IsElevated();
+            const float bh = px(34), bwA = px(160), bwR = px(150);
+
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            ImGui::SetCursorScreenPos(ImVec2(p.x + cw - bwA, p.y));
+            if (ui::Button(L(BtnApplyGame), ImVec2(bwA, bh), ButtonStyle::Primary, Icon::Bolt))
+            {
+                const int n = services::ApplyGameProfile();
+                ui::Notify(n > 0 ? Toast::Success : Toast::Warning,
+                           L(Services), n > 0 ? L(GameProfileApplied) : L(ServicesAdminRequired));
+                RefreshServices();
+            }
+            ImGui::SetCursorScreenPos(ImVec2(p.x + cw - bwA - px(10) - bwR, p.y));
+            if (ui::Button(L(BtnRestoreGame), ImVec2(bwR, bh), ButtonStyle::Secondary, Icon::Refresh))
+            {
+                const int n = services::RestoreGameProfile();
+                ui::Notify(n > 0 ? Toast::Success : Toast::Warning,
+                           L(Services), n > 0 ? L(GameProfileRestored) : L(ServicesAdminRequired));
+                RefreshServices();
+            }
+            ImGui::SetCursorScreenPos(ImVec2(p.x, p.y));
+            ImGui::Dummy(ImVec2(cw - bwR * 2 - px(20), bh));
+
+            if (!admin)
+                ui::Label(theme::fonts.regular, theme::size::Body, theme::ink::Secondary, L(ServicesAdminRequired));
+
+            // Yeniden tarama / durum değişikliği iterasyonu bozar; işler
+            // çevrim dışına ertelenir (tıpkı PageStartup'taki gibi).
+            bool        wantRefresh = false;
+            std::wstring pendingSet;
+            services::StartType pendingTarget = services::StartType::Unknown;
+
+            for (const services::Entry& e : g_serviceEntries)
+            {
+                const float rowW = cw - px(8);
+                char cardId[48];
+                snprintf(cardId, sizeof(cardId), "##svc%zu", (size_t)(&e - g_serviceEntries.data()));
+                const std::string reason = e.policy ? W2S(e.policy->reason) : std::string();
+                ui::BeginCard(cardId, rowW, W2S(e.displayName).c_str(),
+                              e.policy ? reason.c_str() : nullptr);
+
+                std::string meta = StartTypeText(e.current);
+                meta += " \xC2\xB7 ";
+                meta += e.policy ? SeverityText(e.policy->severity) : L(SeveritySafe);
+                if (e.running) { meta += " \xC2\xB7 "; meta += L(StRunning); }
+                ImGui::TextUnformatted(meta.c_str());
+
+                const float smallW = px(110);
+                if (ui::Button(L(BtnRefresh), ImVec2(smallW, px(26)), ButtonStyle::Ghost, Icon::Refresh))
+                    wantRefresh = true;
+
+                // Basit durum okları: elle <-> devre dışı yer değiştirmesi.
+                if (admin && e.policy)
+                {
+                    ImGui::SameLine();
+                    if (e.current != services::StartType::Disabled)
+                    {
+                        if (ui::Button(L(BtnDisable), ImVec2(smallW, px(26)), ButtonStyle::Secondary, Icon::EyeOff))
+                        {
+                            pendingSet    = e.serviceName;
+                            pendingTarget = services::StartType::Disabled;
+                        }
+                    }
+                    else
+                    {
+                        if (ui::Button(L(BtnEnable), ImVec2(smallW, px(26)), ButtonStyle::Primary, Icon::Eye))
+                        {
+                            pendingSet    = e.serviceName;
+                            pendingTarget = (e.policy->gameProfile == services::StartType::Disabled)
+                                              ? services::StartType::Manual : e.policy->gameProfile;
+                        }
+                    }
+                }
+
+                ui::EndCard();
+            }
+
+            if (!pendingSet.empty())
+            {
+                services::SetStartType(pendingSet, pendingTarget);
+                wantRefresh = true;
+            }
+            if (wantRefresh) RefreshServices();
+        }
+
+        // ------------------------------------------------------------------ ana iskelet
         void DrawSidebar(const ImVec2& ds, float sbw)
         {
             ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -2177,6 +2458,8 @@ void NotifyDelegating(const elevate::Pending& p);
                 case 4: PageSystemInfo(cw); break;
                 case 5: PageSettings(cw);   break;
                 case 6: PageAbout(cw);      break;
+                case 7: PageStartup(cw);    break;
+                case 8: PageServices(cw);   break;
                 }
                 ImGui::Dummy(ImVec2(0, px(4)));
             }

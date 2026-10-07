@@ -70,9 +70,9 @@ namespace brand
     // sürümü ikinci bir yere yazmak yerine çalışan dosyadan geri okuduğu için iki
     // değer birbirinden ayrılamaz.
     constexpr const char*    kVersionMajor  = "1";
-    constexpr const char*    kVersionMinor  = "1";
+    constexpr const char*    kVersionMinor  = "2";
     constexpr const char*    kVersionPatch  = "0";
-    constexpr const char*    kVersion       = "1.1.0";
+    constexpr const char*    kVersion       = "1.2.0";
     constexpr const char*    kPublisher     = "TENGRİ Project";
     constexpr const char*    kDescription   = "TENGRİ - System Optimizer";
 

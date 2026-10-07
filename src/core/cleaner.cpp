@@ -254,12 +254,13 @@ namespace cleaner
             }
             break;
         case 8:
-            if (!env.local.empty())
+            // Varsayılan maske: Steam motor önbelleği hariç tüm GPU shader
+            // önbellekleri. Ayrıntılı maske isteyen çağıran ScanShader'ı
+            // doğrudan çağırır.
             {
-                ScanDir(env.local + L"\\D3DSCache", r.sizeMB, r.fileCount);
-                ScanDir(env.local + L"\\NVIDIA\\DXCache", r.sizeMB, r.fileCount);
-                ScanDir(env.local + L"\\NVIDIA\\GLCache", r.sizeMB, r.fileCount);
-                ScanDir(env.local + L"\\AMD\\DXCache", r.sizeMB, r.fileCount);
+                const ScanResult s = ScanShader(Shader_Default);
+                r.sizeMB    += s.sizeMB;
+                r.fileCount += s.fileCount;
             }
             break;
         case 9:
@@ -329,13 +330,7 @@ namespace cleaner
             }
             break;
         case 8:
-            if (!env.local.empty())
-            {
-                CleanDir(env.local + L"\\D3DSCache");
-                CleanDir(env.local + L"\\NVIDIA\\DXCache");
-                CleanDir(env.local + L"\\NVIDIA\\GLCache");
-                CleanDir(env.local + L"\\AMD\\DXCache");
-            }
+            CleanShader(Shader_Default);
             break;
         case 9:
             if (!env.win.empty()) CleanDir(env.win + L"\\SoftwareDistribution\\DeliveryOptimization");
@@ -343,6 +338,146 @@ namespace cleaner
         }
 
         double after = Scan(cat).sizeMB;
+        return before > after ? before - after : 0.0;
+    }
+
+    // --------------------------------------------------------- Shader önbellek
+    //
+    // Shader önbelleği silmek güvenlidir ama "beklenmedik" bir maliyet taşır:
+    // oyun ilk açılışta pipeline'ları yeniden derler. Bu yüzden Steam motor
+    // önbelleği (shadercache klasörleri) varsayılan maskeye alınmaz; kullanıcı
+    // bilinçli olarak Shader_SteamEngine'i açarsa dahil edilir.
+    //
+    // NVIDIA Experience bazı sürümlerde NV_Cache içinde junction kullanıyor.
+    // Mevcut ScanDir/CleanDir reparse point'leri yaprak sayıyor; o koruma
+    // burada da geçerli.
+
+    namespace
+    {
+        void ScanShaderPath(const std::wstring& path, ScanResult& r)
+        {
+            ScanDir(path, r.sizeMB, r.fileCount);
+        }
+
+        void CleanShaderPath(const std::wstring& path)
+        {
+            CleanDir(path);
+        }
+
+        void ForEachSteamShaderCache(const std::wstring& programFilesX86,
+                                     bool scan, ScanResult* r)
+        {
+            // Steam shadercache: Steam\steamapps\shadercache\<appid>\.
+            // Varsayılan Steam yolu bilinmediği için önce kullanıcının
+            // "Software\Valve\Steam\SteamPath" kaydına bakılabilir; burada
+            // yalnızca varsayılan konum deneniyor, Steam başka diskteyse atlanır.
+            // Yanlış bir yola yazmak her zaman daha büyük bir risk.
+            const std::wstring base = programFilesX86 + L"\\Steam\\steamapps\\shadercache";
+
+            WIN32_FIND_DATAW fd;
+            HANDLE h = FindFirstFileW((base + L"\\*").c_str(), &fd);
+            if (h == INVALID_HANDLE_VALUE) return;
+            do {
+                if (IsDotDir(fd.cFileName)) continue;
+                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || IsReparse(fd)) continue;
+                const std::wstring entry = base + L"\\" + fd.cFileName;
+                if (scan && r) ScanDir(entry, r->sizeMB, r->fileCount);
+                else if (!scan) CleanDir(entry);
+            } while (FindNextFileW(h, &fd));
+            FindClose(h);
+        }
+
+        std::wstring ProgramDataDir()
+        {
+            wchar_t buf[MAX_PATH] = {};
+            if (GetEnvironmentVariableW(L"ProgramData", buf, MAX_PATH)) return buf;
+            return L"C:\\ProgramData";
+        }
+
+        std::wstring ProgramFilesX86Dir()
+        {
+            wchar_t buf[MAX_PATH] = {};
+            if (GetEnvironmentVariableW(L"ProgramFiles(x86)", buf, MAX_PATH)) return buf;
+            if (GetEnvironmentVariableW(L"ProgramFiles", buf, MAX_PATH))      return buf;
+            return L"C:\\Program Files (x86)";
+        }
+    }
+
+    ScanResult ScanShader(uint32_t mask)
+    {
+        ScanResult r;
+        const Roots env = Resolve();
+        const std::wstring programData  = ProgramDataDir();
+        const std::wstring programFiles = ProgramFilesX86Dir();
+
+        if (env.local.empty()) return r;
+
+        if (mask & Shader_D3D)
+        {
+            ScanShaderPath(env.local + L"\\D3DSCache", r);
+        }
+        if (mask & Shader_NVIDIA)
+        {
+            ScanShaderPath(env.local + L"\\NVIDIA\\DXCache", r);
+            ScanShaderPath(env.local + L"\\NVIDIA\\GLCache", r);
+            ScanShaderPath(env.local + L"\\NVIDIA Corporation\\NV_Cache", r);
+            ScanShaderPath(programData  + L"\\NVIDIA Corporation\\NV_Cache", r);
+        }
+        if (mask & Shader_AMD)
+        {
+            ScanShaderPath(env.local + L"\\AMD\\DxCache", r);
+            ScanShaderPath(env.local + L"\\AMD\\GLCache", r);
+            ScanShaderPath(env.local + L"\\AMD\\VkCache", r);
+            ScanShaderPath(programData + L"\\AMD\\DxcCache", r);
+        }
+        if (mask & Shader_Intel)
+        {
+            ScanShaderPath(env.local + L"\\Intel\\ShaderCache", r);
+        }
+        if (mask & Shader_SteamEngine)
+        {
+            ForEachSteamShaderCache(programFiles, true, &r);
+        }
+        return r;
+    }
+
+    double CleanShader(uint32_t mask)
+    {
+        const double before = ScanShader(mask).sizeMB;
+        const Roots env = Resolve();
+        const std::wstring programData  = ProgramDataDir();
+        const std::wstring programFiles = ProgramFilesX86Dir();
+
+        if (env.local.empty()) return 0.0;
+
+        if (mask & Shader_D3D)
+        {
+            CleanShaderPath(env.local + L"\\D3DSCache");
+        }
+        if (mask & Shader_NVIDIA)
+        {
+            CleanShaderPath(env.local + L"\\NVIDIA\\DXCache");
+            CleanShaderPath(env.local + L"\\NVIDIA\\GLCache");
+            CleanShaderPath(env.local + L"\\NVIDIA Corporation\\NV_Cache");
+            CleanShaderPath(programData + L"\\NVIDIA Corporation\\NV_Cache");
+        }
+        if (mask & Shader_AMD)
+        {
+            CleanShaderPath(env.local + L"\\AMD\\DxCache");
+            CleanShaderPath(env.local + L"\\AMD\\GLCache");
+            CleanShaderPath(env.local + L"\\AMD\\VkCache");
+            CleanShaderPath(programData + L"\\AMD\\DxcCache");
+        }
+        if (mask & Shader_Intel)
+        {
+            CleanShaderPath(env.local + L"\\Intel\\ShaderCache");
+        }
+        if (mask & Shader_SteamEngine)
+        {
+            ForEachSteamShaderCache(programFiles, false, nullptr);
+        }
+
+        const double after = ScanShader(mask).sizeMB;
         return before > after ? before - after : 0.0;
     }
 }

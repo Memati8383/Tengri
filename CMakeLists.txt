@@ -74,6 +74,9 @@ add_executable(TENGRI WIN32
     src/core/regpack.cpp
     src/core/elevate.cpp
     src/core/backup.cpp
+    src/core/restore.cpp
+    src/core/startup.cpp
+    src/core/services.cpp
 src/core/notify.cpp
 src/core/sysinfo_wmi.cpp
     src/tray.cpp

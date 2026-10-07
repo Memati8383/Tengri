@@ -18,6 +18,12 @@ namespace tray
         bool            g_enabled = false;
         HICON           g_icon = nullptr;
 
+        // Explorer yeniden başladığında (çökme, shell_experience değişimi,
+        // logoff/on) tüm bildirim simgeleri sürece haber verilmeden yok edilir.
+        // Kabuk, pencereye yinelenen bir özel mesaj numarasıyla bunu bildirir;
+        // numara oturumdan bağımsız olduğundan RegisterWindowMessageW ile alınır.
+        UINT g_taskbarCreated = 0;
+
         void Add()
         {
             if (g_added || !g_icon) return;
@@ -54,6 +60,10 @@ namespace tray
         g_nid.hWnd = hwnd;
         g_nid.uID = 1;
 
+        // Explorer'ın yeniden başlama bildirisini dinlenebilir kıl: numara
+        // makineden makineye değiştiği için sabit yazılamaz.
+        g_taskbarCreated = ::RegisterWindowMessageW(L"TaskbarCreated");
+
         // Simge kaynaktan, görev çubuğu ve pencere ile aynı artwork olsun diye.
         // instance ZORUNLU: modül NULL iken LoadImage kimliği sistem kaynağı
         // sanar. LR_DEFAULTSIZE sistem ikon ölçülerini ister ve LR_SHARED
@@ -72,6 +82,10 @@ namespace tray
 
         Add();
         g_have = g_added;
+        // Açılışta arayüz varsayılan olarak tepsiyi açık tutar (app.cpp g_tray=true).
+        // Bu bayrak daha önce hiç set edilmediği için Tick() bakım döngüsü ölü kalıyor,
+        // dolayısıyla Explorer yeniden başladığında simge bir daha geri gelemiyordu.
+        g_enabled = g_added;
         return g_added;
     }
 
@@ -95,6 +109,16 @@ namespace tray
 
     bool HandleMessage(UINT msg, LPARAM lparam, bool* restore)
     {
+        // Explorer yeniden başladı: eski bildirim kaydı artık geçersiz. g_added'i
+        // sıfırla ve (tepsi açıksa) simgeyi hemen yeniden ekle. Bu olmazsa simge
+        // yalnızca pencere tarafında kalır, tepside bir daha görünmez.
+        if (g_taskbarCreated && msg == g_taskbarCreated)
+        {
+            g_added = false;
+            if (g_enabled) Add();
+            return true;
+        }
+
         if (msg != WM_TRAY) return false;
 
         switch (LOWORD(lparam))

@@ -125,7 +125,25 @@ namespace S
         NotifBtnView, NotifBtnUndo, NotifBtnRetry, NotifBtnOk,
         WorkingOn,
 
-        // Sınır değeri. Blok tablolarından hemen önceki son sabit olmalıdır: blok
+        // Yeni sekmeler: Başlangıç Yöneticisi ve Hizmet Optimizatörü. Bu blok
+        // FlatEnd'den hemen önce olmalı ki tweak/NET blok başlangıçları
+        // kaymasın.
+        Startup, Services,
+        StartupDesc, ServicesDesc,
+        StartupEmpty, ServicesEmpty,
+        ColName, ColPublisher, ColScope, ColCommand, ColState, ColStartType,
+        ScopeUserRun, ScopeUserRunOnce, ScopeMachineRun, ScopeMachineRunOnce,
+        ImpactLow, ImpactMedium, ImpactHigh, ImpactUnknown,
+        StAutomatic, StAutoDelayed, StManual, StDisabled, StUnknown, StRunning,
+        BtnEnable, BtnDisable, BtnRemove, BtnRefresh, BtnRescan,
+        BtnApplyGame, BtnRestoreGame,
+        GameProfileApplied, GameProfileRestored, ProtectionDisabled,
+        StartupAdminRequired, ServicesAdminRequired,
+        StartupSelf, ScopeTooltip,
+        SeveritySafe, SeverityCaution, SeverityRisky,
+        FilterAll,
+
+        // sonradan eklenenler: bildirim metinleri, kategori başlıkları ve ağ satır
         // başlangıçları buradan türetildiği için, sonrasına yeni bir düz anahtar
         // eklenmesi bütün tweak etiketlerini sessizce kaydırırdı. Daha önce de tam
         // olarak bu yüzden, hakkında sayfası metinleri buraya değil Repository'nin
