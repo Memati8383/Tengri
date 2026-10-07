@@ -103,6 +103,10 @@ namespace lang
             "Close", "Repository",
             "Version, links and notices", "LINKS", "Source code", "NOTICES", "License",
 
+            // Bildirimler
+            "Windows notifications", "Errors only",
+            "View results", "Undo", "Retry", "OK", "Working",
+
             // ---- TweakNames: 7 kategori x 8 satır ----
             // Performans
             "Ultimate power plan", "Disable background apps", "Optimize visual effects",
@@ -310,6 +314,8 @@ namespace lang
             "Uygulama normal kullan\xC4\xB1" "c\xC4\xB1 olarak a\xC3\xA7\xC4\xB1l\xC4\xB1r; HKLM'ye yazan bir i\xC5\x9F istendi\xC4\x9Finde kendini \x22runas\x22 ile yeniden ba\xC5\x9Flat\xC4\xB1r ve o i\xC5\x9Fi y\xC3\xBCksek yetkiyle yapar.",
             "Kapat", "Depo",
             "S\xC3\xBCr\xC3\xBCm, ba\xC4\x9Flant\xC4\xB1lar ve bildirimler", "BA\xC4\x9ELANTILAR", "Kaynak kodu", "B\xC4\xB0LG\xC4\xB0LER", "Lisans",
+            "Windows bildirimleri", "Sadece hatalar",
+            "Sonu\xC4\xB1lar\xC4\xB1 g\xC3\xB6r", "Geri al", "Tekrar dene", "Tamam", "\xC3\x87" "al\xC4\xB1\xC4\xB1\xC5\x9F\xC4\xB1yor",
 
             // ---- TweakNames: 7 kategori x 8 satır ----
             // Performans

@@ -10,6 +10,7 @@
 #include "tray.hpp"
 #include "brand.hpp"
 #include "core/elevate.hpp"
+#include "core/notify.hpp"
 #include <d3d11.h>
 #include <dwmapi.h>
 
@@ -96,15 +97,102 @@ static void CleanupDeviceD3D()
 
 static bool g_trayRestore = false;
 
+// ---- tek örnek kilidi -------------------------------------------------------
+// Windows bildirimlerindeki düğmeler uygulamayı YENİDEN başlatır; Windows'un
+// tek yapabildiği budur. Bu exe kendi başına ikinci bir pencere açtığında
+// kullanıcı iki TENGRİ görür ve hangisinde olduğunu anlamaz. Bu yüzden
+// başlatma komutu taşıyan her örnek, çalışan örneğe komutu iletip kendini
+// kapatır.
+static HANDLE g_singleMutex = nullptr;
+
+// Kilit adı exe adına göre üretilir, ürün adına göre değil. Aynı exenin iki
+// örneği çakışmaya devam eder (istenen davranış), ama build\TENGRI_shot.exe
+// kopyası gerçek TENGRI.exe ile çakışmaz: ekran görüntüsü aracı kullanıcının
+// açık uygulamasını kapatmak zorunda kalmaz. Sabit bir ad kullanılsaydı
+// geliştirme derlemesi kurulu sürümü çalışırken hiç açılamazdı.
+static std::wstring SingleMutexName()
+{
+    wchar_t exe[MAX_PATH] = {};
+    if (!::GetModuleFileNameW(nullptr, exe, MAX_PATH)) return L"Local\\TENGRI_SingleInstance";
+
+    std::wstring leaf(exe);
+    const size_t slash = leaf.find_last_of(L"\\/");
+    if (slash != std::wstring::npos)
+        leaf = leaf.substr(slash + 1);
+
+    const size_t dot = leaf.find_last_of(L'.');
+    if (dot != std::wstring::npos)
+        leaf = leaf.substr(0, dot);
+
+    // Yalnızca harf, rakam, tire ve alt çizgi bırakılır: kernel nesne
+    // adlarında ters bölü ve boşluk yasaktır, exe adı isteğe bağlı olarak
+    // bunları içerebilir.
+    for (wchar_t& c : leaf)
+    {
+        const bool ok = (c >= L'A' && c <= L'Z') || (c >= L'a' && c <= L'z') ||
+                        (c >= L'0' && c <= L'9') || c == L'-' || c == L'_';
+        if (!ok) c = L'_';
+    }
+
+    return L"Local\\TENGRI_" + leaf;
+}
+
+static bool ForwardToRunningInstance(const wchar_t* args)
+{
+    if (!g_singleMutex)
+        return false;
+
+    HWND hwnd = ::FindWindowW(brand::kWindowClass, nullptr);
+    if (!hwnd)
+        return false;
+
+    const std::wstring payload = args ? args : L"";
+    const size_t bytes = (payload.size() + 1) * sizeof(wchar_t);
+    COPYDATASTRUCT cds = {};
+    cds.dwData = WM_USER + 1;          // kendi mesajımız; çakışma imkânsız
+    cds.cbData = (DWORD)bytes;
+    cds.lpData = (void*)payload.c_str();
+
+    // Zaman aşımı: alıcı bir kare boyunca yanıt vermezse (kilitli, donmuş)
+    // gönderen sonsuza kadar beklememeli; kendisi yeni örnek olur.
+    DWORD_PTR ok = 0;
+    ::SendMessageTimeoutW(hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&cds,
+                          SMTO_ABORTIFHUNG, 2000, &ok);
+    return true;
+}
+
 static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (tray::HandleMessage(msg, lParam, &g_trayRestore))
         return 0;
+
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
         return true;
 
     switch (msg)
     {
+    case WM_COPYDATA:
+    {
+        // Başka bir örnekten gelen bildirim komutu.
+        const COPYDATASTRUCT* cds = (const COPYDATASTRUCT*)lParam;
+        if (cds && cds->dwData == WM_USER + 1 && cds->lpData && cds->cbData >= sizeof(wchar_t))
+        {
+            const std::wstring args((const wchar_t*)cds->lpData, cds->cbData / sizeof(wchar_t) - 1);
+
+            int target = notify::TargetNone;
+            const int cmd = notify::ParseLaunch(args.c_str(), &target);
+            if (cmd != 0)
+            {
+                app::HandleNotifyCommand(cmd, target);
+                // Pencere tray'de gizliyse komut sessizce çalışıp kaybolmasın:
+                // kullanıcı düğmeye bastı, karşılığını görmeli.
+                ::ShowWindow(hWnd, SW_RESTORE);
+                ::SetForegroundWindow(hWnd);
+            }
+            return TRUE;
+        }
+        return FALSE;
+    }
     case WM_SIZE:
         if (wParam == SIZE_MINIMIZED)
         {
@@ -160,6 +248,50 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     // Burada hiçbir arayüz oluşturmadan iş uygulanır ve süreç çıkar. Normal açılışta
     // bu bayrak yoktur ve akış normaldir.
     elevate::CacheExecutablePath();
+
+    // Bildirimden gelen başlatma komutu "cmd:N" biçimindedir. Yükseltilmiş
+    // yeniden başlatma bayrağıyla karışmaması için ikisi ayrı ayrı okunur.
+    std::wstring launchArgs;
+    {
+        int    argc = 0;
+        LPWSTR* argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+        if (argv)
+        {
+            for (int i = 1; i < argc; ++i)
+            {
+                if (::wcsncmp(argv[i], notify::kLaunchPrefix, 4) == 0)
+                {
+                    launchArgs = argv[i];
+                    break;
+                }
+            }
+        }
+
+        // Tek örnek kilidi. Yükseltilmiş süreç bu kilidi TUTMAZ: o süreç
+        // kısa ömürlüdür ve kilidi alırsa ana uygulamanın kilidi tutmasını
+        // engeller, dolayısıyla her açılışta yeni örnek sanılır.
+        if (!elevate::IsElevated())
+        {
+            const std::wstring mutexName = SingleMutexName();
+            g_singleMutex = ::CreateMutexW(nullptr, TRUE, mutexName.c_str());
+            const bool alreadyRunning = (::GetLastError() == ERROR_ALREADY_EXISTS);
+            if (alreadyRunning)
+            {
+                // Komut varsa çalışan örneğe ilet, yoksa yalnızca öne getir.
+                if (ForwardToRunningInstance(launchArgs.empty() ? nullptr : launchArgs.c_str()))
+                {
+                    LocalFree(argv);
+                    return 0;
+                }
+                // Pencere yoksa kilit sahibi ölmüş demektir; kullanıcı yeni
+                // örneği açabilsin diye kilidi bırakıp normal akışa devam edilir.
+                ::ReleaseMutex(g_singleMutex);
+                ::CloseHandle(g_singleMutex);
+                g_singleMutex = nullptr;
+            }
+        }
+    }
+
     {
         int    argc = 0;
         LPWSTR* argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
@@ -182,6 +314,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     }
 
     ImGui_ImplWin32_EnableDpiAwareness();
+
+    // WinRT başlatma, iş parçacıkları başlatılmadan ÖNCE yapılmalıdır.
+    // notify::Init aynı zamanda AUMID kaydını ve Başlat menüsü kısayolunu
+    // da kurar; ikisi de yalnızca bu çağrıdan sonra güvenilirdir.
+    notify::Init();
+
     const float scale = ImGui_ImplWin32_GetDpiScaleForMonitor(::MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
     g_initialScale = scale > 0.0f ? scale : 1.0f;
     const int w = (int)(980 * scale), h = (int)(640 * scale);
@@ -346,6 +484,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 
     app::Shutdown();
     tray::Shutdown();
+    notify::Shutdown();
+
+    if (g_singleMutex)
+    {
+        ::ReleaseMutex(g_singleMutex);
+        ::CloseHandle(g_singleMutex);
+        g_singleMutex = nullptr;
+    }
 
     // Cihaz kapatılmadan önce serbest bırakılmalı; ters sırada serbest bırakılan
     // doya cihaz yok sayılır ve sızıntı olur.

@@ -14,6 +14,7 @@
 #include "core/ram.hpp"
 #include "core/elevate.hpp"
 #include "core/backup.hpp"
+#include "core/notify.hpp"
 #include "tray.hpp"
 #include "brand.hpp"
 #include <shellapi.h>
@@ -90,6 +91,12 @@ namespace app
 
         int    g_tab     = 0;
         double g_tabTime = 0.0;
+
+        // Bildirimden gelen "Sonuçları gör" komutunun hedeflediği sekme.
+        // Uygulama kapalıyken komut gelirse burada bekler ve lisan akışı
+        // bittikten sonra uygulanır; doğrudan g_tab'a yazılırsa ekran henüz
+        // Main değilken yazı sessizce kaybolur.
+        int    g_tabTarget = -1;
 
         std::vector<float> g_cpu(61, 0.0f);
         std::vector<float> g_ping(61, 0.0f);
@@ -226,11 +233,109 @@ namespace app
         // kullanır; boşsa hiç yedek alınmamıştır.
         std::wstring g_lastBackup;
 
+        // Windows bildiriminden "Geri al" basıldığında yetkilendirme yapılmadan
+        // önce durulur. Bildirim registry'ye dokunmadan önce hep bir onay
+        // penceresi açmak zorundadır: tek tıkla geri alma, kullanıcının o anda
+        // hangi pencereye baktığını bilmediği bir durumda veri kaybı demektir.
+        // Onay penceresi ana iş parçacığında çizilir, aynı yerde.
+        bool g_undoAwaitConfirm = false;
+
+        // Son devredilen yazma işi. "Tekrar dene" düğmesi bunu yeniden gönderir;
+        // komutu hatırlamak, kullanıcıyı ayar sayfasına dönüp aynı işi elle
+        // kurmaktan kurtarır. Bayrak yoksa düğme hiç üretilmez.
+        bool     g_hasRetry    = false;
+        elevate::Pending g_retry;
+
         void CollectPendingFromPages(elevate::Pending& p)
         {
             p.ramPreset     = g_pendingRam;
             p.dnsProvider   = g_pendingDns;
             p.startupToggle = g_pendingStartup;
+        }
+
+        // Windows bildirimi gönderir: uygulama içi toaster YANINDA, Eylem Merkezi'ne.
+        //
+        // Neden her olayda ayrı ayrı çağrılıyor, neden tek bir noktadan: her
+        // olayın hedef sayfası ve düğmeleri farklıdır ("Geri al" yalnızca
+        // ayar uygulandıktan sonra anlamlıdır, "Tekrar dene" yalnızca başarısız
+        // işte). Tek bir noktadan gönderim bu bilgiyi kaybeder.
+        //
+        // Ayar uygulanmışsa düğmeler "Sonuçları gör" ve "Geri al" olur.
+        void NotifyWin(notify::Level lvl, const char* title, const char* body,
+                       notify::Target target, bool canUndo = false)
+        {
+            std::vector<notify::Button> buttons;
+            buttons.push_back({ notify::Action::View, L(NotifBtnView) });
+            if (canUndo)
+                buttons.push_back({ notify::Action::Undo, L(NotifBtnUndo) });
+            notify::Post(lvl, title, body, target, buttons);
+        }
+
+        // Başarısız bir iş için: "Sonuçları gör" + "Tekrar dene". Yalnızca
+        // gerçekten yeniden denenebilir bir iş varsa kullanılır; "tekrar dene"
+        // düğmesi olan ama hiçbir şeyi yeniden denemeyen bildirim kullanıcıyı
+        // yanıltır.
+        void NotifyWinFailed(notify::Level lvl, const char* title, const char* body,
+                             notify::Target target)
+        {
+            std::vector<notify::Button> buttons;
+            buttons.push_back({ notify::Action::View, L(NotifBtnView) });
+            // "Tekrar dene" yalnızca gerçekten saklanmış bir iş varsa eklenir.
+            // Düğme her zaman bulunsaydı, karşılığı boş olan bir düğmeye basıp
+            // hiçbir şey olmaması kullanıcı için hatadan ayırt edilemezdi.
+            if (g_hasRetry)
+                buttons.push_back({ notify::Action::Retry, L(NotifBtnRetry) });
+            notify::Post(lvl, title, body, target, buttons);
+        }
+
+// Bu ikisi birbirini çağırır (NotifyDelegating -> RunUndo, RunUndo ->
+// NotifyDelegating) ve tanımları birbirinden önce gelmeyebilir; tek yönlü
+// ilerleme olsaydı ilki ikinciyi çağırdığı için sıra önemli olurdu.
+void NotifyDelegating(const elevate::Pending& p);
+
+// Yedeği geri yükler. Hem ayar sayfasındaki düğmeden hem de Windows
+        // bildirimindeki "Geri al" düğmesinden aynı yol çağrılır; iki giriş
+        // noktası iki ayrı yazma mantığı türetirse biri zamanla diğerinden
+        // kopar.
+        void RunUndo(const std::wstring& yedek)
+        {
+            if (yedek.empty()) return;
+            const size_t slash = yedek.find_last_of(L'\\');
+            elevate::Pending undo;
+            if (slash != std::wstring::npos)
+            {
+                const std::wstring ad = yedek.substr(slash + 1);
+                // Klasor adi ASCII; wchar_t -> char darlaltmasi acikca yazildi,
+                // implicit donustum C4244 uyarisi veriyordu.
+                undo.restoreFrom.clear();
+                for (wchar_t ch : ad)
+                    undo.restoreFrom.push_back(ch < 128 ? (char)ch : '?');
+            }
+            if (!elevate::IsElevated())
+                NotifyDelegating(undo);
+            else
+                elevate::ApplyOrDelegate(undo);
+            g_lastBackup.clear();
+            ui::Notify(Toast::Info, L(UndoChanges), L(UndoDone));
+            notify::Post(notify::Level::Info, L(UndoChanges), L(UndoDone),
+                         notify::TargetTweaks);
+        }
+
+        // Yükseltilmiş sürece devredilen bir iş için iki bildirim gerekir:
+        // önce "çalışıyor" (arayüz kapanmak üzere, kullanıcı ne olduğunu
+        // görsün), sonra UAC reddedildiyse sonuç. Başarı halinde son bildirim
+        // yükseltilmiş sürecin kendi işidir ve ana süreç kapanacağı için
+        // buradan gönderilemez.
+        //
+        // Not: devredilen süreç kendi bildirimini gönderebilirdi ama o süreç
+        // anında kapanır ve kendi AUMID kaydını taşımaz; tek örnek kilidi
+        // yüzünden komut yönlendirmesi de kurulamaz. Bu yüzden sonucu üreten
+        // taraf daima ana süreçtir.
+        void NotifyDelegating(const elevate::Pending& p)
+        {
+            g_retry     = p;          // "tekrar dene" bunu yeniden gönderir
+            g_hasRetry  = true;
+            notify::PostProgress(L(WorkingOn), L(NeedAdmin));
         }
 
         // Etiketler yine satır indeksinden lang::NetNameKey/NetDescKey ile gelir, tweak kategorileriyle aynı düzen.
@@ -601,6 +706,8 @@ namespace app
                 SetProcessWorkingSetSize(GetCurrentProcess(), (SIZE_T)-1, (SIZE_T)-1);
                 network::FlushDns();
                 ui::Notify(Toast::Success, L(SystemOptimized), L(OptimizedDesc));
+                NotifyWin(notify::Level::Success, L(SystemOptimized), L(OptimizedDesc),
+                          notify::TargetDashboard);
             }
 
             const int n = (int)g_cats.size();
@@ -628,6 +735,8 @@ namespace app
                     g_cleanState = CleanState::Ready;
                     const std::string msg = FormatSize(TotalFound()) + " of junk found";
                     ui::Notify(Toast::Info, L(ScanComplete), msg.c_str());
+                    NotifyWin(notify::Level::Info, L(ScanComplete), msg.c_str(),
+                              notify::TargetCleaner);
                 }
             }
             else if (g_cleanState == CleanState::Cleaning)
@@ -652,6 +761,8 @@ namespace app
                     g_cleanState = CleanState::Done;
                     const std::string msg = FormatSize(g_freed) + " freed successfully";
                     ui::Notify(Toast::Success, L(AllClean), msg.c_str());
+                    NotifyWin(notify::Level::Success, L(AllClean), msg.c_str(),
+                              notify::TargetCleaner);
                 }
             }
 
@@ -688,12 +799,17 @@ namespace app
                     // Başka sayfalarda bekleyen işler varsa (RAM/DNS/başlangıç) aynı yükseltilmiş
                     // geçişte onlar da taşınsın; kullanıcı bir kez UAC görsün.
                     CollectPendingFromPages(p);
+                    NotifyDelegating(p);
                     elevate::ApplyOrDelegate(p);
                     // ApplyOrDelegate devredildiyse süreci kapatır; buraya dönmez.
                     // UAC reddedildiyse bu satıra düşer ve ayar uygulanmamış olur.
                     g_dirtyAny[c] = false;
                     for (int i = 0; i < cnt; ++i) g_dirty[c][i] = false;
                     ui::Notify(Toast::Warning, L(TweaksApplied), L(NeedAdmin));
+                    // Buraya yalnızca UAC reddedildiğinde düşülür; "tekrar dene"
+                    // düğmesi bu yüzden burada anlamlıdır.
+                    NotifyWinFailed(notify::Level::Warning, L(TweaksApplied), L(NeedAdmin),
+                                    notify::TargetTweaks);
                     return;
                 }
 
@@ -757,6 +873,14 @@ namespace app
                     snprintf(msg, sizeof(msg), L(RestartFmt), on);
                 g_applyingReg.store(false);
                 ui::Notify(fail > 0 ? Toast::Warning : Toast::Success, L(TweaksApplied), msg);
+                // Kısmi başarıda "tekrar dene" anlamlıdır (yalnızca yazılamayanlar
+                // kaldı), tam başarıda "geri al" (yedek alındıysa).
+                if (fail > 0)
+                    NotifyWinFailed(notify::Level::Warning, L(TweaksApplied), msg,
+                                    notify::TargetTweaks);
+                else if (written > 0)
+                    NotifyWin(notify::Level::Success, L(TweaksApplied), msg,
+                              notify::TargetTweaks, /*canUndo=*/true);
             }
         }
 
@@ -1273,8 +1397,18 @@ namespace app
                 g_pendingRam = g_ramPick;
                 elevate::Pending pending;
                 CollectPendingFromPages(pending);
-                if (elevate::ApplyOrDelegate(pending) == elevate::Result::Applied)
+                if (!elevate::IsElevated())
+                {
+                    NotifyDelegating(pending);
+                    elevate::ApplyOrDelegate(pending);
+                    g_pendingRam = -1;
+                }
+                else if (elevate::ApplyOrDelegate(pending) == elevate::Result::Applied)
+                {
                     ui::Notify(Toast::Success, L(RamProfileApplied), L(RamRestartNote));
+                    NotifyWin(notify::Level::Success, L(RamProfileApplied), L(RamRestartNote),
+                              notify::TargetSettings);
+                }
                 g_pendingRam = -1;   // devredildiyse süreç zaten kapanmıştı
             }
             ImGui::EndDisabled();
@@ -1319,6 +1453,10 @@ namespace app
                     g_dirtyAny[g_tweakCat] = true;
                 }
                 ui::Notify(Toast::Info, L(DefaultsRestored), L(DefaultsRestoredDesc));
+                // Sadece arayüzde işaretlendi, henüz yazılmadı: "geri al"
+                // düğmesi yanlış olur, çünkü registry'de bir değişiklik yok.
+                NotifyWin(notify::Level::Info, L(DefaultsRestored), L(DefaultsRestoredDesc),
+                          notify::TargetTweaks);
             }
             ImGui::SetCursorScreenPos(p);
             ImGui::Dummy(ImVec2(cw, bh));
@@ -1334,20 +1472,7 @@ namespace app
                 ImGui::BeginDisabled(yedek.empty() || g_applying);
                 if (ui::Button(L(UndoChanges), ImVec2(bwR, px(30)), ButtonStyle::Secondary, Icon::Refresh))
                 {
-                    const size_t slash = yedek.find_last_of(L'\\');
-                    elevate::Pending undo;
-                    if (slash != std::wstring::npos)
-                    {
-                        const std::wstring ad = yedek.substr(slash + 1);
-                        // Klasor adi ASCII; wchar_t -> char darlaltmasi acikca yazildi,
-                        // implicit donustum C4244 uyarisi veriyordu.
-                        undo.restoreFrom.clear();
-                        for (wchar_t ch : ad)
-                            undo.restoreFrom.push_back(ch < 128 ? (char)ch : '?');
-                    }
-                    elevate::ApplyOrDelegate(undo);
-                    g_lastBackup.clear();
-                    ui::Notify(Toast::Info, L(UndoChanges), L(UndoDone));
+                    RunUndo(yedek);
                 }
                 ImGui::EndDisabled();
             }
@@ -1478,17 +1603,35 @@ namespace app
                 g_pendingDns = g_dns;
                 elevate::Pending pending;
                 CollectPendingFromPages(pending);
-                if (elevate::ApplyOrDelegate(pending) == elevate::Result::Applied)
+                if (!elevate::IsElevated())
+                {
+                    NotifyDelegating(pending);
+                    elevate::ApplyOrDelegate(pending);
+                    g_pendingDns = -1;
+                }
+                else if (elevate::ApplyOrDelegate(pending) == elevate::Result::Applied)
+                {
                     ui::Notify(Toast::Success, L(DnsUpdated), dns[g_dns]);
+                    NotifyWin(notify::Level::Success, L(DnsUpdated), dns[g_dns],
+                              notify::TargetNetwork);
+                }
                 g_pendingDns = -1;   // devredildiyse süreç zaten kapanmıştı
             }
             ImGui::SetCursorScreenPos(ImVec2(p.x + cw - px(18) - fbw, p.y + px(78)));
             if (ui::Button(L(FlushDnsCache), ImVec2(fbw, px(38)), ButtonStyle::Secondary, Icon::Refresh))
             {
                 if (network::FlushDns())
+                {
                     ui::Notify(Toast::Success, L(DnsFlushed), L(DnsFlushedDesc));
+                    NotifyWin(notify::Level::Success, L(DnsFlushed), L(DnsFlushedDesc),
+                              notify::TargetNetwork);
+                }
                 else
+                {
                     ui::Notify(Toast::Warning, L(DnsFlushed), L(NeedAdmin));
+                    NotifyWinFailed(notify::Level::Warning, L(DnsFlushed), L(NeedAdmin),
+                                    notify::TargetNetwork);
+                }
             }
             ImGui::SetCursorScreenPos(p);
             ImGui::Dummy(ImVec2(cw, dh));
@@ -1538,6 +1681,13 @@ namespace app
                             {
                                 g_netTweaks[i].on = prev; // yazma başarısız, anahtarı eski konumuna geri al
                                 ui::Notify(Toast::Warning, lang::Get(S::NetNameKey(i)), L(NeedAdmin));
+                                // "Tekrar dene" düğmesi YOK: ağ tweak'i Pending
+                                // üzerinden yeniden gönderilemiyor, yalnızca
+                                // doğrudan yazılıyor. Yetki alınamadığında tekrar
+                                // denemek de aynı sonucu verir.
+                                NotifyWin(notify::Level::Warning,
+                                          lang::Get(S::NetNameKey(i)), L(NeedAdmin),
+                                          notify::TargetNetwork);
                             }
                         }
                     }
@@ -1686,6 +1836,18 @@ namespace app
                 const float w = ImGui::GetContentRegionAvail().x;
                 ui::ToggleCard(L(RememberLicense), nullptr, &g_remember, w, false);
                 ui::ToggleCard(L(Notifications), nullptr, &ui::notificationsEnabled, w, false);
+
+                // Windows bildirimleri ve sessiz mod kendi anahtarlarıyla
+                // durur. Üçüncü anahtar ikisini birden susturur: açıkken ne
+                // uygulama içi toaster ne Eylem Merkezi kartı görünür, yalnızca
+                // hata ve uyarılar geçer.
+                const bool prevToasts = notify::toastsEnabled;
+                const bool prevQuiet  = notify::quietMode;
+                ui::ToggleCard(L(WindowsNotifications), nullptr, &notify::toastsEnabled, w, false);
+                ui::ToggleCard(L(QuietMode), nullptr, &notify::quietMode, w, false);
+                if (notify::toastsEnabled != prevToasts || notify::quietMode != prevQuiet)
+                    notify::Save();
+
                 wchar_t exePath[MAX_PATH] = {};
                 ::GetModuleFileNameW(nullptr, exePath, MAX_PATH);
                 const bool prevStartup = g_startup;
@@ -1699,6 +1861,9 @@ namespace app
                                 network::GetRunAtStartup(exePath);
                     ui::Notify(g_startup ? Toast::Success : Toast::Warning,
                                L(LaunchStartup), g_startup ? L(StartupEnabled) : L(NeedAdmin));
+                    NotifyWin(g_startup ? notify::Level::Success : notify::Level::Warning,
+                              L(LaunchStartup), g_startup ? L(StartupEnabled) : L(NeedAdmin),
+                              notify::TargetSettings);
                 }
 
                 const bool prevTray = g_tray;
@@ -2031,6 +2196,102 @@ namespace app
     // main.cpp'nin WndProc'ı bunu okuyarak küçültmenin pencereyi gizleyip gizlemeyeceğine karar verir.
     bool TrayEnabled() { return g_tray; }
 
+    // Windows bildirimindeki "Geri al" düğmesi için onay penceresi.
+        //
+        // Neden ayrı pencere: bildirim, arayüzün hangi ekranda olduğunu
+        // bilmez. Kullanıcı temizlik sayfasındayken bir ayarı geri almak
+        // isteyebilir; onayı o sayfanın üstüne yazmak yanlış olurdu. Tek
+        // ortak onay yüzeyi hangi sayfada olursa olsun aynı soruyu sorar.
+        void DrawUndoConfirm(const ImVec2& ds, float alpha)
+        {
+            if (!g_undoAwaitConfirm)
+                return;
+
+            // Pencerede gizliyse onay da gizli kalır: kullanıcı bildirimden
+            // gelen görevi tamamlamak için zaten pencereyi öne getirdi.
+            if (!::IsWindowVisible(g_hwnd))
+                return;
+
+            std::wstring yedek = g_lastBackup;
+            if (yedek.empty()) yedek = backup::Latest();
+
+            ImGui::OpenPopup("##undo");
+            ImGui::SetNextWindowPos(ImVec2(ds.x * 0.5f, ds.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, alpha);
+            ImGui::SetNextWindowBgAlpha(0.98f);
+            if (ImGui::BeginPopupModal("##undo", nullptr,
+                                       ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration))
+            {
+                ImGui::TextUnformatted(L(UndoChanges));
+                ImGui::TextUnformatted(L(UndoConfirm));
+
+                if (yedek.empty())
+                    ui::Notify(Toast::Error, L(UndoChanges), L(UndoNoBackup));
+                else
+                {
+                    const float bw = px(92), bh = px(30);
+                    ImGui::Dummy(ImVec2(0, px(6)));
+                    if (ui::Button(L(NotifBtnOk), ImVec2(bw, bh), ButtonStyle::Primary))
+                    {
+                        RunUndo(yedek);
+                        g_undoAwaitConfirm = false;
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::SameLine();
+                    if (ui::Button(L(Close), ImVec2(bw, bh), ButtonStyle::Secondary))
+                    {
+                        g_undoAwaitConfirm = false;
+                        ImGui::CloseCurrentPopup();
+                    }
+                }
+                if (yedek.empty())
+                    g_undoAwaitConfirm = false;
+
+                ImGui::EndPopup();
+            }
+            ImGui::PopStyleVar();
+        }
+
+        void HandleNotifyCommand(int command, int target)
+    {
+        // Bildirimden gelen komut uygulama açıkken de, tamamen kapalıyken de
+        // gelebilir. Kapalıyken tek örnek kilidi ikinci bir örnek açmaz, komutu
+        // buraya iletir; burada yalnızca niyet kaydedilir, uygulama açılınca
+        // uygulanır.
+        switch (command)
+        {
+        case notify::CmdView:
+            if (target >= notify::TargetDashboard && target <= notify::TargetSettings)
+            {
+                g_tabTarget = target;
+                // Ana ekrandan gönderilmişse yalnızca sekme değişir; ekran
+                // değişimi yapılmaz, çünkü lisan/kayıt akışı bozulur.
+                if (g_screen == Screen::Main)
+                {
+                    g_tab     = g_tabTarget;
+                    g_tabTime = ImGui::GetTime();
+                }
+            }
+            break;
+
+        case notify::CmdUndo:
+            // Yazma yapılmadan önce onay gerekir. Pencere görevdeki olabilir;
+            // bu yüzden pencereyi öne getirilir ve onay aynı karede bekler.
+            g_undoAwaitConfirm = true;
+            break;
+
+        case notify::CmdRetry:
+            // ApplyOrDelegate yetki yoksa kendi devretme kararını verir;
+            // çağıran yalnızca aynı işi bir kez daha istemektedir.
+            if (g_hasRetry)
+                elevate::ApplyOrDelegate(g_retry);
+            break;
+
+        default:
+            break;   // tanınmayan komut yok sayılır
+        }
+    }
+
     void Shutdown()
     {
         // Join burada, statik yıkıcıda değil: uzun tarama kapanış yolundan uzak tutulur ve
@@ -2075,7 +2336,10 @@ namespace app
             g_screenStart = now;
             if (g_screen == Screen::Main)
             {
-                g_tab     = 0;
+                // Bekleyen bildirim komutu ancak burada uygulanabilir: ekran
+                // Main olmadan sekme yazısı kaybolur.
+                g_tab     = (g_tabTarget >= 0) ? g_tabTarget : 0;
+                g_tabTarget = -1;
                 g_tabTime = now;
             }
         }
@@ -2105,6 +2369,8 @@ namespace app
 
         HandleDrag();
         ImGui::End();
+
+        DrawUndoConfirm(ds, winA);
 
         // Işık süpürmesi arayüzün üzerinden de geçer, bildirimler en üstte kalır, sonra pencere çerçevesi çizilir
         fx::DrawSweep(ImGui::GetForegroundDrawList(), ImVec2(0, 0), ds, winA * 0.5f);

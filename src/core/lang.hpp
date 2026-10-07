@@ -108,6 +108,11 @@ namespace S
         // Hakkında sayfası: alt başlık, bağlantı bölümü başlığı ve kaynak düğmesi.
         AboutDesc, LinksHeading, SourceCode, NoticesHeading, LicenseShort,
 
+        // Windows bildirimleri: ayar etiketleri ve toast düğmeleri.
+        WindowsNotifications, QuietMode,
+        NotifBtnView, NotifBtnUndo, NotifBtnRetry, NotifBtnOk,
+        WorkingOn,
+
         // Sınır değeri. Blok tablolarından hemen önceki son sabit olmalıdır: blok
         // başlangıçları buradan türetildiği için, sonrasına yeni bir düz anahtar
         // eklenmesi bütün tweak etiketlerini sessizce kaydırırdı. Daha önce de tam

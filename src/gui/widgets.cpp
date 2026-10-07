@@ -2,6 +2,7 @@
 #include "theme.hpp"
 #include "fx.hpp"
 #include "imgui_internal.h"
+#include "../core/notify.hpp"
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -772,7 +773,18 @@ namespace ui
 
     void Notify(Toast type, const char* title, const char* message, float duration)
     {
-        if (!notificationsEnabled && type != Toast::Error)
+        // Bu yalnızca uygulama içi toasterdır. Windows bildirimi buradan
+        // gönderilmez: her olayın kendi düğmeleri ve hedef sayfası vardır ve
+        // bunlar yalnızca çağıran yerde bilinir. Gönderim çağıran taraftan
+        // notify::Post ile yapılır.
+        const notify::Level lvl =
+            (type == Toast::Error)    ? notify::Level::Error :
+            (type == Toast::Warning)  ? notify::Level::Warning :
+            (type == Toast::Success)  ? notify::Level::Success :
+                                        notify::Level::Info;
+
+        if ((!notificationsEnabled && type != Toast::Error) ||
+            !notify::AllowInApp(lvl))
             return;
         g_toasts.push_back({ type, title, message ? message : "", ImGui::GetTime(), duration, -1.0f });
         if (g_toasts.size() > 4)
