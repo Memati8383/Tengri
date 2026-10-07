@@ -1,16 +1,62 @@
-# TENGRI — Sistem Optimize Edici
+# TENGRİ — Sistem Optimize Edici
 
-C++ ile yazılmış bir Windows sistem optimize edici. .NET yok, Electron yok — tek bir
-~1.5 MB yerel çalıştırılabilir dosya, DirectX 11 üzerinde çizilen kendi monokrom
-arayüzüyle.
+<p align="center">
+  <a href="LICENSE"><img alt="Lisans: MIT" src="https://img.shields.io/badge/lisans-MIT-8a8a8a?style=flat-square" /></a>
+  <img alt="Windows 10 / 11 x64" src="https://img.shields.io/badge/Windows-10%20%2F%2011%20x64-2f6fb0?style=flat-square&logo=windows&logoColor=ffffff" />
+  <img alt="C++17" src="https://img.shields.io/badge/C%2B%2B-17-659ad2?style=flat-square&logo=cplusplus&logoColor=ffffff" />
+  <img alt="Dear ImGui + DirectX 11" src="https://img.shields.io/badge/Dear_ImGui_1.92%2B-DirectX_11-0078d7?style=flat-square" />
+  <img alt="Çalışma zamanı yok" src="https://img.shields.io/badge/%C3%A7al%C4%B1%C5%9Fma%20zaman%C4%B1-yok-7a4ea3?style=flat-square" />
+  <img alt="1.6 MB tek dosya" src="https://img.shields.io/badge/tek%20dosya-1.6%20MB-2e8b57?style=flat-square" />
+  <img alt="56 registry anahtarı" src="https://img.shields.io/badge/registry%20anahtar%C4%B1-56-b06a2c?style=flat-square" />
+  <img alt="204 denetim, 0 hata" src="https://img.shields.io/badge/denetim-204%20%2F%200%20hata-4b8b4b?style=flat-square" />
+  <a href="https://github.com/Memati8383/Tengri/releases"><img alt="En yeni sürüm" src="https://img.shields.io/github/v/release/Memati8383/Tengri?style=flat-square&label=s%C3%BCr%C3%BCm" /></a>
+</p>
+
+C++ ile yazılmış bir Windows sistem optimize edici. .NET yok, Electron yok, çalışma
+zamanı yok — tek bir 1.6 MB yerel çalıştırılabilir dosya, DirectX 11 üzerinde çizilen
+kendi monokrom arayüzüyle.
+
+Rozetlerin tamamı bu depodan türetilir (son biri hariç — o GitHub'daki en yeni etiketi
+okur): boyut derlenmiş `build\TENGRI.exe`'nin gerçek boyutu; denetim sayısı
+`build.bat`'ın çalıştırdığı dört test paketinin toplamı; anahtar sayısı
+`tools\make_tweak_table.ps1`'ın saydığı değer. Kaynak değiştiğinde rakam da değişmek
+zorunda — rozetler süs değil kontrol noktası.
+
+<div align="center">
+  <img src="docs/screenshots/01-dashboard.png" alt="TENGRİ gösterge paneli" width="820" />
+</div>
+
+<p align="center">
+  <b>9 ekran</b> · <b>56 registry anahtarı</b> · <b>10 temizlik kategorisi</b> ·
+  <b>14 RAM profili</b> · <b>2 dil</b> · <b>0 telemetri</b>
+</p>
 
 Yazdığı her registry anahtarı kaynakta görünür: 56 anahtarın dokunduğu her yol
 [docs/tweaks-registry.md](docs/tweaks-registry.md) içinde liste halinde. Bu tablo kaynaktan üretilir,
 elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 
-<div align="center">
-  <img src="docs/screenshots/01-dashboard.png" alt="TENGRI gösterge paneli" width="820" />
-</div>
+<details>
+<summary><b>İçindekiler</b></summary>
+
+- [Gereksinimler](#gereksinimler)
+- [Kapsam dışılar](#kapsam-dışılar)
+- [Geri alma](#geri-alma)
+- [İndir](#indir)
+- [Kaynaktan derle](#kaynaktan-derle)
+- [Ekran görüntüleri](#ekran-görüntüleri)
+- [Çalıştırmadan önce](#çalıştırmadan-önce)
+- [Özellikler](#özellikler) — 9 ekran, tek tek
+- [Testler](#testler) — 4 paket, 204 denetim
+- [Nasıl çalışıyor](#nasıl-çalışıyor)
+- [Yükseltme](#yükseltme)
+- [Derleme](#derleme)
+- [Sürümleme ve kimlik](#sürümleme-ve-kimlik)
+- [Proje yapısı](#proje-yapısı)
+- [Notlar](#notlar)
+- [Sürüm etiketi ve yayın](#sürüm-etiketi-ve-yayın)
+- [Lisans](#lisans)
+
+</details>
 
 ## Gereksinimler
 
@@ -18,7 +64,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 |---|---|
 | İşletim sistemi | Windows 10 ve Windows 11 (x64) |
 | Mimari | 64-bit |
-| Disk | ~2 MB |
+| Disk | 1.6 MB (1.681.408 bayt) |
 | Ek bağımlılık | Yok — .NET, Python veya çalışma zamanı gerekmez |
 | Yönetici | Yalnızca ayar uygularken gerekir; açılışta gerekmez |
 
@@ -43,7 +89,7 @@ Bu birkaç şeyi **yapmaz**, ve yapmadığını açıkça söylemek bu aracın b
 
 ## Geri alma
 
-Ayarlar gerçek registry değerlerini değiştirir. İki ayrı geri dönüş yolu var:
+Ayarlar gerçek registry değerlerini değiştirir. Üç ayrı geri dönüş katmanı var:
 
 **1. Aracın kendi yedeği.** "Uygula" düğmesine bastığında dokunulacak registry
 anahtarları **önce** dışa aktarılır, tarih damgalı bir klasöre:
@@ -62,25 +108,23 @@ Yedekler birikmez, her uygulamada yeni bir klasör açılır. Temizlemek isterse
 > geri yükler. Özelleştirdiğin bir değer varsa yedek olmadan kaybolur. Yedek tam olarak
 > "uygulamadan önce ne vardı" halini saklar.
 
-**2. Windows geri yükleme noktası.** Araç yalnızca kendi dokunduğu anahtarları saklar.
+**2. Geri alınabilir tasarım.** Bazı ekranlar yedek klasörüne hiç ihtiyaç duymaz, çünkü
+yazdıkları şey kendi tersini taşıyor:
+
+| Ekran | Ne yapar | Nasıl geri alınır |
+|---|---|---|
+| Başlatma | Değeri silmek yerine `HKCU\Software\TENGRI\StartupDisabled\<kapsam>` anahtarına taşır | Aynı düğmeyi tekrar açmak — değeri eski yerine yazar |
+| Hizmetler | Değişiklikten önce mevcut başlangıç türünü ve `DelayedAutostart` bayrağını `HKLM\SOFTWARE\TENGRI\ServicesBackup\<hizmet>` altına yazar | **Varsayılanlara dön** düğmesi yedekten geri okur |
+
+Bu iki yolda "geri al" bir veri kaybı yarışına değil, tek bir kayda bakıyor. Yine de
+registry'ye yazıldığı için HKLM satırlarında UAC istenir.
+
+**3. Windows geri yükleme noktası.** Araç yalnızca kendi dokunduğu anahtarları saklar.
 Sistemde yapacağın başka değişiklikler için ayrıca bir nokta oluştur:
 `Windows + R` → `sysdm.cpl` → **Sistem koruma** → **Oluştur**.
 
-İki yol birbirinin yerine geçmez; ikisini birlikte kullan.
-
-## İstatistikler
-
-<div align="center">
-  <a href="https://github.com/Memati8383">
-    <img src="https://github-readme-stats.vercel.app/api?username=Memati8383&show_icons=true&locale=tr&rank_icon=github&theme=dark" height="165" alt="GitHub istatistikleri" />
-  </a>
-  <a href="https://github.com/Memati8383">
-    <img src="https://github-readme-stats.vercel.app/api/top-langs?username=Memati8383&layout=compact&locale=tr&theme=dark" height="165" alt="En çok kullanılan diller" />
-  </a>
-  <a href="https://github.com/Memati8383/Tengri">
-    <img src="https://github-readme-stats.vercel.app/api/pin/?username=Memati8383&repo=Tengri&locale=tr&theme=dark" height="165" alt="TENGRI deposu" />
-  </a>
-</div>
+Üç yol birbirinin yerine geçmez; ilk ikisi aracın kendi yazdıklarını, üçüncüsü tüm
+sistemi geri getirir.
 
 ## İndir
 
@@ -96,6 +140,10 @@ git clone --recurse-submodules https://github.com/Memati8383/Tengri.git
 cd Tengri
 build.bat
 ```
+
+`build.bat` üretici betikleri, derlemeyi ve **dört test paketini** tek geçişte çalıştırır;
+testlerden biri takılırsa betik hata koduyla çıkar. Alt modülü unutursan betik ImGui'yi
+kendisi klonlar ve sürümünü denetler. Ayrıntı: [Derleme](#derleme).
 
 ### Yazı tipi
 
@@ -154,14 +202,27 @@ Hakkında:
 
 ![Hakkında](docs/screenshots/07-about.png)
 
+Başlatma:
+
+![Başlatma](docs/screenshots/08-startup.png)
+
+Hizmetler:
+
+![Hizmetler](docs/screenshots/09-services.png)
+
+> Dokuz görselin tamamı `tools\capture_all.ps1` ile **tek oturumda**, aynı tema ve
+> aynı DPI ile üretildi. Betiği çalıştırırsan görseller bu dizine yeniden düşer.
+> Görseller gerçek bir makinede alındı: Başlatma ekranı o sistemde kurulu
+> programları, Hizmetler ekranı gerçek hizmet durumlarını gösterir.
+
 ---
 
 ## Çalıştırmadan önce
 
-Antivirüsünüzün uyarı vermesi beklenir. TENGRI `HKEY_LOCAL_MACHINE` altına yazıyor ve
+Antivirüsünüzün uyarı vermesi beklenir. TENGRİ `HKEY_LOCAL_MACHINE` altına yazıyor ve
 geçici `.reg` dosyalarını içe aktarmak için `reg.exe` çağırıyor. Bu tam olarak bir "registry temizleyici" zararlı yazılım ailesinin
 davranış imzası, bu yüzden sezgisel motorlar imzasız çalıştırılabilirleri işaretliyor.
-TENGRI imzasız ve tespitler bu yüzden beklenen bir sonuç. Ayrıntı:
+TENGRİ imzasız ve tespitler bu yüzden beklenen bir sonuç. Ayrıntı:
 [SECURITY.md](SECURITY.md) ve [Yükseltme](#yükseltme).
 
 Ayar uygularken yönetici yetkisi istenir, ancak uygulamayı açarken ve sistem bilgisi
@@ -182,6 +243,8 @@ okurken **hiç sorulmaz**. Ayrıntı: [Yükseltme](#yükseltme).
 | **Sistem Bilgisi** | Donanım, yazılım ve güvenlik ayrıntıları |
 | **Ayarlar** | Görsel efektler, davranış, dil, hesap, bildirimler |
 | **Hakkında** | Sürüm, lisans, uyarılar, sosyal ve kaynak kod bağlantıları |
+| **Başlatma** | Otomatik başlayan programlar; değeri silmeden devre dışı bırakma |
+| **Hizmetler** | Beyaz listedeki Windows arka plan hizmetleri için başlangıç türü ve oyun profili |
 
 ---
 
@@ -212,7 +275,7 @@ okurken **hiç sorulmaz**. Ayrıntı: [Yükseltme](#yükseltme).
 | Sistem günlükleri | Olay günlükleri | — |
 | Küçük resim önbelleği | Küçük resim veritabanı | — |
 | Çökme dökümleri | Bellek dökümleri ve hata raporları | — |
-| Gölgelendirici önbelleği | DirectX ve sürücü önbelleği | — |
+| Gölgelendirici önbelleği | `%LOCALAPPDATA%\D3DSCache`, `NVIDIA\DXCache·GLCache·NV_Cache`, `AMD\DxCache·GLCache·VkCache`, `Intel\ShaderCache` | Varsayılan tarama sürücü klasörleriyle sınırlı; **Steam** shader önbelleği aynı listede durur ama varsayılan kombinasyona dahil değildir — açık onay olmadan sayılmaz ve silinmez |
 | Teslim Optimizasyonu | İndirme dağıtım önbelleği | — |
 
 | Davranış | Ayrıntı |
@@ -357,6 +420,57 @@ ulaşmadan önce temizlenir.
 
 ---
 
+### Başlatma
+
+Windows'un otomatik başlatma mekanizmaları çok sayıdadır (zamanlanmış görevler,
+hizmetler, WMI tetikleyicileri, kabuk klasörleri). Bu ekran aşamada **en yaygın
+olanı** yönetir ve yalnızca dört anahtarı okur:
+
+| Kapsam | Anahtar | Yazma yetkisi |
+|---|---|---|
+| HKCU · Run | `Software\Microsoft\Windows\CurrentVersion\Run` | **istemez** |
+| HKCU · RunOnce | `Software\Microsoft\Windows\CurrentVersion\RunOnce` | **istemez** |
+| HKLM · Run | `Software\Microsoft\Windows\CurrentVersion\Run` | ister |
+| HKLM · RunOnce | `Software\Microsoft\Windows\CurrentVersion\RunOnce` | ister |
+
+| Davranış | Ayrıntı |
+|---|---|
+| Devre dışı bırakma | Değer **silinmez**, `HKCU\Software\TENGRI\StartupDisabled\<kapsam>` anahtarına **taşınır**. Açıp kapamak gerçek bir ters işlemdir; kullanıcının kendi değeri kaybolmaz |
+| Neden `StartupApproved` değil | Windows'un kendi devre dışı bırakma anahtarı sürümden sürüme anlambilim değiştiriyor ve üçüncü parti araçlarla çarpışma riski taşıyor. Kendi anahtarımız bu riski hiç taşımaz |
+| Silme | Ayrı bir düğme, gerçek `RegDeleteValue`. Taşımaktan farklı bir eylem olduğu için arayüzde de ayrı durur |
+| Yedeklerin yeri | Bilinçli olarak yalnızca HKCU'da: HKLM'e yedek yazmak her yazmada UAC istemek anlamına gelirdi |
+| Kendi kaydı | Uygulamanın `Run` girdisi listede **"TENGRİ otobaşlatma"** olarak görünür ama **silme düğmesi kilitlidir** — kendi kendini kaldıramaz. Açıp kapatmak Ayarlar ekranından yapılır, iki yerin ayrışmaması için |
+| Satır içeriği | Ad + kapsam, altında yayıncı (`VERSIONINFO` şirket adı; yoksa çözülen yol), etki ve komut satırı |
+| Etki tahmini | Hedef dosyanın disk boyutundan sezgisel (Düşük <2 MB, Orta <20 MB, Yüksek ≥20 MB, okunamazsa Bilinmiyor). Kesin bir ölçüm değil, bir sıralama ipucu |
+| Filtre | Tümü / HKCU / HKLM; her işlemden sonra liste baştan taranır, kayan index üzerinden yanlış satıra dokunulmaz |
+| Yetki yoksa | HKLM yazması sessizce başarısız olmaz — uyarı bildirimi gösterilir, arayüzü değişmiş gibi yapmaz |
+
+---
+
+### Hizmetler
+
+Oturumda disk I/O, bellek ve CPU çalan arka plan hizmetleri için **başlangıç türü**
+yönetimi. Hizmetler **durdurulmaz** — durdurma anlıktır ve bir sonraki oturumda
+unutulur; başlangıç türü değişikliği kalıcıdır ve "oyun profili" ile "varsayılan
+profil" arasında tekrarlanabilir geçişe izin verir.
+
+| | |
+|---|---|
+| Kapsam | Kodda sabit **16 hizmetlik beyaz liste** |
+| Liste dışı ad | Arayüzde serbest hizmet adı girilemez; `SetStartType` liste dışını reddeder |
+| Kritik hizmetler | `RpcSs`, `Dhcp`, `LanmanServer`, `Winlogon` vb. **kasıtlı olarak yoktur** ve çalışma zamanında ada eşleştirilemez |
+| Uyarı seviyesi | Her satırda **Güvenli** / **Dikkat** / **Riskli** etiketi çizilir (ör. `SysMain` Güvenli, `WSearch` Dikkat — arama kaybı, `PrintNotify` Riskli) |
+| Oyun profili hedefi | Telemetri ve benzeri `Devre dışı`; ilk ihtiyaçta kendiliğinden başlatılabilenler **Elle** (`Disabled` yerine `Manual` tercih edilir, böylece özellik tamamen ölmez) |
+| Profil öncesi yedeği | Mevcut başlangıç türü + `DelayedAutostart` bayrağı `HKLM\SOFTWARE\TENGRI\ServicesBackup\<hizmet>` altına yazılır; yalnızca **gerçekten değişecekse** yedeklenir |
+| Profil düğmeleri | **Oyun profilini uygula** ve **Varsayılanlara dön**; değişen hizmet sayısı bildirimde söylenir. **Varsayılanlara dön** yedekten geri okur; hedef zaten istenen türdeyse hizmete hiç dokunulmaz |
+| Yetki | Okuma (durum + tür) yükseltmeden çalışır; yazma yükseltilmiş süreç ister (`SC_MANAGER_CONNECT` + `SERVICE_CHANGE_CONFIG`). Yetki yoksa liste yine çizilir ve sayfa üstte gerekçesini söyler |
+
+Liste: `SysMain`, `DiagTrack`, `dmwappushservice`, `WSearch`, `XblGameSave`,
+`XblAuthManager`, `XboxGipSvc`, `XboxNetApiSvc`, `WbioSrvc`, `MapsBroker`,
+`RetailDemo`, `RemoteRegistry`, `Fax`, `PrintNotify`, `WerSvc`, `DoSvc`.
+
+---
+
 ### RAM optimizasyon profili
 
 Windows'un servisleri her servis için ayrı `svchost.exe` başlatmak yerine daha az sürece
@@ -388,13 +502,25 @@ toplamasını sağlar. 14 hazır profil:
 | Ekran kartı | DXGI + display class anahtarı | Ad, VRAM, **sürücü sürümü** (DirectX registry değerinden değil, display class anahtarından) |
 | DirectX | `GetVersionEx` | Sürüm |
 | Toplam RAM | `GlobalMemoryStatusEx` | — |
+| RAM hızı | WMI `Win32_PhysicalMemory` | `6000 MHz (JEDEC 4800 MHz)` — çalışma hızı ile JEDEC eşleşmiyorsa ikisi de |
+| RAM yuvaları | WMI `Win32_PhysicalMemory` | Dolu yuva sayısı, ör. `1 dolu` |
 | Anakart | Registry | Model |
 | BIOS | Registry | Sürüm, **mod (UEFI / Legacy)** |
+| TPM | WMI `Win32_Tpm` | Yalnızca WMI gerçekten satır döndürürse çizilir (aşağıya bakın) |
 | Güvenlik | — | **Secure Boot durumu**, **sanalleştirme durumu** (firmware / VBS / Hyper-V) |
 | Diğer | Registry | Windows kurulum tarihi, ekran çözünürlüğü, sistem dili |
 
-RAM hızı ve slot sayısı `N/A` bildirir: bu bilgiler registry'de değil SMBIOS tip 17
-tablolarındadır ve görünürlüğü makul ama yanlış bir sayı, dürüst bir boşluktan kötüdür.
+Sorgular arka iş parçacığında koşar; panel açılırken beklemez. Değer henüz
+gelmemişse satır **hiç çizilmez** — `N/A` gösterilmez, çünkü henüz bilinmeyen
+bir şey "yok" demek değildir.
+
+**TPM satırı çoğu zaman yok.** `Win32_Tpm` yalnızca TPM'si WMI'ye tanıtılmış
+makinelerde satır döndürür; BIOS'un TPM'yi açsa bile olmayabilir. Satır ancak
+veri varsa çizildiği için bu, hatadan çok dürüst bir davranış.
+
+**VRAM neden DXGI ile okunuyor.** WMI'nin `AdapterRAM` alanı 32 bit bir tam
+sayı; 4 GB üstü kartlarda taşıyor ve 16 GB'lık bir kartı 4 GB gösteriyordu.
+
 
 ---
 
@@ -411,9 +537,27 @@ tablolarındadır ve görünürlüğü makul ama yanlış bir sayı, dürüst bi
 | Davranış | Ayrıntı |
 |---|---|
 | Başlangıçta çalıştır | Gerçek bir `HKCU\...\Run` girdisi yazar ve geri okur, böylece anahtar kayamaz |
-| Tepsi simgesine küçült | Gerçek kabuk ikonu; sol tık geri getirir, sağ tık Aç / Çıkış menüsü açar. Kabuk ikonu reddederse sıradan küçültmeye düşer |
+| Tepsi simgesine küçült | Gerçek kabuk ikonu; sol tık geri getirir, sağ tık Aç / Çıkış menüsü açar. Kabuk ikonu reddederse sıradan küçültmeye düşer. **İlk küçültmede bir kez balon** çıkar (aşağıya bakın) |
 | Diller | İngilizce ve Türkçe; tüm metinler, tweak etiketleri ve sistem durumları çizim anında çözülür |
 | DPI | Ölçekleme tüm boyutlarda uygulanır; monitör değişiminde yeniden ölçeklenir |
+
+**Neden balon.** Windows 11 yeni tray ikonlarını çoğu zaman **gizli taşma alanına** atar.
+İkon eklenir ve çalışır, ama görünür tepsi çubuğunda yoktur; yalnızca `^` okunun arkasındadır.
+Kullanıcı küçültür, pencere kaybolur, tepsiye bakar ve ikonu bulamaz — o an "tepsiye küçültme
+çalışmıyor" sanır. İlk küçültmede çıkan balon ikonun nereye gittiğini söyler. Bu ayrı bir
+mekanizma değil, kabuğun kendi davranışı (`NIM_MODIFY` + `NIF_INFO`); yalnızca bir kez
+gösterilir.
+
+**İkonu kalıcı görünür yapmak.** Bunun API'si yok — kararı Windows veriyor. Elle yapılır:
+`Ayarlar` → `Kişiselleştirme` → `Görev çubuğu` → **Diğer sistem tepsisi simgeleri** →
+`TENGRİ` = Açık.
+
+**Explorer yeniden başlarsa.** Kabuk ikonu Explorer'ın içinde yaşar; Explorer kapanıp
+açıldığında (çökme, `explorer.exe` yeniden başlatma, bazı sürücü kurulumları) tüm tray
+ikonları silinir. Uygulama kabuğun yayınladığı `TaskbarCreated` mesajını dinler ve ikon
+bir tek o anda geri eklenir. Öncesinde bu eksikti: ikon bir kez kaybolduğunda bir daha
+hiç geri gelmiyordu. Ayrıca `Tick()` bakım yolu, eklenememiş bir ikon için saniyede bir
+`NIM_ADD` yeniden denemesi yapar.
 
 ---
 
@@ -496,6 +640,16 @@ anında:
 | Kategori başına tek geçiş | Bir kategorinin gövdeleri tek `.reg` içinde birleştirilir, böylece sekiz ayrı süreç yerine tek içe aktarma olur |
 | Geri alma | Her anahtarın hem açma hem geri alma gövdesi vardır; kapatmak önceki değeri geri yükler veya anahtarı siler |
 
+**`.reg` gövdesi kullanmayan yollar.** Her yazma düzeneği geçici dosya gerektirmez ve
+gerektirdiğinde bu yüzeyler ayrı daraltılmıştır:
+
+| Yüzey | Mekanizma | Neden |
+|---|---|---|
+| Başlatma | Doğrudan `RegSetValueExW` / `RegDeleteValueW` | Tek bir `REG_SZ` değeri taşınır; `.reg` dosyası açmak ikinci bir saldırı yüzeyi olurdu |
+| Hizmetler | `ChangeServiceConfigW` (`SERVICE_CHANGE_CONFIG`) | Hizmet yapılandırması SCM API'sinin sahiplendiği bir alan; registry'den elle yazmak `DelayedAutostart` gibi ikincil değerlerle ayrışırdı |
+| DNS | `netsh` | Adaptör başına yapılandırma; resolver önbelleği de seçimden sonra boşaltılır |
+| Yedekleme | `reg export` (yalnızca okuma) | Yedek UAC istemez; geri alma `reg import` olduğu için ister |
+
 ---
 
 ## Yükseltme
@@ -513,8 +667,12 @@ Kullanıcı UAC sorusunu bir kez görür; ayarının uygulanmış olduğunu aça
 | İnce ayarlar (Oyunlar, FiveM, Gecikme dahil çoğu) | `HKLM` | ister |
 | RAM profili | `HKLM` | ister |
 | DNS sağlayıcısı | `HKLM` + ağ adaptörü | ister |
+| Hizmet başlangıç türü / oyun profili | SCM (`SERVICE_CHANGE_CONFIG`) + `HKLM\SOFTWARE\TENGRI\ServicesBackup` | ister |
+| Başlatma — HKLM satırları | `HKLM\...\Run` / `RunOnce` | ister |
+| Başlatma — HKCU satırları | `HKCU\...\Run` / `RunOnce` + `HKCU\Software\TENGRI\StartupDisabled` | **istemez** |
 | Başlangıçta çalıştır | `HKCU\...\Run` | **istemez** |
 | Temizleyici (kendi dosyaları siler) | dosya sistemi | **istemez** |
+| Hizmet listesini okumak | SCM sorgusu | **istemez** |
 
 Ayrı bir yardımcı exe kullanılmıyor: aynı exe yeniden başlatılıyor. Yardımcı exe ikinci
 bir uygulama olurdu — ayrı derleme, ayrı sürüm, ayrı antivirüs tetiklemesi.
@@ -546,9 +704,63 @@ Not: Uzun yol adlarında CMake'in geçici derleme dosyası sığmayabilir
 uzunluğuysa CMake'i daha kısa bir yolda çalıştır.
 
 **Gereksinimler:** Windows 10/11 x64, *Desktop development with C++* iş yükü olan Visual
-Studio.
+Studio, Dear ImGui 1.92+ (`third_party\imgui` alt modülü; betik eksikse klonlar ve
+sürümü denetler).
 
-### Sürümleme ve kimlik
+### Derleme sırası
+
+| | |
+|---|---|
+| 1 | Visual Studio araç setini bulur (`vswhere`, sonuç vermezse dizin taraması) ve `vcvars64` çağırır |
+| 2 | `tools\make_version.ps1` → `build\obj\version.h` |
+| 3 | `tools\make_tweak_table.ps1` → `docs\tweaks-registry.md` ve üretilmiş anahtar tablosu |
+| 4 | Marka varlıkları: `make_icon_from_png.ps1`, `make_brand_icons.ps1` |
+| 5 | Font gömme: `make_font_data.ps1` |
+| 6 | `cl` ile `build\TENGRI.exe` |
+| 7 | **Dört test paketini derler ve çalıştırır** — biri bile takılırsa betik `exit /b 1` ile durur |
+
+CI'da ayrıca etiketle exe içindeki `VERSIONINFO` sürümünün aynı olduğunu ve
+`docs\tweaks-registry.md`'nin üretilmiş hâliyle güncel olduğunu denetleyen iki adım var.
+
+---
+
+## Testler
+
+`build.bat` derlemenin sonunda dört paket çalıştırır. Toplam **204 denetim**, 0 hata:
+
+| Paket | Denetim | Kapsam | Gerçek sisteme dokunur mu |
+|---|---|---|---|
+| `test_pure.cpp` | 122 | i18n tabloları (boyut **+ sıra**), RAM ön ayarları, tweak sözleşmeleri, `.reg` paket gövdeleri ve açma/kapama simetrisi, yetki yükseltme komut kodlama/çözme gidiş-dönüşü | Hayır — saf mantık |
+| `test_modules.cpp` | 31 | Geri yükleme noktası sonuç metinleri, hizmet beyaz listesi güvenlik kapısı, hizmet ve başlangıç sorguları, shader taraması | Hayır — beşi de salt-okunur |
+| `test_license.cpp` | 22 | `license::Mask` çırpısı ve grup konumları, `sys::Hwid` determinizması ve biçimi, "beni hatırla" kalıcılığı | Hayır — izole APPDATA |
+| `test_write_paths.cpp` | 29 | Shader ve geçici dosya temizleyicilerinin tarama/temizleme tersinirliği, yedek kök dizini + listeleme/en-yeni sıralaması, içe aktarmayı reddetme yolları | Hayır — izole ortam |
+
+**i18n'de boyut denetimi yetmez.** `test_pure`, blok tablolarının birbirine göre
+*kaymasını* da denetler (`TweakDescs - TweakNames`, `NetNames - TweakDescs`, toplam tweak
+sayısı = 56). `static_assert` yalnız uzunluğu gördüğü için 1.2.0'daki kaymayı
+yakalamamıştı. Aşağıdaki [i18n tabloları](#i18n-tabloları) bölümünde o tuzak anlatılıyor.
+
+**Paketlerin hiçbiri gerçek registry'ye, gerçek `%APPDATA%`'ye, gerçek hizmetlere veya
+kullanıcı dosyalarına yazmaz.** Testler `SetEnvironmentVariable` değil `_putenv_s`
+kullanır: CRT, `getenv`/`_dupenv_s` çağrılarında kendi ortam anlık görüntüsünü okur ve
+Win32 API bu anlık görüntüyü tazelemez. Anlık görsel düzeltilmeden yazılmış bir
+izolasyon **sessizce başarısız olur** ve gerçek kullanıcı verisine dokunur — bir kez
+yaşandı, o yüzden artık her izolasyon testinin kendi ortam değişkenini geri okuyan bir
+denetimi var.
+
+Ayrıca `restore::CreatePoint`, `startup::Remove`, `services::SetStartType` ve
+`backup::Restore` testlerden **kasıtlı olarak** dışarıda: dördü de geri alınamaz ya da
+paylaşılan sisteme yazan eylemler. Bu yüzeyler testlerde yalnızca reddedilme
+koşullarıyla (yetki yok, hedef yok, liste dışı ad, `.reg` içermeyen klasör) denenir.
+
+**Kodla doğrulanamayan iki yol** elle denenecek olarak kaldı: yükseltme devri
+(`asInvoker` → `runas` → iş → çıkış) ve yedekleme/geri alma adım adımı. Adımlar
+[`docs/TEST-YUKSELTME.md`](docs/TEST-YUKSELTME.md) içinde — otomatik testler süreçler
+arası gerçek UAC çağrısını çalıştıramaz, bunu ancak bir insan gözlemler.
+
+---
+
+## Sürümleme ve kimlik
 
 Tüm ürün kimliği — ad, pencere sınıfı, tray metni, `%APPDATA%` klasörü, `Run` değer adı,
 geçici dosya öneki, ikon kimliği, bağlantılar — **`src/brand.hpp`** içinde. Yeniden
@@ -572,44 +784,72 @@ değiştirilir ve hiçbir yerde ayrışamaz.
 ## Proje yapısı
 
 ```
-src/main.cpp               Kenarlıksız Win32 penceresi, D3D11 aygıtı, yuvarlatılmış köşeler
-src/brand.hpp              Ürün kimliği: ad, yollar, registry anahtarları, sürüm, bağlantılar
-src/app.cpp                Ekranlar, durum yönetimi, Hakkında sayfası
-src/gui/theme.cpp          Renkler, fontlar, DPI ölçekleme
-src/gui/fx.cpp             Parçacıklar, yıldız geçişi, üst ışık, ışık süpürme
-src/gui/widgets.cpp        Buton, anahtar, onay kutusu, giriş, kaydırıcı, segment, grafik, bildirim
-src/gui/icons.cpp          Vektör ikonlar
-src/gui/logo.cpp           Tek PNG'den yüklenen marka logosu (D3D11 dokusu)
-src/gui/brand_icons.cpp    Hakkında sayfası bağlantı ikonları (üçgenlenmiş, üretilmiş)
-src/core/cleaner.cpp       Dosya taraması ve silme
-src/core/tweaks.cpp        7 tweak kategorisinin registry okuma/yazma işlemleri
-src/core/regpack.cpp       Gömülü .reg gövdeleri + reg.exe ile içe aktarma
-src/core/ram.cpp           SvcHostSplitThresholdInKB profilleri
-src/core/network.cpp       DNS geçişi, adaptör bilgisi, ağ anahtarları, ICMP ölçümü
-src/core/sysinfo.cpp       CPU / RAM / disk / çalışma süresi / HWID
+src/main.cpp                 Kenarlıksız Win32 penceresi, D3D11 aygıtı, yuvarlatılmış köşeler
+src/brand.hpp                Ürün kimliği: ad, yollar, registry anahtarları, sürüm, bağlantılar
+src/app.cpp                  9 ekran, durum yönetimi, Başlatma ve Hizmetler sayfaları
+src/tray.cpp                 Kabuk tray ikonu, TaskbarCreated kurtarması, balon
+src/gui/theme.cpp            Renkler, fontlar, DPI ölçekleme (tipografi ölçeği theme.hpp'de)
+src/gui/fx.cpp               Parçacıklar, yıldız geçişi, üst ışık, ışık süpürme
+src/gui/widgets.cpp          Buton, anahtar, onay kutusu, giriş, kaydırıcı, segment, grafik, bildirim
+src/gui/icons.cpp            Vektör ikonlar
+src/gui/logo.cpp             Tek PNG'den yüklenen marka logosu (D3D11 dokusu)
+src/gui/logo_data.cpp        Logonun gömülü baytları — make_logo_data.ps1 üretir
+src/gui/brand_icons.cpp      Hakkında sayfası bağlantı ikonları (üçgenlenmiş, üretilmiş)
+src/gui/font_data.cpp        Alt kümelenmiş Inter'ın gömülü baytları — make_font_data.ps1 üretir
+src/core/cleaner.cpp         Dosya taraması ve silme, shader alt-maskesi
+src/core/tweaks.cpp          7 tweak kategorisinin registry okuma/yazma işlemleri
+src/core/regpack.cpp         Gömülü .reg gövdeleri + reg.exe ile içe aktarma
+src/core/ram.cpp             SvcHostSplitThresholdInKB profilleri
+src/core/network.cpp         DNS geçişi, adaptör bilgisi, ağ anahtarları, ICMP ölçümü
+src/core/sysinfo.cpp         CPU / RAM / disk / çalışma süresi / HWID
 src/core/sysinfo_detail.cpp  Secure Boot, sanallaştırma, BIOS modu, kurulum tarihi
-src/core/lang.cpp          İngilizce / Türkçe metin tabloları
-src/core/license.cpp       Demo lisans ekranı
-src/core/elevate.cpp        Yetki yükseltme: runas ile yeniden başlatma, komut satırı kodlama
-src/core/backup.cpp         Uygulama öncesi registry yedeği (reg export) ve geri alma (reg import)
-src/core/notify.cpp         Windows bildirimleri: WinRT toast, AUMID kurulumu, komut ayrıştırma
-src/tray.cpp               Kabuk tray ikonu
-res/tengri.rc              İkon, manifest, VERSIONINFO
-res/app.manifest           Yürütme düzeyi, DPI farkındalığı, işletim sistemi uyumluluğu
-tools/make_icon.ps1        Uygulama ikonunu üretir
-tools/make_brand_icons.ps1 Hakkında sayfası bağlantı ikonlarını üçgenler ve brand_icons.cpp üretir
-tools/make_version.ps1     brand.hpp'den sürüm başlığı üretir (VERSIONINFO kaynağı)
-tools/shoot.ps1            Ekran görüntüsü almak için yardımcı betikler
-tools/make_tweak_table.ps1 tweaks.cpp + regpack.cpp'den registry tablosu ve anahtar başlığı üretir
-tools/make_icon_from_png.ps1  PNG kaynaktan çok boyutlu .ico üretir
-tools/verify_icon.ps1      Üretilen .ico içindeki tek bir boyutu PNG'ye açar (gözle kontrol)
-tests/test_pure.cpp         Registry'ye dokunmayan saf mantık testleri (build.bat çalıştırır)
-.github/workflows/         Etiket itildiğinde sürümü temiz kurulumda derleyip yayınlar
-docs/release-notes/        Sürüm notları (sürüm başına bir dosya)
-SECURITY.md                Antivirüs uyarıları ve güvenlik bildirimi
-CONTRIBUTING.md            Katkı rehberi (derleme, neyi nereden değiştirmek, geri alınabilirlik)
-docs/tweaks-registry.md    56 anahtarın dokunduğu registry yolları (üretilmiş)
+src/core/sysinfo_wmi.cpp     WMI sorguları (RAM hızı/yuvaları, TPM)
+src/core/lang.cpp            İngilizce / Türkçe metin tabloları
+src/core/license.cpp         Demo lisans ekranı, HWID ve Mask
+src/core/elevate.cpp         Yetki yükseltme: runas ile yeniden başlatma, komut satırı kodlama
+src/core/backup.cpp          Uygulama öncesi registry yedeği (reg export) ve geri alma (reg import)
+src/core/startup.cpp         Başlatma girdileri; devre dışı bırakmak = HKCU yedeğine taşımak
+src/core/services.cpp        16 hizmetlik beyaz liste, başlangıç türü, oyun profili + yedeği
+src/core/restore.cpp         Sistem geri yükleme noktası API'si (SRSetRestorePointW, throttling)
+src/core/notify.cpp          Windows bildirimleri: WinRT toast, AUMID kurulumu, komut ayrıştırma
+res/tengri.rc                İkon, manifest, VERSIONINFO
+res/app.manifest             Yürütme düzeyi, DPI farkındalığı, işletim sistemi uyumluluğu
+res/tengri-logo.png          Tek sanat kaynağı — ikon, logo ve tepsi hep buradan
+tools/make_version.ps1       brand.hpp'den sürüm başlığı üretir (VERSIONINFO kaynağı)
+tools/make_tweak_table.ps1   tweaks.cpp + regpack.cpp'den registry tablosu ve anahtar başlığı üretir
+tools/make_icon_from_png.ps1 PNG kaynaktan çok boyutlu .ico üretir — build.bat bunu kullanır
+tools/make_icon.ps1          Eski yol: elmas markayı koddan çizen .ico (yedek, build.bat bunu çağırmaz)
+tools/make_brand_icons.ps1   Hakkında sayfası bağlantı ikonlarını üçgenler ve brand_icons.cpp üretir
+tools/make_font_subset.ps1   Inter arşivinden çizilen glifleri alt kümeler
+tools/make_font_data.ps1     Alt kümeyi gömülü C++ kaynağına çevirir
+tools/make_logo_data.ps1     Logo PNG'sini gömülü C++ kaynağına çevirir
+tools/capture_all.ps1        docs/screenshots altındaki bütün görselleri tek oturumda üretir
+tools/shoot.ps1              Ekran görüntüsü alma yardımcısı (capture_all bunu kullanır)
+tools/shrink.ps1, zoom.ps1   Görsel küçültme / bölgesel yakınlaştırma (gözle kontrol)
+tools/normalise_type_scale.ps1  Sabit font boyotlarını theme.hpp ölçeğine taşıyan tek seferlik göç betiği
+tools/_health.ps1, _probe.ps1   Geliştirme sırasındaki tek seferlik teşhis betikleri
+tests/test_pure.cpp          Registry'ye dokunmayan saf mantık — 122 denetim
+tests/test_modules.cpp       restore/startup/services/shader yüzeyleri, salt-okunur — 31 denetim
+tests/test_license.cpp       HWID, Mask ve kalıcılık (izole APPDATA) — 22 denetim
+tests/test_write_paths.cpp   Yazma yolları, tamamen izole ortam değişkenlerinde — 29 denetim
+build.bat                    Tek giriş noktası: üret + derle + dört test paketini çalıştır
+CMakeLists.txt               Alternatif derleme (test hedefleri yok; testler build.bat'ta)
+publish.bat                  Yerel yayınlama yardımcısı
+third_party/imgui            Dear ImGui (submodule)
+.github/workflows/           Etiket itildiğinde sürümü temiz kurulumda derleyip yayınlar
+docs/tweaks-registry.md      56 anahtarın dokunduğu registry yolları (üretilmiş)
+docs/TEST-YUKSELTME.md       Elle test listesi: yükseltme devri ve yedekleme/geri alma
+docs/screenshots/            Arayüz görselleri (capture_all.ps1 üretir)
+docs/release-notes/          Sürüm notları (sürüm başına bir dosya)
+SECURITY.md                  Antivirüs uyarıları ve güvenlik bildirimi
+CONTRIBUTING.md              Katkı rehberi (derleme, neyi nereden değiştirmek, geri alınabilirlik)
 ```
+
+> **`src/core/restore.cpp` derleniyor ama arayüzden bağlı değil.** Sistem geri yükleme
+> noktası oluşturmak 10-30 saniye süren, yetki isteyen ve Windows'un 24 saat
+> kuralına tabi bir iş; düğmesiz bırakıldı. Modul ve testi hazır, çağıranı yok.
+> README bu yüzden "geri alma" bölümünde Windows noktasını **elle** oluşturmanı
+> söylüyor — aracın otomatik yaptığı bir şeyi yapıyormuş gibi yazmaz.
 
 ### i18n tabloları
 
@@ -621,6 +861,29 @@ sonra tek bir ayarın yanlış etiketi olarak ortaya çıkıyor. Üç `static_as
 Blok tablosu başlangıcı sabit bir sayı değil, son düz anahtardan türetiliyor. Sabit bir
 sayı bir kez kaymıştı ve her tweak etiketini sessizce kaydırmıştı; türetilmiş olması, bir
 anahtar eklemenin blokları bozamaması anlamına geliyor.
+
+**Boyut denetimi sırayı denetlemez.** Bu tuzak 1.2.0'da yaşandı: yeni anahtarlar tabloya
+`SystemLocale`'dan sonra, enum'a ise `LicenseShort`'tan sonra eklenmişti. Tablo boyutu
+`S::_COUNT`'a uyuyordu, üç `static_assert` sustu, derleme temiz çıktı — uygulama 224 metni
+yanlış gösterdi (balon "License" yazdı, RAM yuvaları "Windows notifications").
+
+Sonuç: **bir anahtar eklerken enum girdisiyle tablo girdisini aynı yere koy.** Kaymanın
+nerede başladığını teşhis etmek zorunda kalmasın diye `src/core/lang.hpp` içindeki ilgili
+blokta bu gerekçe yazılı.
+
+**Uygulama doğruyken üretilen tablo yanlış olabilir.** 1.2.0'da ikinci bir kayma daha
+yaşandı ve bu sefer C++ tarafı tamamen temizdi: `tools\make_tweak_table.ps1`, `FlatEnd`
+değerini enum metninden sayarak buluyor. Yeni sekmelerin üzerine yazılan bir yorum cümlesi
+"… FlatEnd'den hemen önce olmalı …" diyordu; satır-sonu çoklu-modu kapalı neredeyse-tam
+açgözlü eşleşme yorum atıldıktan *sonra* değil önce çalıştığı için aramayı o sözcükte
+bıraktı ve sonradan eklenen 44 anahtar hiç sayılmadı. `docs\tweaks-registry.md` 56 etiketin
+tamamını iki satır geriden okudu — uygulama ise doğru çizdi, çünkü o enum'u derleyiciye
+çözdürüyor. CI da yakalamadı: denetim adımı dosyayı aynı betikle yeniden üretip
+karşılaştırdığı için iki taraf birlikte kaymıştı.
+
+Betik artık iki bağımsız yoldan sayıyor ve uyuşmazlıkta **hata verip duruyor**: enum
+metninden (yorumlar düşüldükten sonra) ve `lang.cpp`'deki `---- TweakNames ----` ayracına
+kadar olan dize literallerinden. Bir dahaki sefere kayma üretilemez, yalnızca patlar.
 
 ---
 
@@ -637,7 +900,7 @@ anahtar eklemenin blokları bozamaması anlamına geliyor.
   elle tutulan bir listede durur — yeni bir ayar eklerken
   [CONTRIBUTING.md](CONTRIBUTING.md) bunu anlatıyor.
 
-## Sürümleme
+## Sürüm etiketi ve yayın
 
 Sürüm vermek için tek bir yer değişir, sonra etiket:
 
@@ -645,17 +908,36 @@ Sürüm vermek için tek bir yer değişir, sonra etiket:
 :: src\brand.hpp içindeki kVersionMajor / kVersionMinor / kVersionPatch / kVersion
 :: (üç parça birleşik sürümle uyumlu olmalı, yoksa make_version.ps1 derlemeyi durdurur)
 
-git commit -am "Surum 1.0.1"
-git tag v1.0.1
-git push origin main v1.0.1
+git commit -am "Surum 1.2.1"
+git tag v1.2.1
+git push origin main v1.2.1
 ```
 
-GitHub Actions etiketi görünce temiz bir kurulumda derleyip sürümü `Releases` sayfasına
-ekler. Sürüm notlarını `docs\release-notes\v1.0.1.md` altına koyarsan not olarak
-kullanılır; yoksa otomatik olarak `TENGRI v1.0.1` yazılır.
+GitHub Actions etiketi görünce temiz bir kurulumda derleyip `build\TENGRI.exe`'yi
+`Releases` sayfasına sürer. Başlık her zaman `TENGRI <etiket>` biçimindedir; açıklama
+olarak `docs\release-notes\<etiket>.md` dosyasını bulursa onu, bulamazsa `Sürüm <etiket>`
+yazıyor.
 
-İş akışı, etiketteki sürüm ile exe'in içindeki `VERSIONINFO` sürümünün aynı olduğunu da
-kontrol eder — sürüm kaynağı artık tek olduğu için bu, son savunma hattıdır.
+İş akışı, etiketteki sürüm ile exe içindeki `VERSIONINFO` sürümünün aynı olduğunu da
+kontrol eder — sürüm kaynağı artık tek olduğu için bu, son savunma hattıdır. Betiğin
+kendisi de exe'in kaç KB olduğunu derleme günlüğüne yazar, böylece README'deki boyut
+rakamı tahmin değil ölçüm olur.
+
+---
+
+## İstatistikler
+
+<div align="center">
+  <a href="https://github.com/Memati8383">
+    <img src="https://github-readme-stats.vercel.app/api?username=Memati8383&show_icons=true&locale=tr&rank_icon=github&theme=dark" height="165" alt="GitHub istatistikleri" />
+  </a>
+  <a href="https://github.com/Memati8383">
+    <img src="https://github-readme-stats.vercel.app/api/top-langs?username=Memati8383&layout=compact&locale=tr&theme=dark" height="165" alt="En çok kullanılan diller" />
+  </a>
+  <a href="https://github.com/Memati8383/Tengri">
+    <img src="https://github-readme-stats.vercel.app/api/pin/?username=Memati8383&repo=Tengri&locale=tr&theme=dark" height="165" alt="TENGRİ deposu" />
+  </a>
+</div>
 
 ## Lisans
 
