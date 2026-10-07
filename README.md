@@ -1,7 +1,7 @@
 # TENGRI — Sistem Optimize Edici
 
 C++ ile yazılmış bir Windows sistem optimize edici. .NET yok, Electron yok — tek bir
-~1.4 MB yerel çalıştırılabilir dosya, DirectX 11 üzerinde çizilen kendi monokrom
+~1.5 MB yerel çalıştırılabilir dosya, DirectX 11 üzerinde çizilen kendi monokrom
 arayüzüyle.
 
 Yazdığı her registry anahtarı kaynakta görünür: 56 anahtarın dokunduğu her yol
@@ -34,8 +34,8 @@ Bu birkaç şeyi **yapmaz**, ve yapmadığını açıkça söylemek bu aracın b
   ya da güvenlik özelliğini kapatmaz, hiçbir dosyayı karantinaya almaz.
 - **Telemetri göndermez.** Lisans ekranı bir demodur; sunucuya hiçbir istek yapılmaz.
   Makine parmak izi hesaplanır ama hiçbir yere gönderilmez.
-- **Güncelleme yok.** Kurulum yok, çalışma zamanında indirme yok, arka planda kendini
-  yenileme yok.
+- **Güncelleme yok.** Çalışma zamanında indirme yok, arka planda kendini yenileme yok.
+  (İlk çalıştırmada tek seferlik iki kayıt yazılır — bkz. [Windows bildirimleri](#windows-bildirimleri).)
 - **Kullanıcı verisini okumaz.** Yalnızca [registry tablosunda](docs/tweaks-registry.md)
   listelenen anahtarlara yazar, temizleyicide de yalnızca kendi kategorilerinin saydığı
   geçici dosyaları siler.
@@ -180,7 +180,7 @@ okurken **hiç sorulmaz**. Ayrıntı: [Yükseltme](#yükseltme).
 | **İnce Ayarlar** | 7 kategori, 56 anahtar; her anahtar başlangıçta registry'den okunur |
 | **Ağ** | Gerçek ICMP gecikme ölçümü, DNS geçişi, bağlantı ayrıntıları, 6 ağ anahtarı |
 | **Sistem Bilgisi** | Donanım, yazılım ve güvenlik ayrıntıları |
-| **Ayarlar** | Görsel efektler, davranış, dil, hesap |
+| **Ayarlar** | Görsel efektler, davranış, dil, hesap, bildirimler |
 | **Hakkında** | Sürüm, lisans, uyarılar, sosyal ve kaynak kod bağlantıları |
 
 ---
@@ -404,7 +404,7 @@ tablolarındadır ve görünürlüğü makul ama yanlış bir sayı, dürüst bi
 |---|---|
 | Görsel efektler | Parçacıklar, bağlantı çizgileri, fare etkileşimi, üst ışık, ışık süpürmesi |
 | Parçacık ayarları | Parçacık sayısı (kaydırıcı), parçacık hızı (çarpan) |
-| Genel | Lisansı hatırla, bildirimler, başlangıçta çalıştır, tepsi simgesine küçült |
+| Genel | Lisansı hatırla, uygulama içi bildirimler, Windows bildirimleri, sadece hatalar, başlangıçta çalıştır, tepsi simgesine küçült |
 | Dil | English / Türkçe — seçim kalıcı olarak saklanır |
 | Hesap | Maskelenmiş lisans anahtarı, plan, bitiş, demo lisans bildirimi, çıkış yap |
 
@@ -417,13 +417,64 @@ tablolarındadır ve görünürlüğü makul ama yanlış bir sayı, dürüst bi
 
 ---
 
+### Windows bildirimleri
+
+Uzun süren işler, yetki hataları ve ayar değişiklikleri Windows'un kendi bildirim
+sistemiyle de haber verilir — uygulama kapalıyken de gelir, Eylem Merkezi'ne düşer.
+
+Üç anahtar birbirinden bağımsızdır:
+
+| Anahtar | Ne kapatır |
+|---|---|
+| Uygulama içi bildirimler | Pencerenin köşesindeki toaster'ları |
+| Windows bildirimleri | Eylem Merkezi'ne düşen toast'ları |
+| Sadece hatalar | İkisini birden — yalnızca hata ve uyarılar geçer |
+
+Gönderilen olaylar: uzun süren işlerin sonucu (optimizasyon, tarama, temizlik, ayar
+uygulama), yetki/hata uyarıları ve ayar değişiklikleri.
+
+Toast'lar düğme taşır:
+
+| Düğme | Davranış |
+|---|---|
+| Sonuçları gör | Uygulamayı açar ve **olayın kendi sayfasına** gider (Temizlik, Ağ, İnce Ayarlar…) |
+| Geri al | **Önce onay ister.** Onaylanmadan registry'ye hiçbir şey yazılmaz |
+| Tekrar dene | Yalnızca gerçekten saklanmış bir iş varsa görünür |
+| Tamam | Sistem düğmesi; uygulamayı açmadan kapatır |
+
+> **Geri al düğmesi:** bildirimden tek tıkla registry'ye dokunmak, o anda hangi
+> pencereye baktığını bilmediğin bir durumda veri kaybı demektir. Bu yüzden düğme
+> önce uygulamayı öne getirir ve onay penceresinde sorar.
+
+**Kurulum.** Windows bildirimleri uygulamayı bir kısayol üzerinden tanır. İlk
+çalıştırmada iki kayıt yazılır ve bir daha dokunulmaz:
+
+```
+HKCU\Software\Classes\AppUserModelId\TENGRI.SystemOptimizer
+%APPDATA%\Microsoft\Windows\Start Menu\Programs\TENGRI.lnk
+```
+
+Kısayol elle silinirse yeniden kurulur. Ayarı kapatmak bu kayıtları silmez.
+
+**Ayarı kapatmak** bildirimleri susturur, kayıtları silmez — bu yüzden tekrar açtığında
+kurulumun baştan yapılması gerekmez.
+
+> Rahatsız Etmeyin ve gece modu Windows'un kendi kararıdır; araç bu ayarların
+> üzerine yazmaz. Sistem susturduğunda susturur, sadece Eylem Merkezi'ne kaydeder.
+
+**Tek örnek.** Toast düğmeleri uygulamayı yeniden başlatarak tetikler (Windows'un
+yapabildiği tek yol bu). Bunun iki pencere açmaması için uygulama tek örnek
+kilitini tutar: ikinci açılış komutu ilk örneğe iletir ve kendini kapatır.
+
+---
+
 ### Hakkında
 
 | Öğe | İçerik |
 |---|---|
 | Kimlik | Ürün adı, sürüm (çalışan exe'nin sürüm kaynağından okunur), lisans |
 | Bağlantılar | Instagram, GitHub ve kaynak kod — gerçek marka siluetli ikonlarla, `ShellExecuteW` ile açılır |
-| Bildirimler | Demo lisans açıklaması ve yönetici yetkisi gerekçesi |
+| Uyarılar | Demo lisans açıklaması ve yönetici yetkisi gerekçesi |
 
 ---
 
@@ -511,8 +562,10 @@ kaynak kodu `1.0.0` diyordu ve sürüm ancak derledikten sonra fark edildi.
 Hakkında sayfası sürümü ikinci bir kopya taşımak yerine `GetFileVersionInfo` ile çalışan
 exe'den geri okuyor. Kod tabanında hiçbir yerde derleme tarihi gömülü değil.
 
-`res\tengri.ico`, `tools/make_icon.ps1` ile üretiliyor; uygulamanın çalışma anında çizdiği
-elmas işaretin geometrisinden çiziyor, böylece ikon ile sidebar logosu ayrışamaz.
+`res\tengri.ico`, `tools/make_icon_from_png.ps1` ile `res\tengri-logo.png`'den üretiliyor.
+Tek sanat kaynağı bu PNG: pencere simgesi, görev çubuğu, tepsi ikonu, giriş ekranı,
+kenar çubuğu ve açılış ekranı hep aynı dosyadan gelir, böylece marka tek yerde
+değiştirilir ve hiçbir yerde ayrışamaz.
 
 ---
 
@@ -526,7 +579,8 @@ src/gui/theme.cpp          Renkler, fontlar, DPI ölçekleme
 src/gui/fx.cpp             Parçacıklar, yıldız geçişi, üst ışık, ışık süpürme
 src/gui/widgets.cpp        Buton, anahtar, onay kutusu, giriş, kaydırıcı, segment, grafik, bildirim
 src/gui/icons.cpp          Vektör ikonlar
-src/gui/brand_icons.cpp    Üçgenlenmiş marka siluetleri (üretilmiş)
+src/gui/logo.cpp           Tek PNG'den yüklenen marka logosu (D3D11 dokusu)
+src/gui/brand_icons.cpp    Hakkında sayfası bağlantı ikonları (üçgenlenmiş, üretilmiş)
 src/core/cleaner.cpp       Dosya taraması ve silme
 src/core/tweaks.cpp        7 tweak kategorisinin registry okuma/yazma işlemleri
 src/core/regpack.cpp       Gömülü .reg gövdeleri + reg.exe ile içe aktarma
@@ -538,11 +592,12 @@ src/core/lang.cpp          İngilizce / Türkçe metin tabloları
 src/core/license.cpp       Demo lisans ekranı
 src/core/elevate.cpp        Yetki yükseltme: runas ile yeniden başlatma, komut satırı kodlama
 src/core/backup.cpp         Uygulama öncesi registry yedeği (reg export) ve geri alma (reg import)
+src/core/notify.cpp         Windows bildirimleri: WinRT toast, AUMID kurulumu, komut ayrıştırma
 src/tray.cpp               Kabuk tray ikonu
 res/tengri.rc              İkon, manifest, VERSIONINFO
 res/app.manifest           Yürütme düzeyi, DPI farkındalığı, işletim sistemi uyumluluğu
 tools/make_icon.ps1        Uygulama ikonunu üretir
-tools/make_brand_icons.ps1 Marka siluetlerini üçgenler ve brand_icons.cpp üretir
+tools/make_brand_icons.ps1 Hakkında sayfası bağlantı ikonlarını üçgenler ve brand_icons.cpp üretir
 tools/make_version.ps1     brand.hpp'den sürüm başlığı üretir (VERSIONINFO kaynağı)
 tools/shoot.ps1            Ekran görüntüsü almak için yardımcı betikler
 tools/make_tweak_table.ps1 tweaks.cpp + regpack.cpp'den registry tablosu ve anahtar başlığı üretir
