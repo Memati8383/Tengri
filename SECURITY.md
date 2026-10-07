@@ -40,9 +40,33 @@ Bulduğun şeyi anlatırken şunları ekle:
 
 ## Veri gizliliği
 
-TENGRI hiçbir veriyi göndermez. Trafik çıkışı yoktur; makine parmak izi hesaplanır ama
-yalnızca ekranda gösterilir ve hiçbir yere iletilmez. Lisans ekranı bir demodur ve sunucuya
-hiçbir istek yapmaz.
+TENGRI kullanıcı verisi göndermez. Dışarı giden isteklerin tamamı iki tanedir ve README'deki
+[Ağ kullanımı](README.md#ağ-kullanımı) bölümünde bayt bayt listelenir:
+
+- Sürüm denetimi: `github.com` üzerinden `latest.json` ve yalnızca sen **İndir** dediğinde
+  o bildirimin adresinden exe. İstekler sabit GET'lerdir; gövde, çerez, sorgu parametresi
+  yoktur.
+- Ağ ekranındaki gecikme ölçümü: hedefi sabit `1.1.1.1` olan ICMP echo, yük alanı sabit bir
+  işaretçi yazı. Kullanıcı verisi taşımaz.
+
+Makine parmak izi hesaplanır ama yalnızca ekranda maskelenmiş haliyle gösterilir; hiçbir
+isteğe eklenmez. Lisans ekranı bir demodur ve sunucuya hiçbir istek yapmaz.
+
+## Güncelleme kanalına nasıl yaklaşılmalı
+
+Uygulama yeni sürümü GitHub Releases'tan öğrenir ve indirdiği dosyayı bildirilen SHA-256
+ile doğrular; uyuşmazsa dosyayı siler. Ayrıca indirme adresi https ve `github.com` /
+`*.githubusercontent.com` dışında ise reddedilir.
+
+Bu kapının garanti kapsamını net söylemek gerekir: özet, exe ile **ayrı bir varlıkta**
+taşındığı için bozuk/yarım indirmeyi ve adresin başka bir dosyaya çevrilmesini yakalar,
+ama ikisi de aynı depodan geldiği için **deposu ele geçirilmiş bir yayını yakalamaz**.
+Bir saldırı senaryosunda saldırgan depo yazma erişimine sahipse hem exe'i hem `latest.json`ı
+yeniden üretebilir.
+
+Bu yüzden güncelleme akışı üç tasarımla sınırlı tutuldu: otomatik indirme yok, kurulum ayrı
+bir onay ister, eski exe'in yerine yeni dosya konur. Kendi şüphen varsa `git tag` + yerel
+derleme yolunu kullan; doğrulamanın en güçlü hali bu.
 
 ## Kapsam dışı
 

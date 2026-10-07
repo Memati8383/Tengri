@@ -11,7 +11,7 @@ enum class Icon
     Dashboard, Cleaner, Tweaks, Network, Settings,
     Key, User, Logout, Close, Minimize, Check,
     Eye, EyeOff, Cpu, Memory, Disk, Shield, Bolt,
-    Info, Warning, Error, Search, Refresh,
+    Info, Warning, Error, Alert, Search, Refresh,
     Monitor, Globe, Lock, Chip,
     Instagram, GitHub, Code,
 };

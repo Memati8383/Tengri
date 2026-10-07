@@ -130,6 +130,28 @@ namespace lang
             "Safe", "Caution", "Risky",
             "All",
 
+            // ---- Updates (otomatik sürüm denetimi) ----
+            "Updates", "Automatic update check",
+            "Checks GitHub Releases at startup and every 24 hours",
+            "Checking...", "You're up to date", "New version available: %s",
+            "Not checked yet", "Last check: %d h ago", "Last check: just now",
+            "Check now", "Download", "Install and restart", "Cancel",
+            "Downloading... %d%%", "Verifying checksum...", "Verified: %s",
+            "The app closes and the new version starts.",
+            "The app folder isn't writable. The downloaded file stays at: %s",
+            "Update check failed: %s", "%s of %s",
+            "Network error", "Server error", "No update manifest in this release",
+            "Malformed update manifest", "Untrusted download host", "File error",
+            "Checksum mismatch", "Folder isn't writable",
+            "Update available", "Version %s has been released.",
+            "Update downloaded", "Version %s is verified and ready to install.",
+            "UPDATE AVAILABLE", "UP TO DATE", "CHECKING",
+
+            // ---- System tray: close behaviour + context menu ----
+            "Keep running when closed",
+            "The close button hides the window; the app keeps running in the tray",
+            "Show window", "Go to page", "Exit",
+
             // ---- TweakNames: 7 kategori x 8 satır ----
             // Performans
             "Ultimate power plan", "Disable background apps", "Optimize visual effects",
@@ -365,6 +387,28 @@ namespace lang
             "TENGRİ otobaşlatma", "Kaydın registry'de bulunduğu konum",
             "Güvenli", "Dikkat", "Riskli",
             "Tümü",
+
+            // ---- Güncellemeler (otomatik sürüm denetimi) ----
+            "Güncellemeler", "Otomatik güncelleme denetimi",
+            "GitHub Releases'i açılışta ve her 24 saatte bir denetler",
+            "Denetleniyor...", "Sürümünüz güncel", "Yeni sürüm mevcut: %s",
+            "Henüz denetlenmedi", "Son denetim: %d sa önce", "Son denetim: az önce",
+            "Şimdi denetle", "İndir", "Kur ve yeniden başlat", "Vazgeç",
+            "İndiriliyor... %d%%", "Sağlama değeri doğrulanıyor...", "Doğrulandı: %s",
+            "Uygulama kapanır, yeni sürüm açılır.",
+            "Uygulama klasörüne yazılamıyor. İndirilen dosya şurada kalıyor: %s",
+            "Güncelleme denetimi başarısız: %s", "%s / %s",
+            "Ağ hatası", "Sunucu hatası", "Bu sürümde güncelleme bildirimi yok",
+            "Bozuk güncelleme bildirimi", "Güvenilmeyen indirme sunucusu", "Dosya hatası",
+            "Sağlama değeri uyuşmuyor", "Klasör yazmaya kapalı",
+            "Güncelleme var", "%s sürümü yayınlandı.",
+            "Güncelleme indirildi", "%s sürümü doğrulandı, kurmaya hazır.",
+            "GÜNCELLEME MEVCUT", "GÜNCEL", "DENENİYOR",
+
+            // ---- Sistem tepsisi: kapatma davranışı + sağ tık menüsü ----
+            "Kapatınca arka planda çalışmaya devam et",
+            "Kapat düğmesi pencereyi gizler; uygulama tepside çalışmayı sürdürür",
+            "Pencereyi aç", "Sayfaya git", "Çık",
 
             // ---- TweakNames: 7 kategori x 8 satır ----
             // Performans

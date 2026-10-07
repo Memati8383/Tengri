@@ -11,6 +11,7 @@
 #include "brand.hpp"
 #include "core/elevate.hpp"
 #include "core/notify.hpp"
+#include "core/update.hpp"
 #include <d3d11.h>
 #include <dwmapi.h>
 
@@ -97,12 +98,25 @@ static void CleanupDeviceD3D()
 
 static bool g_trayRestore = false;
 
+// Tepsi'den geri dönüş. Küçültme yolu pencereyi hem simge durumuna küçültüp hem
+// gizliyor, kapatma yolu ise yalnızca gizliyor. SW_RESTORE gizli ama küçülmüş
+// olmayan bir pencerede güvenilir olmadığı için iki durum ayrılıyor.
+static void ShowFromTray(HWND hwnd)
+{
+    ::ShowWindow(hwnd, ::IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);
+    ::SetForegroundWindow(hwnd);
+}
+
 // ---- tek örnek kilidi -------------------------------------------------------
 // Windows bildirimlerindeki düğmeler uygulamayı YENİDEN başlatır; Windows'un
 // tek yapabildiği budur. Bu exe kendi başına ikinci bir pencere açtığında
 // kullanıcı iki TENGRİ görür ve hangisinde olduğunu anlamaz. Bu yüzden
 // başlatma komutu taşıyan her örnek, çalışan örneğe komutu iletip kendini
 // kapatır.
+//
+// Tek istisna güncelleme takasından doğan örnektir: o, kapanmakta olan
+// örneğe komut göndermemeli; gönderirse kapanan süreçle yarışır ve
+// güncellenmiş uygulama hiç açılmaz. Aşağıda kilit beklenir.
 static HANDLE g_singleMutex = nullptr;
 
 // Kilit adı exe adına göre üretilir, ürün adına göre değil. Aynı exenin iki
@@ -186,8 +200,7 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 app::HandleNotifyCommand(cmd, target);
                 // Pencere tray'de gizliyse komut sessizce çalışıp kaybolmasın:
                 // kullanıcı düğmeye bastı, karşılığını görmeli.
-                ::ShowWindow(hWnd, SW_RESTORE);
-                ::SetForegroundWindow(hWnd);
+                ShowFromTray(hWnd);
             }
             return TRUE;
         }
@@ -239,6 +252,12 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
                        SWP_NOZORDER | SWP_NOACTIVATE);
         return 0;
     }
+    case WM_CLOSE:
+        // Alt+F4 ve sistem menüsündeki "Kapat" çarpı düğmesiyle aynı yola girer;
+        // aksi halde kullanıcı tepside kalması gereken uygulamayı klavyeyle
+        // gerçekten kapatmış olurdu.
+        app::RequestClose();
+        return 0;
     case WM_DESTROY:
         ::PostQuitMessage(0);
         return 0;
@@ -257,6 +276,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     // Bildirimden gelen başlatma komutu "cmd:N" biçimindedir. Yükseltilmiş
     // yeniden başlatma bayrağıyla karışmaması için ikisi ayrı ayrı okunur.
     std::wstring launchArgs;
+    bool takasYeniden = false;   // güncelleme takasından doğan örnek
     {
         int    argc = 0;
         LPWSTR* argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
@@ -264,7 +284,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
         {
             for (int i = 1; i < argc; ++i)
             {
-                if (::wcsncmp(argv[i], notify::kLaunchPrefix, 4) == 0)
+                if (::wcscmp(argv[i], update::kRelaunchArg) == 0)
+                    takasYeniden = true;
+                else if (::wcsncmp(argv[i], notify::kLaunchPrefix, 4) == 0)
                 {
                     launchArgs = argv[i];
                     break;
@@ -279,7 +301,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
         {
             const std::wstring mutexName = SingleMutexName();
             g_singleMutex = ::CreateMutexW(nullptr, TRUE, mutexName.c_str());
-            const bool alreadyRunning = (::GetLastError() == ERROR_ALREADY_EXISTS);
+            bool alreadyRunning = (::GetLastError() == ERROR_ALREADY_EXISTS);
+
+            // Güncelleme takası: eski örnek kendi kapanışını update::Apply
+            // içinde başlattığı için kilit, yeni örnek doğduktan sonra bile
+            // bir süre dolu kalabilir. Komutu o kilide göndermek, kapanan
+            // sürece gitmek ve güncellenmiş uygulamanın hiç açılmaması
+            // demekti. Burada sahiplik BEKLENİR; kapanan süreç kilidi
+            // bırakırken terk edilmiş (abandoned) duruma düşürür ve bu da
+            // devralma sayılır. Süre dolarsa normal akışa dönülür: gerçekten
+            // açık bir örnek varsa komut yine ona iletilir.
+            if (alreadyRunning && takasYeniden)
+            {
+                const DWORD r = ::WaitForSingleObject(g_singleMutex, 5000);
+                if (r == WAIT_OBJECT_0 || r == WAIT_ABANDONED)
+                    alreadyRunning = false;
+            }
+
             if (alreadyRunning)
             {
                 // Komut varsa çalışan örneğe ilet, yoksa yalnızca öne getir.
@@ -329,15 +367,26 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     g_initialScale = scale > 0.0f ? scale : 1.0f;
     const int w = (int)(980 * scale), h = (int)(640 * scale);
 
-    // Uygulama simgesi kaynak dosyasından gelir. Kaynak bağlanamazsa yedek olarak
-    // sistem simgesi yüklenir; bu durumda görev çubuğunda genel Windows simgesi
-    // görünür ama uygulama çalışmaya devam eder.
-    HICON hIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(brand::kIconId));
-    if (!hIcon) hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    // Uygulama simgesi kaynak dosyasından gelir. İki ölçü AYRI AYRI yüklenir:
+    // görev çubuğu düğmesi ve alt/üst simge alanları küçük simgeyi (SM_CXSMICON)
+    // kullanır. WNDCLASSEXW.hIconSm boş bırakılırsa Windows 11 görev çubuğunda
+    // jenerik simge çiziliyor — marka resmi exe içinde durmasına rağmen.
+    // LoadIconW tek bir ölçü verdiği için o yol burada kullanılmıyor.
+    const int bigPx   = ::GetSystemMetrics(SM_CXICON);
+    const int smallPx = ::GetSystemMetrics(SM_CXSMICON);
+    HICON hIcon   = (HICON)::LoadImageW(hInstance, MAKEINTRESOURCEW(brand::kIconId),
+                                        IMAGE_ICON, bigPx, bigPx, LR_DEFAULTCOLOR);
+    HICON hIconSm = (HICON)::LoadImageW(hInstance, MAKEINTRESOURCEW(brand::kIconId),
+                                        IMAGE_ICON, smallPx, smallPx, LR_DEFAULTCOLOR);
+
+    // Kaynak bağlanamazsa yedek olarak sistem simgesi yüklenir; bu durumda
+    // görev çubuğunda genel Windows simgesi görünür ama uygulama çalışmaya devam eder.
+    if (!hIcon)   hIcon   = ::LoadIconW(nullptr, IDI_APPLICATION);
+    if (!hIconSm) hIconSm = hIcon;   // küçük ölçü yoksa kabuk büyüğü ölçekler
 
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0, 0, hInstance,
                        hIcon, ::LoadCursorW(nullptr, IDC_ARROW),
-                       nullptr, nullptr, brand::kWindowClass, nullptr };
+                       nullptr, nullptr, brand::kWindowClass, hIconSm };
     ::RegisterClassExW(&wc);
 
     RECT wa;
@@ -353,6 +402,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
         ::MessageBoxW(nullptr, L"Failed to create the window.", brand::kMsgTitle, MB_ICONERROR);
         return 1;
     }
+
+    // Sınıf simgesi yalnızca simge hiç set edilmemiş pencereler için varsayılandır.
+    // Kenarlıksız (WS_POPUP) pencere kabuğa "bu bir uygulama penceresi" demiyor,
+    // bu yüzden simge açıkça pencerenin kendisine de verilir. ICON_SMALL2 görev
+    // çubuğunun okuduğu kayıttır.
+    ::SendMessageW(hwnd, WM_SETICON, ICON_BIG,    (LPARAM)hIcon);
+    ::SendMessageW(hwnd, WM_SETICON, ICON_SMALL,  (LPARAM)hIconSm);
+    ::SendMessageW(hwnd, WM_SETICON, ICON_SMALL2, (LPARAM)hIconSm);
 
     // Köşe yuvarlatma isteği yalnızca Windows 11'de yapılır: eski sürümler bu
     // özniteliği kabul edip yok saydığı için sürüm denetimiyle korunur. Yalnızca
@@ -428,17 +485,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
         if (g_trayRestore)
         {
             g_trayRestore = false;
-            ::ShowWindow(hwnd, SW_RESTORE);
-            ::SetForegroundWindow(hwnd);
+            ShowFromTray(hwnd);
         }
         tray::Tick();
 
-        // Pencere başka pencerelerin altında kaldığında çizilecek bir şey yoktur;
-        // her kare için maliyetli görünürlük denemesi yapmak yerine kare atlanır.
-        // Maliyetsiz sunum çağrısı örtülme durumunu tazelemeye devam eder, böylece
-        // pencere öne geldiğinde döngü kendiliğinden çalışır. Bildirim simgesine
-        // tıklandığında pencere hemen geri gelebilsin diye iletiler yine de işlenir.
-        if (g_occluded)
+        // Pencere başka pencerelerin altında kaldığında ya da tepside gizliyken
+        // çizilecek bir şey yoktur; her kare için maliyetli görünürlük denemesi
+        // yapmak yerine kare atlanır. Maliyetsiz sunum çağrısı örtülme durumunu
+        // tazelemeye devam eder, böylece pencere öne geldiğinde döngü
+        // kendiliğinden çalışır. Bildirim simgesine tıklandığında pencere hemen
+        // geri gelebilsin diye iletiler yine de işlenir.
+        //
+        // Gizli pencere ayrılmaz bir koşul olarak eklenmeli: örtülme sorgusu
+        // yalnızca sunumun SONUCUNA bakar, gizli pencerede kabuk her zaman
+        // DXGI_STATUS_OCCLUDED döndürmek zorunda değildir. Sonuç S_OK olursa
+        // döngü çizilmeyen bir arayüzün tam karesini dikey eşitlemeli olarak
+        // üretmeye devam ederdi; arka planda çalışma tam olarak buysa boşuna
+        // işlemci ve pil yakar.
+        if (g_occluded || !::IsWindowVisible(hwnd))
         {
             g_occluded = (g_swapChain->Present(0, 0) == DXGI_STATUS_OCCLUDED);
             MSG skip;
@@ -452,8 +516,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
             if (g_trayRestore)
             {
                 g_trayRestore = false;
-                ::ShowWindow(hwnd, SW_RESTORE);
-                ::SetForegroundWindow(hwnd);
+                ShowFromTray(hwnd);
             }
             tray::Tick();
             ::Sleep(16);

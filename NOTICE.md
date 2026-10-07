@@ -26,9 +26,12 @@ sıradan bir formalite değil, tam da durduğumuz yer:
   Bu, sezgisel antivirüs motorlarının imzasız çalıştırılabilirlerde işaretlediği
   davranış kümesidir. Ayrıntı: [SECURITY.md](SECURITY.md)
 - Lisans **ekranı bir demodur**: her anahtarı kabul eder, sunucuya hiçbir
-  doğrulama yapmaz, hiçbir telemetri göndermez. Bu, yazılımın "lisanssız"
+  doğrulama yapmaz, hiçbir veri göndermez. Bu, yazılımın "lisanssız"
   olduğu anlamına gelmez; yukarıdaki MIT lisansı tüm depoya uygulanır.
 - Makine parmak izi hesaplanır, hiçbir yere gönderilmez.
+- Uygulamanın ağa çıkan tek yolu sürüm denetimi ve Ağ ekranındaki gecikme
+  ölçümüdür; ikisi de kullanıcı verisi taşımaz. Tam liste:
+  [Ağ kullanımı](README.md#ağ-kullanımı).
 
 ## Ticari ad
 

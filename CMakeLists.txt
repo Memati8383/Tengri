@@ -79,6 +79,7 @@ add_executable(TENGRI WIN32
     src/core/services.cpp
 src/core/notify.cpp
 src/core/sysinfo_wmi.cpp
+src/core/update.cpp
     src/tray.cpp
     res/tengri.rc
     ${VERSION_HEADER}
@@ -102,4 +103,8 @@ target_compile_definitions(TENGRI PRIVATE UNICODE _UNICODE IMGUI_DEFINE_MATH_OPE
 target_compile_options(TENGRI PRIVATE /utf-8 /W4)
 # windowscodecs: gömülü marka PNG'sini çözer (gui\logo.cpp)
 # ole32: WIC fabrikasını kullanan CoCreateInstance
-target_link_libraries(TENGRI PRIVATE d3d11 dxgi d3dcompiler dwmapi user32 gdi32 advapi32 shell32 iphlpapi comctl32 version windowscodecs ole32 windowsapp propsys wbemuuid)
+# winhttp: sürüm denetiminin tek HTTP istemi (core\update.cpp) — WinINet değil,
+#          çünkü WinINet kullanıcı arayüzüne bağlıdır ve arka plan iş parçağında
+#          oturum kapandığında takılabilir.
+# bcrypt:  indirilen exe'nin SHA-256 doğrulaması
+target_link_libraries(TENGRI PRIVATE d3d11 dxgi d3dcompiler dwmapi user32 gdi32 advapi32 shell32 iphlpapi comctl32 version windowscodecs ole32 windowsapp propsys wbemuuid winhttp bcrypt)

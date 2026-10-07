@@ -72,6 +72,32 @@ başka değişiklikler için ayrıca nokta oluştur:
 
 `Windows + R` → `sysdm.cpl` → **Sistem koruma** → **Oluştur**
 
+## Test 7 — güncelleme akışı
+
+Otomatik testler WinHTTP'ye ve gerçek dosya takasına dokunmaz (`test_update` ağ istemi
+açmaz). Bu yüzey elle denenir — **kendi exe'ni siler**, bu yüzden bir kopya üzerinde
+yapılması önerilir.
+
+1. **Denetim**: Ayarlar → Güncellemeler → **Şimdi denetle**. Güncel sürümde sonuç
+   "Güncel" olmalı; Hakkında'daki rozet de aynı şeyi söylemeli.
+2. **Kapalıyken istek yok**: anahtarı kapat, uygulamayı yeniden başlat, 24 saat
+   beklemesi gerekiyor — açılışta istek gitmemeli. İstersen `LastCheck` değerini
+   silip (`HKCU\Software\TENGRI\Update`) anahtar kapalıyken **Şimdi denetle**'in
+   hâlâ çalıştığını doğrula.
+3. **İndirme**: yeni bir sürüm yayınlandığında **İndir** → yüzde ilerlemesi, yarısında
+   **Vazgeç** → `%TEMP%\TENGRI\Update` klasörü boş kalmalı.
+4. **Sağlama kapısı**: indirilen dosyanın boyutu ve SHA-256'sı `latest.json` ile
+   eşleşmeli. Eşleşmezse kart hata gösterir ve parça silinir.
+5. **Takas**: **Kur ve yeniden başlat** → eski exe silinir, yenisi aynı yola geçer,
+   uygulama `--tengri-relaunch` ile açılır. İkinci pencere açılmamalı (tek örnek
+   kilidi yeni örneğe devredilmeli).
+6. **Yazılamayan klasör**: exe'yi salt-okunur bir konuma (örn. `Program Files`) koy,
+   indirmeyi dene → UAC **çıkmamalı**, kart dosyanın `%TEMP%` içindeki tam yolunu
+   göstermeli.
+
+> Adım 5 geri alınabilir değil: eski exe silinir. Denemeyi `build\` altındaki bir
+> kopya üzerinde yap, Releases'tan indirdiğin dosya üzerinde değil.
+
 ## Bir şey ters giderse
 
 Yedek klasörü silinmediği sürece ayarları geri getirebilirsin:

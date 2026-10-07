@@ -68,6 +68,59 @@ jobs:
             }
           }
 
+      # Uygulamanın "yeni sürüm var" diyebilmesi için tek gereken bu küçücük dosya.
+      # Neden JSON: exe'i doğrudan sürüm sayfasından indirmeden önce boyutunu ve
+      # SHA-256'sını bilmek istiyoruz. İki değer de derlendikten SONRA hesaplanıyor,
+      # yani kaynakta yazılı duran bir sabit değil; sürtürülmüş bir exe ile yanlış
+      # hash'i ellerinde tutan iki ayrı hata burada olanaksız.
+      #
+      # Bu adım etiketli/etiketsiz her koşumda çalışır: etiketsiz koşulda sürüm
+      # yayınlanmaz ama dosya yine de üretilir ve ayrıştırılabilir olduğu doğrulanır.
+      # Böylece bozuk bir şablon, sürüm günü patlamak yerine burada yakalanır.
+      - name: Güncelleme bildirimi (latest.json)
+        shell: pwsh
+        run: |
+          $f = Get-Item build\TENGRI.exe
+          if (-not $f) { throw "build\TENGRI.exe yok" }
+
+          # İndirme adresi etiketten türetilir ve GitHub'ın kendi biçimidir; depoyu
+          # kullanan kişi adı değiştiremeyeceği için burada elle yazılması güvenlidir.
+          $tag = if ($env:GITHUB_REF_NAME -like 'v*') { $env:GITHUB_REF_NAME } else { "v$($f.VersionInfo.ProductVersion)" }
+          # GITHUB_REPOSITORY zaten "owner/name" biçiminde.
+          $url  = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/TENGRI.exe"
+
+          $notesFile = "docs\release-notes\$tag.md"
+          # Kodlama açıkça belirtiliyor: betik UTF-8'i varsayılan kod sayfasıyla
+          # okursa Türkçe metin bozuklaşır ve uygulamanın göreceği yayın notları
+          # tanınamaz hâle gelir.
+          $notes = if (Test-Path $notesFile) { (Get-Content $notesFile -Raw -Encoding utf8).TrimEnd() } else { "Sürüm $tag" }
+
+          $bildirim = [ordered]@{
+            version = $tag.TrimStart('v')
+            sha256  = (Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLowerInvariant()
+            size    = $f.Length
+            url     = $url
+            notes   = $notes
+          }
+
+          # BOM'suz UTF-8 yazılıyor: uygulama basit bir ayraç ayrıştırması yapıyor ve
+          # baştaki üç bayt ilk alan adını okunamaz kılardı.
+          $json = $bildirim | ConvertTo-Json -Depth 4
+          [System.IO.File]::WriteAllText(
+            (Join-Path (Get-Location) "build\latest.json"),
+            $json,
+            (New-Object System.Text.UTF8Encoding($false))
+          )
+
+          # Yalnızca yazmış olmak için yazılmış olmasın: aynı anda hem alan adlarını
+          # hem de hash'in uzunluğunu burada doğruluyoruz. Uygulama 64 karakterlik
+          # onaltılık dizinin dışına çıkan bildirimi güvenilmez sayar.
+          $ok = Get-Content build\latest.json -Raw | ConvertFrom-Json
+          if ($ok.sha256.Length -ne 64) { throw "sha256 beklenen uzunlukta degil: $($ok.sha256.Length)" }
+          if ([string]::IsNullOrWhiteSpace($ok.url)) { throw "url bos" }
+          if ($ok.size -le 0) { throw "size gecersiz: $($ok.size)" }
+          Write-Host "latest.json: surum=$($ok.version) boyut=$($ok.size) sha256=$($ok.sha256.Substring(0,16))..."
+
       - name: Sürümü yayınla
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
@@ -80,5 +133,16 @@ jobs:
           gh release create $tag "build\TENGRI.exe" `
             --title "TENGRI $tag" `
             --notes "$notes"
+
+          # Güncelleme bildirimi de sürüme asetlenir; böylece uygulamanın okuduğu
+          # hash, o sürümün gerçekten yayınlanmış dosyasından üretilmiş olur.
+          gh release upload $tag "build\latest.json" --clobber
+
+          # Eksik asset sessizce geçmesin: iki dosya da listede görünmeden adım bitmez.
+          $assets = (gh release view $tag --json assets --jq '.assets[].name') -join ','
+          Write-Host "yayinlanan assetler: $assets"
+          foreach ($ad in @('TENGRI.exe', 'latest.json')) {
+            if ($assets -notlike "*$ad*") { throw "surumde $ad yok" }
+          }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

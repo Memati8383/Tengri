@@ -52,7 +52,7 @@ if not exist build\obj mkdir build\obj
 
 set IMGUI=third_party\imgui
 set SOURCES=src\main.cpp src\app.cpp src\gui\theme.cpp src\gui\fx.cpp src\gui\icons.cpp src\gui\brand_icons.cpp src\gui\logo.cpp src\gui\logo_data.cpp src\gui\font_data.cpp src\gui\widgets.cpp ^
- src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\core\backup.cpp src\core\restore.cpp src\core\startup.cpp src\core\services.cpp src\core\notify.cpp src\core\sysinfo_wmi.cpp src\tray.cpp ^
+ src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\core\backup.cpp src\core\restore.cpp src\core\startup.cpp src\core\services.cpp src\core\notify.cpp src\core\sysinfo_wmi.cpp src\core\update.cpp src\tray.cpp ^
  %IMGUI%\imgui.cpp %IMGUI%\imgui_draw.cpp %IMGUI%\imgui_tables.cpp %IMGUI%\imgui_widgets.cpp ^
  %IMGUI%\backends\imgui_impl_win32.cpp %IMGUI%\backends\imgui_impl_dx11.cpp
 
@@ -108,7 +108,7 @@ cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 /MP /D_SILENCE_EXPERIMENTAL_COROU
    /I src /I build\obj /I %IMGUI% /I %IMGUI%\backends ^
    %SOURCES% ^
    /Fobuild\obj\ /Febuild\TENGRI.exe ^
-   /link build\obj\tengri.res /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib d3dcompiler.lib dwmapi.lib user32.lib gdi32.lib advapi32.lib shell32.lib iphlpapi.lib comctl32.lib version.lib windowscodecs.lib ole32.lib windowsapp.lib propsys.lib wbemuuid.lib
+   /link build\obj\tengri.res /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib d3dcompiler.lib dwmapi.lib user32.lib gdi32.lib advapi32.lib shell32.lib iphlpapi.lib comctl32.lib version.lib windowscodecs.lib ole32.lib windowsapp.lib propsys.lib wbemuuid.lib winhttp.lib bcrypt.lib
 if errorlevel 1 (
     echo [!] Build failed.
     exit /b 1
@@ -218,3 +218,32 @@ if errorlevel 1 (
     exit /b 1
 )
 echo [+] Write-path tests passed
+
+rem --- surum denetimi testleri ------------------------------------------------
+rem Guncellemenin dogrulama kismi: surum siralamasi, latest.json ayristirmasi,
+rem sunucu allowlist'i, SHA-256 cekirdegi, takas plani ve 24 saat hesabı.
+rem
+rem AG YOK: CheckNow/StageNow hic cagrilmaz, dolayisiyla test hiçbir sunucuya
+rem istek atmaz (loopback dahil). REGISTRY YOK: LoadPrefs/SavePrefs/MarkChecked
+rem cagrilmaz, HKCU\Software\TENGRI\Update anahtari testte hiç açılmaz. Apply
+rem yalnizca RED yoluyla denenir (indirme yokken hazirlik kontrolünde döner);
+rem kabul yolu kendi exe'sinin adini degiştirirdi. Tek dosya işi kendi yarattığı
+rem geçici dosyadır ve sonunda silinir.
+echo [*] Building update tests ...
+cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 ^
+   /DUNICODE /D_UNICODE /I src ^
+   tests\test_update.cpp src\core\update.cpp ^
+   /Fobuild\tobj\ /Febuild\test_update.exe ^
+   /link advapi32.lib winhttp.lib bcrypt.lib
+if errorlevel 1 (
+    echo [!] Guncelleme testi derlemesi basarisiz.
+    exit /b 1
+)
+
+echo [*] Running update tests ...
+build\test_update.exe
+if errorlevel 1 (
+    echo [!] Guncelleme testleri basarisiz.
+    exit /b 1
+)
+echo [+] Update tests passed

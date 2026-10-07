@@ -25,7 +25,6 @@ namespace brand
     constexpr const char*    kNameA        = "TENGRİ";      // dar karakter kullanan çağrılar için
     constexpr const wchar_t* kWindowClass  = L"TENGRI_MainWindow";
     constexpr const wchar_t* kTrayTip      = L"TENGRİ - System Optimizer";
-    constexpr const wchar_t* kTrayOpen     = L"Open TENGRİ";
     constexpr const wchar_t* kMsgTitle     = L"TENGRİ";     // pencere başlıklarında kullanılan ad
 
     // ---- disk ve registry kimliği -----------------------------------------
@@ -70,9 +69,9 @@ namespace brand
     // sürümü ikinci bir yere yazmak yerine çalışan dosyadan geri okuduğu için iki
     // değer birbirinden ayrılamaz.
     constexpr const char*    kVersionMajor  = "1";
-    constexpr const char*    kVersionMinor  = "2";
+    constexpr const char*    kVersionMinor  = "3";
     constexpr const char*    kVersionPatch  = "0";
-    constexpr const char*    kVersion       = "1.2.0";
+    constexpr const char*    kVersion       = "1.3.0";
     constexpr const char*    kPublisher     = "TENGRİ Project";
     constexpr const char*    kDescription   = "TENGRİ - System Optimizer";
 

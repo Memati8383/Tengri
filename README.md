@@ -8,7 +8,7 @@
   <img alt="Çalışma zamanı yok" src="https://img.shields.io/badge/%C3%A7al%C4%B1%C5%9Fma%20zaman%C4%B1-yok-7a4ea3?style=flat-square" />
   <img alt="1.6 MB tek dosya" src="https://img.shields.io/badge/tek%20dosya-1.6%20MB-2e8b57?style=flat-square" />
   <img alt="56 registry anahtarı" src="https://img.shields.io/badge/registry%20anahtar%C4%B1-56-b06a2c?style=flat-square" />
-  <img alt="204 denetim, 0 hata" src="https://img.shields.io/badge/denetim-204%20%2F%200%20hata-4b8b4b?style=flat-square" />
+  <img alt="374 denetim, 0 hata" src="https://img.shields.io/badge/denetim-374%20%2F%200%20hata-4b8b4b?style=flat-square" />
   <a href="https://github.com/Memati8383/Tengri/releases"><img alt="En yeni sürüm" src="https://img.shields.io/github/v/release/Memati8383/Tengri?style=flat-square&label=s%C3%BCr%C3%BCm" /></a>
 </p>
 
@@ -18,7 +18,7 @@ kendi monokrom arayüzüyle.
 
 Rozetlerin tamamı bu depodan türetilir (son biri hariç — o GitHub'daki en yeni etiketi
 okur): boyut derlenmiş `build\TENGRI.exe`'nin gerçek boyutu; denetim sayısı
-`build.bat`'ın çalıştırdığı dört test paketinin toplamı; anahtar sayısı
+`build.bat`'ın çalıştırdığı beş test paketinin toplamı; anahtar sayısı
 `tools\make_tweak_table.ps1`'ın saydığı değer. Kaynak değiştiğinde rakam da değişmek
 zorunda — rozetler süs değil kontrol noktası.
 
@@ -28,7 +28,7 @@ zorunda — rozetler süs değil kontrol noktası.
 
 <p align="center">
   <b>9 ekran</b> · <b>56 registry anahtarı</b> · <b>10 temizlik kategorisi</b> ·
-  <b>14 RAM profili</b> · <b>2 dil</b> · <b>0 telemetri</b>
+  <b>14 RAM profili</b> · <b>2 dil</b> · <b>0 telemetri</b> · <b>2 ağ çıkışı, hepsi listede</b>
 </p>
 
 Yazdığı her registry anahtarı kaynakta görünür: 56 anahtarın dokunduğu her yol
@@ -46,8 +46,9 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 - [Ekran görüntüleri](#ekran-görüntüleri)
 - [Çalıştırmadan önce](#çalıştırmadan-önce)
 - [Özellikler](#özellikler) — 9 ekran, tek tek
-- [Testler](#testler) — 4 paket, 204 denetim
+- [Testler](#testler) — 5 paket, 374 denetim
 - [Nasıl çalışıyor](#nasıl-çalışıyor)
+- [Ağ kullanımı](#ağ-kullanımı) — dışarı giden üç isteğin tam listesi
 - [Yükseltme](#yükseltme)
 - [Derleme](#derleme)
 - [Sürümleme ve kimlik](#sürümleme-ve-kimlik)
@@ -79,8 +80,11 @@ Bu birkaç şeyi **yapmaz**, ve yapmadığını açıkça söylemek bu aracın b
 - **Antivirüsü, güvenliği veya Windows güncellemesini değiştirmez.** Tek bir antivirüs
   ya da güvenlik özelliğini kapatmaz, hiçbir dosyayı karantinaya almaz.
 - **Telemetri göndermez.** Lisans ekranı bir demodur; sunucuya hiçbir istek yapılmaz.
-  Makine parmak izi hesaplanır ama hiçbir yere gönderilmez.
-- **Güncelleme yok.** Çalışma zamanında indirme yok, arka planda kendini yenileme yok.
+  Makine parmak izi hesaplanır ama hiçbir yere gönderilmez. Dışarı giden tek istek
+  sürüm denetimidir ve o da hiçbir şey taşımaz — bkz. [Ağ kullanımı](#ağ-kullanımı).
+- **Kendiliğinden güncellenmez.** İndirme sen "İndir" demeden başlamaz, kurulum ayrıca
+  "Kur ve yeniden başlat" ister. Uygulama kapalıyken hiçbir şey inmez, hiçbir şey
+  yazılmaz. Denetimin kendisi de Ayarlar → Güncellemeler altından tamamen kapatılabilir.
   (İlk çalıştırmada tek seferlik iki kayıt yazılır — bkz. [Windows bildirimleri](#windows-bildirimleri).)
 - **Kullanıcı verisini okumaz.** Yalnızca [registry tablosunda](docs/tweaks-registry.md)
   listelenen anahtarlara yazar, temizleyicide de yalnızca kendi kategorilerinin saydığı
@@ -133,6 +137,10 @@ Kurulum gerekmez, `TENGRI.exe` dosyasını çalıştırman yeterli.
 
 Antivirüs uyarısı alırsan normaldir ve nedeni [SECURITY.md](SECURITY.md)'de açıklanıyor.
 
+Yeni sürüm çıktığında uygulama bunu kendisi söyler: Ayarlar → **Güncellemeler** kartında
+**İndir**, sonra **Kur ve yeniden başlat**. İndirme sen onaylamadan başlamaz. Ayrıntı:
+[Ağ kullanımı](#ağ-kullanımı).
+
 ## Kaynaktan derle
 
 ```bat
@@ -141,7 +149,7 @@ cd Tengri
 build.bat
 ```
 
-`build.bat` üretici betikleri, derlemeyi ve **dört test paketini** tek geçişte çalıştırır;
+`build.bat` üretici betikleri, derlemeyi ve **beş test paketini** tek geçişte çalıştırır;
 testlerden biri takılırsa betik hata koduyla çıkar. Alt modülü unutursan betik ImGui'yi
 kendisi klonlar ve sürümünü denetler. Ayrıntı: [Derleme](#derleme).
 
@@ -530,14 +538,17 @@ sayı; 4 GB üstü kartlarda taşıyor ve 16 GB'lık bir kartı 4 GB gösteriyor
 |---|---|
 | Görsel efektler | Parçacıklar, bağlantı çizgileri, fare etkileşimi, üst ışık, ışık süpürmesi |
 | Parçacık ayarları | Parçacık sayısı (kaydırıcı), parçacık hızı (çarpan) |
-| Genel | Lisansı hatırla, uygulama içi bildirimler, Windows bildirimleri, sadece hatalar, başlangıçta çalıştır, tepsi simgesine küçült |
+| Güncellemeler | Otomatik denetim anahtarı, son denetim durumu, **Şimdi denetle / İndir / Kur ve yeniden başlat / Vazgeç** — ayrıntı aşağıda |
+| Genel | Lisansı hatırla, uygulama içi bildirimler, Windows bildirimleri, sadece hatalar, başlangıçta çalıştır, tepsi simgesine küçült, kapatınca arka planda çalışmaya devam et |
 | Dil | English / Türkçe — seçim kalıcı olarak saklanır |
 | Hesap | Maskelenmiş lisans anahtarı, plan, bitiş, demo lisans bildirimi, çıkış yap |
 
 | Davranış | Ayrıntı |
 |---|---|
 | Başlangıçta çalıştır | Gerçek bir `HKCU\...\Run` girdisi yazar ve geri okur, böylece anahtar kayamaz |
-| Tepsi simgesine küçült | Gerçek kabuk ikonu; sol tık geri getirir, sağ tık Aç / Çıkış menüsü açar. Kabuk ikonu reddederse sıradan küçültmeye düşer. **İlk küçültmede bir kez balon** çıkar (aşağıya bakın) |
+| Tepsi simgesine küçült | Gerçek kabuk ikonu; sol tık geri getirir, sağ tık menü açar (aşağıya bakın). Kabuk ikonu reddederse sıradan küçültmeye düşer. **İlk küçültmede bir kez balon** çıkar (aşağıya bakın) |
+| Kapatınca arka planda çalışmaya devam et | **Kapat (X)** düğmesi uygulamanı sonlandırmaz, pencereyi gizler; süreç tepside çalışmayı sürdürür. Açılışta varsayılan olarak açık, kalıcı değil — her oturumda pencereyi kapatmanın ne yapacağına o oturumda karar verilir. Windows bildirimleri kapalıysa ya da kabuk ikonu alınamazsa düğme çalışmaya devam eder ve **gerçekten çıkar**; ikonu olmayan bir arka plan süreci sessizce yaşayan bir süreç olurdu |
+| Tepsi sağ tık menüsü | Başlıkta ad + sürüm. **Pencereyi aç** (varsayılan/bold öğe), dokuz ekranın tamamını listeleyen **Sayfaya git** alt menüsü, **Geri al** (yedek yoksa gri), **Windows bildirimleri / Sessiz mod / Başlangıçta çalıştır** üç işaretli anahtar, **Ayarlar** ve **Çık**. Menü hiçbir durumu kendi içinde tutmaz: işaretleri, erişilebilir sayfaları ve komutların ne yapacağını uygulamadan sorar, böylece tepsideki ile penceredeki anahtarlar ayrılamaz |
 | Diller | İngilizce ve Türkçe; tüm metinler, tweak etiketleri ve sistem durumları çizim anında çözülür |
 | DPI | Ölçekleme tüm boyutlarda uygulanır; monitör değişiminde yeniden ölçeklenir |
 
@@ -612,6 +623,40 @@ kilitini tutar: ikinci açılış komutu ilk örneğe iletir ve kendini kapatır
 
 ---
 
+### Güncellemeler
+
+Ayarlar'ın sağ sütunundaki ilk kart. Uygulama yeni sürümü GitHub Releases'tan öğrenir,
+kurulumu ise **sana** sorar — kendiliğinden inen veya kendiliğinden kurulan bir şey yok.
+
+| Öğe | Davranış |
+|---|---|
+| Otomatik güncelleme denetimi | Açıkken (varsayılan) açılışta bir, sonra pencere açık kaldığı sürece her 24 saatte bir denetlenir. Kapalıyken zamanlayıcı hiç çalışmaz; **Şimdi denetle** elle çalışmaya devam eder |
+| Son denetim | "Az önce" / "N saat önce". Zaman damgası kalıcı: uygulama kapanıp açıldığında ilk denetim 24 saat bekler |
+| Durum satırı | Denetleniyor / yeni sürüm mevcut / güncel / başarısız (ağ, HTTP, bulunamadı, bozuk bildirim, güvenilmeyen adres, dosya, sağlama uyuşmazlığı) |
+| Rozet | Hakkında sayfasında "Güncelleme mevcut" / "Güncel" / "Denetleniyor" |
+| Bildirim | Yeni sürüm bulunduğunda ve indirme doğrulandığında uygulama içi toast + Windows bildirimi. Bildirimin **İndir** düğmesi uygulamayı Ayarlar'da açar ve indirmeyi başlatır |
+
+**Akış.** Denetim bir iş parçacığında yürür, arayüz beklemez.
+
+1. `latest.json` indirilir: `version`, `url`, `sha256`, `size`
+2. Sürüm üç parçalı sayısal olarak karşılaştırılır; seninki eşit veya daha yeni ise durum **Güncel**
+3. **İndir** → dosya `%TEMP%\TENGRI\Update\` altına gider, kart yüzde olarak ilerler, **Vazgeç** yarım dosyayı siler
+4. İki kapı: bildirilen bayt sayısı ve SHA-256. Uyuşmazsa indirilen parça **silinir** ve hata kartta görünür
+5. Doğrulanınca kart **hazır** durumuna geçer; **Kur ve yeniden başlat** çalışan exe'yi kenara alır, yenisi yerine taşınır, eskisi **silinir**, `--tengri-relaunch` ile yeniden başlatılır
+6. Exe klasörü yazılmıyorsa UAC **istenmez** — dosya `%TEMP%` içinde kalır ve kartta tam yolu gösterilir
+
+> **Geri dönüş kopyası yok.** Takas sonrası eski exe silinir. Yanlış bir şey olursa
+> kurtarma yolu Releases'tan aynı dosyayı elle indirip koymak. Bu bilinçli bir tercih;
+> kart da "uygulama kapanır, yeni sürüm açılır" diye uyarıyor.
+
+> **SHA-256 neyi yakalar, neyi yakalamaz.** Bozuk bir indirmeyi, yarıda kesilmiş bir
+> aktarımı ve adresin başka bir dosyaya yönlendirilmesini yakalar — çünkü doğrulama
+> değeri exe ile **ayrı** bir bildirim dosyasında geliyor. Yakalamadığı tek şey, deposu
+> ele geçirilmiş bir yayındır: o durumda exe ile özeti aynı güven alanından çıkar.
+> Gerçek kimlik zinciri (minisign ile imzalanmış bildirim) sonraki adımdır.
+
+---
+
 ### Hakkında
 
 | Öğe | İçerik |
@@ -619,6 +664,7 @@ kilitini tutar: ikinci açılış komutu ilk örneğe iletir ve kendini kapatır
 | Kimlik | Ürün adı, sürüm (çalışan exe'nin sürüm kaynağından okunur), lisans |
 | Bağlantılar | Instagram, GitHub ve kaynak kod — gerçek marka siluetli ikonlarla, `ShellExecuteW` ile açılır |
 | Uyarılar | Demo lisans açıklaması ve yönetici yetkisi gerekçesi |
+| Güncelleme rozeti | "Güncelleme mevcut" / "Güncel" / "Denetleniyor" — bkz. [Güncellemeler](#güncellemeler) |
 
 ---
 
@@ -649,6 +695,32 @@ gerektirdiğinde bu yüzeyler ayrı daraltılmıştır:
 | Hizmetler | `ChangeServiceConfigW` (`SERVICE_CHANGE_CONFIG`) | Hizmet yapılandırması SCM API'sinin sahiplendiği bir alan; registry'den elle yazmak `DelayedAutostart` gibi ikincil değerlerle ayrışırdı |
 | DNS | `netsh` | Adaptör başına yapılandırma; resolver önbelleği de seçimden sonra boşaltılır |
 | Yedekleme | `reg export` (yalnızca okuma) | Yedek UAC istemez; geri alma `reg import` olduğu için ister |
+
+---
+
+## Ağ kullanımı
+
+Uygulamanın dışarı attığı isteklerin tamamı burada. İkisi sürüm denetiminden, biri Ağ
+ekranındaki gecikme ölçümünden:
+
+| İstek | Ne zaman | Giden veri |
+|---|---|---|
+| `GET https://github.com/Memati8383/Tengri/releases/latest/download/latest.json` | Otomatik denetim açıksa (varsayılan) açılışta bir + her 24 saatte bir; kapalıyken yalnızca **Şimdi denetle** ile | Yok — sabit bir GET. Gövde, başlık, çerez, sorgu parametresi taşınmaz |
+| `GET <latest.json içindeki url>` | Yalnızca **İndir** düğmesine bastığında | Yok |
+| ICMP echo → `1.1.1.1` | Ağ ekranındaki gecikme grafiği açıkken, saniyede bir örnek | Yük alanı `tengri-latency-probe` yazısı. Hedef sabit, yanıt süresi dışında hiçbir şey paylaşılmaz |
+
+| Konu | Ayrıntı |
+|---|---|
+| Kimlik gitmez | HWID, makine adı, lisans anahtarı, kurulu ayarlar, tarama sonuçları hiçbir isteğe eklenmez. Telemetri, çökme raporu ve kullanım istatistiği gönderen bir yol kod tabanında yok |
+| Adres kilidi | İndirme adresi bildirimin içinden geldiği için ayrıca denetlenir: **https** ve `github.com` / `*.githubusercontent.com` dışında bir uç nokta **reddedilir** (`Fail::TrustHost`). Yönlendirme zinciri de aynı kapıdan geçer, yani uyanık bir sunucu indirmeyi başka bir sunucuya çeviremez |
+| Üst sınır | Bildirim 1 MB, indirme 200 MB ile sınırlı; aşılırsa akış kesilir ve dosya silinir |
+| Kalıcılık | `HKCU\Software\TENGRI\Update` altında iki değer: `Enabled` (anahtar) ve `LastCheck` (son denetim anı, UTC saniye). Ağ katmanının yazdığı tek registry alanı bu |
+| Dosya | İndirme `%TEMP%\TENGRI\Update\` altında durur; doğrulanmazsa veya vazgeçilirse silinir, takastan sonra klasör boş kalır |
+| Kapatmak | Otomatik denetimi kapatınca zamanlayıcı hiç çalışmaz; geriye yalnızca senin tetiklediğin **Şimdi denetle** kalır. Gecikme ölçümü Ağ ekranı görünür olduğu sürece çalışır, ekranı terk edince durur |
+
+> **Neden adres kilidi var:** bildirimin kendisi zaten GitHub'dan geliyor, yani normalde
+> `url` da GitHub'dır. Kapı, o alanı ele geçirmiş bir senaryoya (bozulmuş bir derleme,
+> araya giren bir vekil sunucu) karşı indirmeyi ikinci bir bağımsız denetime bağlıyor.
 
 ---
 
@@ -717,7 +789,7 @@ sürümü denetler).
 | 4 | Marka varlıkları: `make_icon_from_png.ps1`, `make_brand_icons.ps1` |
 | 5 | Font gömme: `make_font_data.ps1` |
 | 6 | `cl` ile `build\TENGRI.exe` |
-| 7 | **Dört test paketini derler ve çalıştırır** — biri bile takılırsa betik `exit /b 1` ile durur |
+| 7 | **Beş test paketini derler ve çalıştırır** — biri bile takılırsa betik `exit /b 1` ile durur |
 
 CI'da ayrıca etiketle exe içindeki `VERSIONINFO` sürümünün aynı olduğunu ve
 `docs\tweaks-registry.md`'nin üretilmiş hâliyle güncel olduğunu denetleyen iki adım var.
@@ -726,7 +798,7 @@ CI'da ayrıca etiketle exe içindeki `VERSIONINFO` sürümünün aynı olduğunu
 
 ## Testler
 
-`build.bat` derlemenin sonunda dört paket çalıştırır. Toplam **204 denetim**, 0 hata:
+`build.bat` derlemenin sonunda beş paket çalıştırır. Toplam **374 denetim**, 0 hata:
 
 | Paket | Denetim | Kapsam | Gerçek sisteme dokunur mu |
 |---|---|---|---|
@@ -734,6 +806,7 @@ CI'da ayrıca etiketle exe içindeki `VERSIONINFO` sürümünün aynı olduğunu
 | `test_modules.cpp` | 31 | Geri yükleme noktası sonuç metinleri, hizmet beyaz listesi güvenlik kapısı, hizmet ve başlangıç sorguları, shader taraması | Hayır — beşi de salt-okunur |
 | `test_license.cpp` | 22 | `license::Mask` çırpısı ve grup konumları, `sys::Hwid` determinizması ve biçimi, "beni hatırla" kalıcılığı | Hayır — izole APPDATA |
 | `test_write_paths.cpp` | 29 | Shader ve geçici dosya temizleyicilerinin tarama/temizleme tersinirliği, yedek kök dizini + listeleme/en-yeni sıralaması, içe aktarmayı reddetme yolları | Hayır — izole ortam |
+| `test_update.cpp` | 170 | Üç parçalı sürüm karşılaştırması, `latest.json` ayrıştırması (eksik/bozuk/taşkın alanlar, sınırda boyut), adres kilidi `HostAllowed` (şema, nokta sonu, alt alan, kullanıcı adı tuzağı), SHA-1/SHA-256 akış hesaplayıcısı bilinen vektörlerle, takas planı ve zamanlayıcı/24 saat matematiği | Hayır — **ağ istemi yok**, döngü içi istek de yok |
 
 **i18n'de boyut denetimi yetmez.** `test_pure`, blok tablolarının birbirine göre
 *kaymasını* da denetler (`TweakDescs - TweakNames`, `NetNames - TweakDescs`, toplam tweak
@@ -753,10 +826,14 @@ Ayrıca `restore::CreatePoint`, `startup::Remove`, `services::SetStartType` ve
 paylaşılan sisteme yazan eylemler. Bu yüzeyler testlerde yalnızca reddedilme
 koşullarıyla (yetki yok, hedef yok, liste dışı ad, `.reg` içermeyen klasör) denenir.
 
-**Kodla doğrulanamayan iki yol** elle denenecek olarak kaldı: yükseltme devri
-(`asInvoker` → `runas` → iş → çıkış) ve yedekleme/geri alma adım adımı. Adımlar
+**Kodla doğrulanamayan yollar.** Yükseltme devri (`asInvoker` → `runas` → iş → çıkış) ve
+yedekleme/geri alma adım adımı elle denenecek olarak kaldı; adımlar
 [`docs/TEST-YUKSELTME.md`](docs/TEST-YUKSELTME.md) içinde — otomatik testler süreçler
-arası gerçek UAC çağrısını çalıştıramaz, bunu ancak bir insan gözlemler.
+arası gerçek UAC çağrısını çalıştıramaz, bunu ancak bir insan gözlemler. Güncelleme
+modülünde de WinHTTP'nin kendisi test dışı: `test_update` ne gerçek ne de döngü içi bir
+bağlantı açar, ağ katmanının üstünde kalan her şey (karşılaştırma, ayrıştırma, adres
+kilidi, özeti hesabı, takas planı) sahte girdilerle denenir. Gerçek indirme + doğrulama
++ takas yolu, yayınlanmış `TENGRI.exe` üzerinde elle uçtan uca yürütüldü.
 
 ---
 
@@ -812,6 +889,7 @@ src/core/startup.cpp         Başlatma girdileri; devre dışı bırakmak = HKCU
 src/core/services.cpp        16 hizmetlik beyaz liste, başlangıç türü, oyun profili + yedeği
 src/core/restore.cpp         Sistem geri yükleme noktası API'si (SRSetRestorePointW, throttling)
 src/core/notify.cpp          Windows bildirimleri: WinRT toast, AUMID kurulumu, komut ayrıştırma
+src/core/update.cpp          Sürüm denetimi: WinHTTP, latest.json, SHA-256 kapısı, indir + doğrula + takas
 res/tengri.rc                İkon, manifest, VERSIONINFO
 res/app.manifest             Yürütme düzeyi, DPI farkındalığı, işletim sistemi uyumluluğu
 res/tengri-logo.png          Tek sanat kaynağı — ikon, logo ve tepsi hep buradan
@@ -832,7 +910,8 @@ tests/test_pure.cpp          Registry'ye dokunmayan saf mantık — 122 denetim
 tests/test_modules.cpp       restore/startup/services/shader yüzeyleri, salt-okunur — 31 denetim
 tests/test_license.cpp       HWID, Mask ve kalıcılık (izole APPDATA) — 22 denetim
 tests/test_write_paths.cpp   Yazma yolları, tamamen izole ortam değişkenlerinde — 29 denetim
-build.bat                    Tek giriş noktası: üret + derle + dört test paketini çalıştır
+tests/test_update.cpp        Sürüm karşılaştırma, bildirim ayrıştırma, adres kilidi, özet, takas planı — 170 denetim (ağ istemi yok)
+build.bat                    Tek giriş noktası: üret + derle + beş test paketini çalıştır
 CMakeLists.txt               Alternatif derleme (test hedefleri yok; testler build.bat'ta)
 publish.bat                  Yerel yayınlama yardımcısı
 third_party/imgui            Dear ImGui (submodule)
@@ -892,10 +971,11 @@ kadar olan dize literallerinden. Bir dahaki sefere kayma üretilemez, yalnızca 
 
 - Bazı ayarların etkili olması için yeniden başlatma gerekir.
 - Lisans ekranı bir **demodur**: her anahtar kabul edilir, sunucuya karşı hiçbir doğrulama
-  yapılmaz ve hiçbir telemetri yoktur. Hem Hakkında sayfası hem de Hesap kartı bunu
-  söyler.
+  yapılmaz. Hem Hakkında sayfası hem de Hesap kartı bunu söyler.
 - Makine parmak izi, bilgisayar adı, sistem birim seri numarası ve bir **ürüne özgü tuz**
-  üzerinden FNV-1a özeti olarak hesaplanır. Hiçbir yere gönderilmez.
+  üzerinden FNV-1a özeti olarak hesaplanır. Yalnızca ekranda maskelenmiş halini görürsün;
+  hiçbir isteğe eklenmez. Uygulamanın ağa çıkmasının tamamı
+  [Ağ kullanımı](#ağ-kullanımı) bölümünde listeleniyor ve hiçbir satırında HWID yok.
 - Bazı anahtarlar birden fazla ayar tarafından paylaşılır (aynı registry değerini ikisi de
   yazar). Uygulama birini kapattığında açık olanın değerini yeniden yazar, ama bu ilişki
   elle tutulan bir listede durur — yeni bir ayar eklerken
@@ -909,15 +989,21 @@ Sürüm vermek için tek bir yer değişir, sonra etiket:
 :: src\brand.hpp içindeki kVersionMajor / kVersionMinor / kVersionPatch / kVersion
 :: (üç parça birleşik sürümle uyumlu olmalı, yoksa make_version.ps1 derlemeyi durdurur)
 
-git commit -am "Surum 1.2.1"
-git tag v1.2.1
-git push origin main v1.2.1
+git commit -am "Surum 1.3.1"
+git tag v1.3.1
+git push origin main v1.3.1
 ```
 
 GitHub Actions etiketi görünce temiz bir kurulumda derleyip `build\TENGRI.exe`'yi
 `Releases` sayfasına sürer. Başlık her zaman `TENGRI <etiket>` biçimindedir; açıklama
 olarak `docs\release-notes\<etiket>.md` dosyasını bulursa onu, bulamazsa `Sürüm <etiket>`
 yazıyor.
+
+Aynı iş akışı exe'nin SHA-256'sını, boyutunu ve sürümünü `build\latest.json` içine
+yazar ve **ikinci bir varlık** olarak sürer. Uygulamanın sürüm denetimi bu dosyayı okur;
+bu yüzden iki varlıktan biri eksikse akış **hata verip durur** — sessizce yarım yayın
+yok. Özetin exe ile aynı varlıkta taşınmaması önemli: aynı adrese iki ayrı dosya
+geldiği için, indirmenin bozulması veya adresin başka bir şeye çevrilmesi ayrışıyor.
 
 İş akışı, etiketteki sürüm ile exe içindeki `VERSIONINFO` sürümünün aynı olduğunu da
 kontrol eder — sürüm kaynağı artık tek olduğu için bu, son savunma hattıdır. Betiğin

@@ -177,6 +177,17 @@ namespace icons
             dl->AddCircleFilled(P(0.0f, 0.55f), th * 1.15f, col, 10);
             break;
 
+        // Warning'ın çıplak ünlem işareti bilgi simgesinin tersiyle karışıyor
+        // (nokta altta / üstte). Uyarı levhası üçgen içinde veriliyor.
+        case Icon::Alert:
+        {
+            const ImVec2 tri[3] = { P(0.0f, -0.92f), P(0.95f, 0.8f), P(-0.95f, 0.8f) };
+            dl->AddPolyline(tri, 3, col, ImDrawFlags_Closed, th);
+            dl->AddLine(ImVec2(c.x, tri[0].y + h * 0.52f), ImVec2(c.x, tri[0].y + h * 1.18f), col, th);
+            dl->AddCircleFilled(ImVec2(c.x, tri[0].y + h * 1.5f), th * 1.05f, col, 10);
+            break;
+        }
+
         case Icon::Error:
             line(-0.45f, -0.45f, 0.45f, 0.45f);
             line(0.45f, -0.45f, -0.45f, 0.45f);

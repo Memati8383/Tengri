@@ -1,5 +1,7 @@
 #include "tray.hpp"
 #include <shellapi.h>
+#include <string>
+#include "app.hpp"
 #include "brand.hpp"
 #include "core/lang.hpp"
 
@@ -52,6 +54,89 @@ namespace tray
             Shell_NotifyIconW(NIM_DELETE, &g_nid);
             g_added = false;
         }
+
+        // Menü alanları wchar_t ister, L() makrosu UTF-8 veriyor.
+        std::wstring W(const char* utf8)
+        {
+            if (!utf8 || !*utf8) return {};
+            const int n = ::MultiByteToWideChar(CP_UTF8, 0, utf8, -1, nullptr, 0);
+            if (n <= 1) return {};
+            std::wstring out((size_t)n - 1, L'\0');
+            ::MultiByteToWideChar(CP_UTF8, 0, utf8, -1, &out[0], n);
+            return out;
+        }
+
+        // Sağ tık menüsü her açılışta yeniden kurulur: işaretli düğmeler ve
+        // "Geri al"ın erişilebilirliği menü kapanınca bilinen bir değerle
+        // güncellenemez, çünkü kabuk seçimi WM_COMMAND olarak değil
+        // TPM_RETURNCMD ile tek seferde döner.
+        HMENU BuildMenu()
+        {
+            HMENU menu = ::CreatePopupMenu();
+            if (!menu) return nullptr;
+
+            // Başlık satırı: tepside hangi sürümün durduğunu gösterir;
+            // Eylem Merkezi kartlarının başlıkları da sürüm taşıdığı için
+            // kullanıcı aynı sürümün iki yüzünü karıştırmaz.
+            const std::wstring header = std::wstring(brand::kName) + L"  v" + W(brand::kVersion);
+            ::AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, header.c_str());
+            ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+
+            ::AppendMenuW(menu, MF_STRING, app::TrayCmdOpen, W(L(TrayOpen)).c_str());
+
+            // Sayfalar arayüzdeki sekme sırasıyla aynı; sırayı tek yer
+            // (app.cpp) biliyor, menü yalnızca soruyor.
+            HMENU pages = ::CreatePopupMenu();
+            if (pages)
+            {
+                const int count = app::TrayPageCount();
+                for (int i = 0; i < count; ++i)
+                    ::AppendMenuW(pages, MF_STRING, app::TrayCmdGoto + i, W(app::TrayPageLabel(i)).c_str());
+                ::AppendMenuW(menu, MF_POPUP, (UINT_PTR)pages, W(L(TrayGoTo)).c_str());
+            }
+
+            ::AppendMenuW(menu, app::TrayCanUndo() ? MF_STRING : MF_GRAYED,
+                          app::TrayCmdUndo, W(L(UndoChanges)).c_str());
+            ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+
+            ::AppendMenuW(menu, MF_STRING | (app::TrayNotificationsOn() ? MF_CHECKED : 0),
+                          app::TrayCmdToasts, W(L(WindowsNotifications)).c_str());
+            ::AppendMenuW(menu, MF_STRING | (app::TrayQuietOn() ? MF_CHECKED : 0),
+                          app::TrayCmdQuiet, W(L(QuietMode)).c_str());
+            ::AppendMenuW(menu, MF_STRING | (app::TrayStartupOn() ? MF_CHECKED : 0),
+                          app::TrayCmdStartup, W(L(LaunchStartup)).c_str());
+            ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+
+            ::AppendMenuW(menu, MF_STRING, app::TrayCmdSettings, W(L(Settings)).c_str());
+            ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+            ::AppendMenuW(menu, MF_STRING, app::TrayCmdExit, W(L(TrayExit)).c_str());
+            return menu;
+        }
+
+        // Seçim iki yoldan birine gider: pencere istemeyen komutlar doğrudan
+        // uygulama tarafına, isteyenler önce geri getirme mesajından. Geri
+        // getirme main.cpp'nin elindeki tek ShowWindow yoludur (SW_HIDE ile
+        // gizlenen pencerede SW_RESTORE güvenilir değil), bu yüzden burada
+        // kopyalanmaz.
+        void ApplyCommand(UINT cmd, bool* restore)
+        {
+            if (cmd == 0) return;   // menü boşuna kapatıldı
+            if (cmd == (UINT)app::TrayCmdExit) { ::PostQuitMessage(0); return; }
+
+            const bool showsWindow =
+                cmd == (UINT)app::TrayCmdUndo     ||
+                cmd == (UINT)app::TrayCmdSettings ||
+                cmd >= (UINT)app::TrayCmdGoto;
+
+            if (cmd != (UINT)app::TrayCmdOpen)
+                app::HandleTrayCommand((int)cmd);
+
+            if (cmd == (UINT)app::TrayCmdOpen || showsWindow)
+            {
+                if (restore) *restore = true;
+                ::PostMessageW(g_nid.hWnd, kRestoreMsg, 0, 0);
+            }
+        }
     }
 
     bool Init(HWND hwnd, HINSTANCE instance)
@@ -66,11 +151,14 @@ namespace tray
 
         // Simge kaynaktan, görev çubuğu ve pencere ile aynı artwork olsun diye.
         // instance ZORUNLU: modül NULL iken LoadImage kimliği sistem kaynağı
-        // sanar. LR_DEFAULTSIZE sistem ikon ölçülerini ister ve LR_SHARED
-        // verilmediği için bu modülün sahibi olduğu, kapanışta yok edilebilen bir
-        // kopya döndürür. (LR_DEFAULTCOPY SDK başlıklarında yok.)
+        // sanar. Ölçü açıkça SM_CXSMICON: tepsi kabuk küçültülmüş bir kareye
+        // sığdırıldığı için 32 px'lik kopya (LR_DEFAULTSIZE'un verdiği) bulanık
+        // çiziliyor. LR_SHARED verilmez, çünkü bu simge kapanışta DestroyIcon ile
+        // yok ediliyor. (LR_DEFAULTCOPY SDK başlıklarında yok.)
         g_icon = (HICON)::LoadImageW(instance, MAKEINTRESOURCEW(brand::kIconId), IMAGE_ICON,
-                                     0, 0, LR_DEFAULTSIZE);
+                                     ::GetSystemMetrics(SM_CXSMICON),
+                                     ::GetSystemMetrics(SM_CYSMICON),
+                                     LR_DEFAULTCOLOR);
 
         // Kaynak yine de okunamazsa kabuk JENERIK simge gösterir; sarı ünlem
         // üçgeni değil. LoadImage başarısız olup çöp bir tutamak döndürebilir,
@@ -133,22 +221,20 @@ namespace tray
         {
             POINT pt;
             ::GetCursorPos(&pt);
-            HMENU menu = ::CreatePopupMenu();
+            HMENU menu = BuildMenu();
             if (menu)
             {
-                ::AppendMenuW(menu, MF_STRING, 1, brand::kTrayOpen);
-                ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-                ::AppendMenuW(menu, MF_STRING, 2, L"Exit");
+                // İstemci öne getirilmezse kabuk menüyü anında kapatıyor.
                 ::SetForegroundWindow(g_nid.hWnd);
+                // "Pencereyi aç" kalın çizilir: tepsinin birincil eylemi bu.
+                ::SetMenuDefaultItem(menu, app::TrayCmdOpen, TRUE);
                 const UINT cmd = (UINT)::TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY,
                                                         pt.x, pt.y, 0, g_nid.hWnd, nullptr);
                 ::DestroyMenu(menu);
-                if (cmd == 1)
-                {
-                    if (restore) *restore = true;
-                    ::PostMessageW(g_nid.hWnd, kRestoreMsg, 0, 0);
-                }
-                else if (cmd == 2) { ::PostQuitMessage(0); }
+                // Klasik kabuk düzeltmesi: TrackPopupMenu döndükten sonra pencere
+                // menüyü hâlâ açık sanabiliyor ve ilk tıklamayı yutuyor.
+                ::PostMessageW(g_nid.hWnd, WM_NULL, 0, 0);
+                ApplyCommand(cmd, restore);
             }
             return true;
         }

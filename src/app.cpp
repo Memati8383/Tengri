@@ -18,6 +18,7 @@
 #include "core/sysinfo_wmi.hpp"
 #include "core/startup.hpp"
 #include "core/services.hpp"
+#include "core/update.hpp"
 #include "tray.hpp"
 #include "brand.hpp"
 #include <shellapi.h>
@@ -351,10 +352,51 @@ void NotifyDelegating(const elevate::Pending& p);
         bool g_startup = false;   // gerçek durum HKCU Run girdisinden okunur
         bool g_tray    = true;    // gerçek tray ikonu: küçült gizler, ikon geri getirir
 
+        // Kapatma küçültmeyle aynı şeyi yapmaz: küçültmede kullanıcı zaten
+        // "gizleniyor" bildiği için pencereyi geri getirme yolunu arar, kapatmada
+        // ise uygulamadan çıktığını sanır. Bu yüzden kapama ayrı bir tercih ve
+        // varsayılanı açık; tepsi simgesi yoksa (kabuk reddettiyse) anahtar
+        // işlemez ve kapatma her zamanki gibi çıkışa döner.
+        bool g_closeToTray = true;
+        bool g_hiding      = false;   // solma animasyonu bitince pencere gizlenecek
+
+        // Başlangıç girdisi yazılır, ardından registry'nin söylediğine geri dönülür;
+        // böylece bir başarısızlık (kısıtlanmış profil) anahtarı hiç olmamış bir
+        // şeyi iddia eder bırakmaz. Ayarlar kartı ile tepsi menüsü bu tek yolu
+        // kullanır: iki giriş noktası iki ayrı yazma mantığı türetirse biri
+        // zamanla diğerinden kopar.
+        void ApplyStartup(bool want)
+        {
+            wchar_t exePath[MAX_PATH] = {};
+            ::GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+            g_startup = network::SetRunAtStartup(exePath, want) &&
+                        network::GetRunAtStartup(exePath);
+            ui::Notify(g_startup ? Toast::Success : Toast::Warning,
+                       L(LaunchStartup), g_startup ? L(StartupEnabled) : L(NeedAdmin));
+            NotifyWin(g_startup ? notify::Level::Success : notify::Level::Warning,
+                      L(LaunchStartup), g_startup ? L(StartupEnabled) : L(NeedAdmin),
+                      notify::TargetSettings);
+        }
+
         constexpr int kTabCount = 9;
         const Icon kTabIcons[] = { Icon::Dashboard, Icon::Cleaner, Icon::Tweaks, Icon::Network, Icon::Monitor, Icon::Settings, Icon::Info, Icon::Bolt, Icon::Chip };
         const S::Key kTabNameKeys[] = { S::Dashboard, S::Cleaner, S::Tweaks, S::Network, S::SystemInfo, S::Settings, S::About, S::Startup, S::Services };
         const S::Key kTabSubKeys[]  = { S::DashOverview, S::CleanDesc, S::TweakDesc, S::NetDesc, S::SysInfoDesc, S::SettDesc, S::AboutDesc, S::StartupDesc, S::ServicesDesc };
+
+        // Sekmeye geç. Ana ekran açıksa değişim hemen yapılır; giriş/lisans
+        // ekranlarında yalnızca hedef kaydedilir, ana ekrana dönülünce
+        // uygulanır. Windows bildirimi, tepsi menüsü ve arayüzdeki sekme
+        // düğmeleri aynı yolu kullanır: iki yerden biri animasyonu bozamasın.
+        void GotoTab(int idx)
+        {
+            if (idx < 0 || idx >= kTabCount) return;
+            g_tabTarget = idx;
+            if (g_screen == Screen::Main)
+            {
+                g_tab     = idx;
+                g_tabTime = ImGui::GetTime();
+            }
+        }
 
         // Plan ve bitiş metni license.cpp'de önceden biçimlenmiş olarak saklanmaz, burada çözülür.
         const char* PlanText(const license::Info& li)
@@ -648,10 +690,320 @@ void NotifyDelegating(const elevate::Pending& p);
             // Sonuç tüketildikten sonra UpdateData içinde bırakılır.
         }
 
+        // --------------------------------------------------------- güncellemeler
+        //
+        // Duyurunun dört yüzeyi var: Ayarlar'daki kart, uygulama içi toaster,
+        // Windows bildirimi ve Hakkında'daki rozet. Hepsi aynı anlık durumu okur.
+        // Durum metnini tek yerden çözmek, dördünün birbirini yalanlamamasının
+        // tek pratik yolu; ayrıca dil değişimi çizim anında olduğundan metin
+        // burada, gösterildiği anda üretilir.
+
+        // Tanımı aşağıda, başlangıç yöneticisi bölümünde. Kart, klasöre yazma
+        // izni yokken indirilmiş dosyanın yolunu göstermek için buna ihtiyaç
+        // duyuyor; geniş karakterli yolu ImGui'ye vermenin tek yolu dar UTF-8.
+        std::string W2S(const std::wstring& w);
+
+        // Geçişi ilk görüldüğünde bildirim gitsin diye önceki durum tutulur.
+        // Yoksayılsa her karede yeni bir toaster doğardı.
+        update::State   g_updatePrev    = update::State::Idle;
+        update::DlState g_updateDlPrev = update::DlState::Idle;
+
+        const char* UpdateFailText(update::Fail f)
+        {
+            switch (f)
+            {
+            case update::Fail::Network:      return L(FailNetwork);
+            case update::Fail::Http:         return L(FailHttp);
+            case update::Fail::NotFound:     return L(FailNotFound);
+            case update::Fail::BadManifest:  return L(FailBadManifest);
+            case update::Fail::TrustHost:    return L(FailTrustHost);
+            case update::Fail::Io:           return L(FailIo);
+            case update::Fail::HashMismatch: return L(FailHashMismatch);
+            case update::Fail::NotWritable:  return L(FailNotWritable);
+            case update::Fail::None: break;
+            }
+            return "";
+        }
+
+        std::string UpdateSizeText(unsigned long long bytes)
+        {
+            return FormatSize((float)((double)bytes / (1024.0 * 1024.0)));
+        }
+
+        // Kartın üst satırı: denetimin şu an nerede olduğunu tek cümlede söyler.
+        std::string UpdateStateLine()
+        {
+            char buf[192];
+            const update::Latest lat = update::Snapshot();
+
+            switch (update::Get())
+            {
+            case update::State::Checking:
+                return L(UpdateChecking);
+            case update::State::Available:
+                snprintf(buf, sizeof(buf), L(UpdateAvailableFmt), lat.version.c_str());
+                return buf;
+            case update::State::Current:
+                return L(UpdateCurrent);
+            case update::State::Failed:
+                snprintf(buf, sizeof(buf), L(UpdateFailedFmt), UpdateFailText(update::Reason()));
+                return buf;
+            case update::State::Idle:
+            default:
+                break;
+            }
+
+            // Denetim hiç yapılmamışsa son denetim zamanı da 0'dır.
+            if (update::LastCheckUtc() == 0) return L(UpdateNeverChecked);
+            const unsigned long long h = update::HoursSinceLastCheck();
+            if (h == 0) return L(JustNow);
+            snprintf(buf, sizeof(buf), L(LastCheckFmt), (int)h);
+            return buf;
+        }
+
+        void StartUpdateDownload()
+        {
+            // Başarısızlık burada bildirilmez: reddedilen bir adres iş
+            // parçacığında ortaya çıkar ve PumpUpdate o geçidi zaten görür.
+            update::StageNow();
+        }
+
+        // İndirilen dosyayı yerleştirir. Başarı halinde bu fonksiyondan
+        // çıkılmaz: update::Apply yeni örneği başlatıp süreci kapatır.
+        void ApplyUpdate()
+        {
+            wchar_t exe[MAX_PATH] = {};
+            ::GetModuleFileNameW(nullptr, exe, MAX_PATH);
+
+            if (update::Apply(update::PlanFor(exe))) return;   // pratikte ulaşılamaz
+
+            char body[320];
+            if (update::Reason() == update::Fail::NotWritable)
+            {
+                // UAC istemi YOK: dosya olduğu yerde durur ve yolu söylenir.
+                const std::string path = W2S(update::StagedFile());
+                snprintf(body, sizeof(body), L(UpdateNotWritableFmt), path.c_str());
+            }
+            else
+            {
+                snprintf(body, sizeof(body), L(UpdateFailedFmt), UpdateFailText(update::Reason()));
+            }
+
+            ui::Notify(Toast::Error, L(UpdatesHeading), body);
+            notify::Post(notify::Level::Error, L(UpdatesHeading), body, notify::TargetSettings);
+        }
+
+        // Her karede çağrılır: iş parçacığının sonucunu toplar, ilk kez görülen
+        // geçidinde bildirir ve aralık dolduysa yeni denetim başlatır.
+        void PumpUpdate()
+        {
+            const update::State   st = update::Poll();
+            const update::DlState dl = update::StagePoll();
+
+            if (st == update::State::Available && g_updatePrev != update::State::Available)
+            {
+                char body[160];
+                snprintf(body, sizeof(body), L(UpdateFoundBodyFmt),
+                         update::Snapshot().version.c_str());
+                ui::Notify(Toast::Info, L(UpdateFoundToast), body);
+
+                // Windows bildirimi pencere kapalıyken de gelir; tek anlamlı
+                // düğme indirmedir: indirilmemiş bir dosya kurulamaz. İndirme
+                // yine kullanıcıdan gelir, kendiliğinden başlamaz.
+                std::vector<notify::Button> buttons;
+                buttons.push_back({ notify::Action::Download, L(BtnDownload) });
+                buttons.push_back({ notify::Action::View,     L(NotifBtnView) });
+                notify::Post(notify::Level::Info, L(UpdateFoundToast), body,
+                             notify::TargetSettings, buttons);
+            }
+            else if (dl == update::DlState::Ready && g_updateDlPrev != update::DlState::Ready)
+            {
+                char body[160];
+                snprintf(body, sizeof(body), L(UpdateReadyBodyFmt),
+                         update::Snapshot().version.c_str());
+                ui::Notify(Toast::Success, L(UpdateReadyToast), body);
+                notify::Post(notify::Level::Success, L(UpdateReadyToast), body,
+                             notify::TargetSettings);
+            }
+            else if (dl == update::DlState::Failed && g_updateDlPrev != update::DlState::Failed)
+            {
+                char body[160];
+                snprintf(body, sizeof(body), L(UpdateFailedFmt), UpdateFailText(update::Reason()));
+                ui::Notify(Toast::Error, L(UpdatesHeading), body);
+                notify::Post(notify::Level::Error, L(UpdatesHeading), body,
+                             notify::TargetSettings);
+            }
+
+            g_updatePrev   = st;
+            g_updateDlPrev = dl;
+
+            if (update::DueForCheck()) update::CheckNow();
+        }
+
+        // Ayarlar kartı. Ayar kapalıyken denetim de indirme de yoktur; kart o
+        // durumda tek satıra iner, çünkü gösterilen bir düğme çalışmayacak
+        // düğme olurdu.
+        void UpdateCard(float colw)
+        {
+            ui::BeginCard("##updates", colw, L(UpdatesHeading));
+            {
+                const float w = ImGui::GetContentRegionAvail().x;
+
+                const bool prevEnabled = update::enabled;
+                ui::ToggleCard(L(AutoUpdateCheck), L(AutoUpdateCheckDesc), &update::enabled, w, false);
+                if (update::enabled != prevEnabled) update::SavePrefs();
+
+                if (update::enabled)
+                {
+                    ImGui::Dummy(ImVec2(0, px(6)));
+
+                    const update::State   st = update::Get();
+                    const update::DlState dl = update::StageGet();
+
+                    if (dl == update::DlState::Running)
+                    {
+                        const unsigned long long got = update::StagedBytes();
+                        const unsigned long long tot = update::StagedTotal();
+                        const float frac = tot > 0 ? (float)got / (float)tot : 0.0f;
+                        ui::ProgressBar("##updl", frac, ImVec2(w, px(5)));
+
+                        char txt[96];
+                        // İlerleme toplamı görünce dosya hâlâ boşlukta değil:
+                        // sırada SHA-256 doğrulaması var. %100'de "indiriliyor"
+                        // yazmak, olan işi yanlış söylemek olurdu.
+                        if (frac >= 1.0f) snprintf(txt, sizeof(txt), "%s", L(UpdateVerifying));
+                        else              snprintf(txt, sizeof(txt), L(UpdateDownloadingFmt),
+                                                   (int)(frac * 100.0f));
+                        ui::Label(theme::fonts.regular, theme::size::Meta, theme::ink::Secondary, txt);
+
+                        ImGui::Dummy(ImVec2(0, px(6)));
+                        if (ui::Button(L(BtnCancelDownload), ImVec2(w, px(36)), ButtonStyle::Secondary))
+                            update::StageCancel();
+                    }
+                    else
+                    {
+                        // Saran metin: hata nedeni tek satıra sığmıyor (kart
+                        // sütunu ~440 px) ve ui::Label kırpardı.
+                        ImGui::TextWrapped("%s", UpdateStateLine().c_str());
+
+                        if (dl == update::DlState::Ready)
+                        {
+                            const update::Latest lat = update::Snapshot();
+                            char txt[128];
+                            snprintf(txt, sizeof(txt), L(UpdateReadyFmt),
+                                     UpdateSizeText(lat.size).c_str());
+                            ui::Label(theme::fonts.regular, theme::size::Meta, theme::ink::Tertiary, txt);
+                            ImGui::TextWrapped("%s", L(UpdateRestartNote));
+
+                            ImGui::Dummy(ImVec2(0, px(6)));
+                            if (ui::Button(L(BtnApplyUpdate), ImVec2(w, px(40)),
+                                           ButtonStyle::Primary, Icon::Bolt))
+                                ApplyUpdate();
+
+                            ImGui::Dummy(ImVec2(0, px(4)));
+                            if (ui::Button(L(BtnCancelDownload), ImVec2(w, px(34)),
+                                           ButtonStyle::Ghost))
+                                update::ResetStage();
+                        }
+                        else
+                        {
+                            if (dl == update::DlState::Failed)
+                            {
+                                // Önceki indirme reddedildi: adres aynı, neden
+                                // biliniyor. "Tekrar dene" değil, aynı düğme.
+                                ImGui::Dummy(ImVec2(0, px(4)));
+                            }
+
+                            if (st == update::State::Available)
+                            {
+                                ImGui::Dummy(ImVec2(0, px(6)));
+                                if (ui::Button(L(BtnDownload), ImVec2(w, px(40)),
+                                               ButtonStyle::Primary, Icon::None))
+                                    StartUpdateDownload();
+                            }
+
+                            if (st != update::State::Checking)
+                            {
+                                ImGui::Dummy(ImVec2(0, px(6)));
+                                if (ui::Button(L(BtnCheckNow), ImVec2(w, px(36)),
+                                               ButtonStyle::Secondary, Icon::Refresh))
+                                    update::CheckNow();
+                            }
+                        }
+                    }
+                }
+            }
+            ui::EndCard();
+        }
+
+        // Hakkında sayfasındaki durum rozeti. Monokrom dilde tek vurgu biçimi
+        // ters renk: beklenen bir güncelleme varsa hap beyaza döner.
+        void UpdateBadge()
+        {
+            const update::State   st = update::Get();
+            const update::DlState dl = update::StageGet();
+
+            const char* text = nullptr;
+            bool hi = false;
+
+            if (dl == update::DlState::Running || dl == update::DlState::Ready ||
+                dl == update::DlState::Failed)
+            {
+                text = L(BadgeUpdateAvailable);
+                hi   = true;
+            }
+            else if (st == update::State::Available)
+            {
+                text = L(BadgeUpdateAvailable);
+                hi   = true;
+            }
+            else if (st == update::State::Checking)
+            {
+                text = L(BadgeUpdateChecking);
+            }
+            else if (st == update::State::Current)
+            {
+                text = L(BadgeUpdateCurrent);
+            }
+            // Idle ve Failed: rozet yok. Denetimi kapalı bir uygulamada
+            // "güncel" yazmak, hiç bakılmamış bir şeye kefil olmak olurdu.
+
+            if (!text) return;
+
+            ImDrawList* dl2 = ImGui::GetWindowDrawList();
+            const ImVec2 p  = ImGui::GetCursorScreenPos();
+            const ImVec2 ts = ui::TextSize(theme::fonts.medium, theme::size::Micro, text);
+            const float  padx = px(9);
+            const float  h    = px(20);
+            const ImVec2 a = p, b(p.x + ts.x + padx * 2.0f, p.y + h);
+            const float  r = h * 0.5f;
+
+            if (hi)
+            {
+                dl2->AddRectFilled(a, b, White(0.92f), r);
+                ui::Text(dl2, theme::fonts.medium, theme::size::Micro,
+                         ImVec2(a.x + padx, a.y + (h - ts.y) * 0.5f), theme::Black(0.92f), text);
+            }
+            else
+            {
+                dl2->AddRectFilled(a, b, White(0.05f), r);
+                dl2->AddRect(a, b, White(0.16f), r, 0, ImMax(1.0f, px(1)));
+                ui::Text(dl2, theme::fonts.medium, theme::size::Micro,
+                         ImVec2(a.x + padx, a.y + (h - ts.y) * 0.5f), Gray(0.72f), text);
+            }
+
+            ImGui::Dummy(ImVec2(b.x - a.x, h));
+        }
+
         // ------------------------------------------------- benzetim / veri yoklama
 
         void UpdateData(double now)
         {
+            // Güncelleme denetimi burada pompalanır: hangi ekran açık olursa
+            // olsun çalışmalı, lisan ekranında bekleyen bir denetim de, ana
+            // ekranda hiç başlatılmamış bir bildirim de olmamalı.
+            PumpUpdate();
+
             if (g_lastSample < 0.0 || now - g_lastSample >= 0.5)
             {
                 sys::Update();
@@ -889,6 +1241,17 @@ void NotifyDelegating(const elevate::Pending& p);
 
         // ------------------------------------------------------------------ pencere kabuğu
 
+        // Kapatma isteği. Çarpı düğmesi ve Alt+F4 (WM_CLOSE) aynı yerden geçer.
+        // Pencere hemen gizlenmez: solma animasyonu Frame() içinde tamamlanınca
+        // gizlenir, böylece kullanıcı ani bir kaybolma değil alıştığı kapanış
+        // geçişini görür.
+        void BeginClose()
+        {
+            if (g_closing) return;
+            g_hiding  = (g_tray && g_closeToTray && tray::IsAvailable());
+            g_closing = true;
+        }
+
         void DrawWindowControls(const ImVec2& ds)
         {
             const ImVec2 bs = px(34, 28);
@@ -902,7 +1265,7 @@ void NotifyDelegating(const elevate::Pending& p);
             }
             ImGui::SetCursorScreenPos(ImVec2(ds.x - px(12) - bs.x, y));
             if (ui::IconButton("##close", Icon::Close, bs, px(11), true))
-                g_closing = true;
+                BeginClose();
         }
 
         void HandleDrag()
@@ -1871,6 +2234,12 @@ void NotifyDelegating(const elevate::Pending& p);
             ImGui::SameLine(0, gap);
 
             ImGui::BeginGroup();
+
+            // Güncelleme kartı sağ sütunun başında: kart, uygulamanın kendi
+            // geleceğiyle ilgili tek etkişimli yüzey ve varsayılan pencere
+            // boyutunda kaydırma gerektirmeden görünmeli.
+            UpdateCard(colw);
+
             ui::BeginCard("##general", colw, L(General), L(AppBehaviour));
             {
                 const float w = ImGui::GetContentRegionAvail().x;
@@ -1888,23 +2257,10 @@ void NotifyDelegating(const elevate::Pending& p);
                 if (notify::toastsEnabled != prevToasts || notify::quietMode != prevQuiet)
                     notify::Save();
 
-                wchar_t exePath[MAX_PATH] = {};
-                ::GetModuleFileNameW(nullptr, exePath, MAX_PATH);
                 const bool prevStartup = g_startup;
                 ui::ToggleCard(L(LaunchStartup), nullptr, &g_startup, w, false);
                 if (g_startup != prevStartup)
-                {
-                    // Run girdisi yazılır, ardından registry'nin söylediğine geri dönülür; böylece
-                    // bir başarısızlık (kısıtlanmış profil) anahtarı hiç olmamış bir şeyi
-                    // iddia eder bırakmaz.
-                    g_startup = network::SetRunAtStartup(exePath, g_startup) &&
-                                network::GetRunAtStartup(exePath);
-                    ui::Notify(g_startup ? Toast::Success : Toast::Warning,
-                               L(LaunchStartup), g_startup ? L(StartupEnabled) : L(NeedAdmin));
-                    NotifyWin(g_startup ? notify::Level::Success : notify::Level::Warning,
-                              L(LaunchStartup), g_startup ? L(StartupEnabled) : L(NeedAdmin),
-                              notify::TargetSettings);
-                }
+                    ApplyStartup(g_startup);
 
                 const bool prevTray = g_tray;
                 ui::ToggleCard(L(MinimizeToTray), nullptr, &g_tray, w, false);
@@ -1917,6 +2273,12 @@ void NotifyDelegating(const elevate::Pending& p);
                         ui::Notify(Toast::Warning, L(MinimizeToTray), L(TrayUnavailable));
                     }
                 }
+
+                // Kapatma, küçültmeden ayrı tutuluyor: kullanıcı çarpıya bastığında
+                // uygulamanın gerçekten kapandığını sanıyor. Tepsi kapalıyken bu
+                // anahtar işlemiyor (RequestClose g_tray'e bakıyor), çünkü simgesiz
+                // bir arka plan kullanıcı için ulaşılamaz bir yer olurdu.
+                ui::ToggleCard(L(CloseToTray), L(CloseToTrayDesc), &g_closeToTray, w, false);
             }
             ui::EndCard();
 
@@ -2027,6 +2389,10 @@ void NotifyDelegating(const elevate::Pending& p);
                 ImGui::Dummy(ImVec2(0, px(10)));
                 ImGui::Separator();
                 ImGui::Dummy(ImVec2(0, px(4)));
+
+                // Sürüm satırının üstünde tek bakışta okunur; çizilmediğinde
+                // (denetim kapalı ya da başarısız) yer de bırakmaz.
+                UpdateBadge();
 
                 InfoRow(L(Version),     head, w);
                 InfoRow(L(LicenseShort), "MIT", w, false);
@@ -2480,6 +2846,11 @@ void NotifyDelegating(const elevate::Pending& p);
         // dilde çizilir ve İngilizce bir flaş olmaz.
         lang::Load();
 
+        // Güncelleme denetimi: tercihleri ve son denetim zamanını okur, önceki
+        // takastan kalmış olabilecek kenara alınmış dosyayı anımsar. Kendi iş
+        // parçacığını buradan başlatmıyor; ilk denetime PumpUpdate karar verir.
+        update::Startup();
+
         // WMI sorgusu burada başlar. Arka planda çalışır; sistem bilgisi
         // sayfası ilk açıldığında değerler henüz gelmemiş olabilir, o zaman
         // satırlar çizilmez ve birkaç saniye içinde kendiliğinden belirir.
@@ -2519,8 +2890,71 @@ void NotifyDelegating(const elevate::Pending& p);
 
     bool WantsQuit() { return g_quit; }
 
+    void RequestClose() { BeginClose(); }
+
     // main.cpp'nin WndProc'ı bunu okuyarak küçültmenin pencereyi gizleyip gizlemeyeceğine karar verir.
     bool TrayEnabled() { return g_tray; }
+
+    // ---- tepsi sağ tık menüsünün veri kaynağı -------------------------------
+    // Menü tray.cpp'de kuruluyor ama hiçbir değeri kendi içinde tutmuyor;
+    // aşağıdaki okuyucular Ayarlar ekranının baktığı yerlere bakar. Anahtar
+    // tepside değiştirilince ayar sayfası da aynı karede yeni durumu çizer.
+
+    // Yedek dizini taraması menü açılırken yapılır; tek bir sağ tıkta bir
+    // klasör listelemesi maliyeti, karşılığında "Geri al"ın hiç olmayan bir
+    // işi teklif etmemesinden daha ağır değil.
+    bool TrayCanUndo() { return !g_lastBackup.empty() || !backup::Latest().empty(); }
+
+    bool        TrayNotificationsOn() { return notify::toastsEnabled; }
+    bool        TrayQuietOn()         { return notify::quietMode; }
+    bool        TrayStartupOn()       { return g_startup; }
+    int         TrayPageCount()       { return kTabCount; }
+
+    const char* TrayPageLabel(int index)
+    {
+        if (index < 0 || index >= kTabCount) return "";
+        return lang::Get(kTabNameKeys[index]);
+    }
+
+    void HandleTrayCommand(int command)
+    {
+        switch (command)
+        {
+        case TrayCmdUndo:
+            // Bildirimdeki "Geri al" ile aynı yol: yazma yapılmadan önce onay
+            // gerekir ve onay yüzeyi pencere göründükten sonra çizilir.
+            g_undoAwaitConfirm = true;
+            break;
+
+        case TrayCmdToasts:
+            notify::toastsEnabled = !notify::toastsEnabled;
+            notify::Save();
+            break;
+
+        case TrayCmdQuiet:
+            notify::quietMode = !notify::quietMode;
+            notify::Save();
+            break;
+
+        case TrayCmdStartup:
+            // Sonucu tepsiye geri döndürecek bir yüzey yok; başarısızlık
+            // (kısıtlanmış profil) uygulama içi toaster ve Windows bildirimi
+            // ile bildirilir. ApplyStartup geri okumayı kendi yaptığı için
+            // anahtar yanlış durumda kalmaz.
+            ApplyStartup(!g_startup);
+            break;
+
+        case TrayCmdSettings:
+            // Ayarlar sekmesinin indeksi bildirim hedefiyle aynı; elle
+            // kopyalamak yerine bildirimin geçtiği yol kullanılıyor.
+            HandleNotifyCommand(notify::CmdView, notify::TargetSettings);
+            break;
+
+        default:
+            if (command >= TrayCmdGoto) GotoTab(command - TrayCmdGoto);
+            break;   // tanınmayan komut yok sayılır
+        }
+    }
 
     // Windows bildirimindeki "Geri al" düğmesi için onay penceresi.
         //
@@ -2587,17 +3021,8 @@ void NotifyDelegating(const elevate::Pending& p);
         switch (command)
         {
         case notify::CmdView:
-            if (target >= notify::TargetDashboard && target <= notify::TargetSettings)
-            {
-                g_tabTarget = target;
-                // Ana ekrandan gönderilmişse yalnızca sekme değişir; ekran
-                // değişimi yapılmaz, çünkü lisan/kayıt akışı bozulur.
-                if (g_screen == Screen::Main)
-                {
-                    g_tab     = g_tabTarget;
-                    g_tabTime = ImGui::GetTime();
-                }
-            }
+            // Ekran değişimi yapılmaz, çünkü lisan/kayıt akışı bozulur.
+            GotoTab(target);
             break;
 
         case notify::CmdUndo:
@@ -2613,6 +3038,15 @@ void NotifyDelegating(const elevate::Pending& p);
                 elevate::ApplyOrDelegate(g_retry);
             break;
 
+        case notify::CmdDownload:
+            // Windows bildirimindeki "İndir": önce Ayarlar sekmesine geçilir ki
+            // ilerleme görünsün, sonra indirme başlar. Sekme yolunu elle
+            // kopyalamak yerine aynı komut çağrılıyor; iki giriş noktası iki
+            // ayrı navigasyon mantığı üretirse biri zamanla diğerinden kopar.
+            HandleNotifyCommand(notify::CmdView, notify::TargetSettings);
+            StartUpdateDownload();
+            break;
+
         default:
             break;   // tanınmayan komut yok sayılır
         }
@@ -2620,6 +3054,9 @@ void NotifyDelegating(const elevate::Pending& p);
 
     void Shutdown()
     {
+        // Önce güncelleme: iş parçacığı yalnızca kendi modülünün statiklerine
+        // dokunuyor, ama yarım kalan bir indirme kapanışta dosya bırakmamalı.
+        update::Shutdown();
         // Join burada, statik yıkıcıda değil: uzun tarama kapanış yolundan uzak tutulur ve
         // worker thread'in kapanış sırasında serbest bırakılmış global'lere dokunması engellenir.
         JoinAll();
@@ -2653,7 +3090,20 @@ void NotifyDelegating(const elevate::Pending& p);
 
         const float winA = ui::Anim(ImHashStr("##winalpha"), g_closing ? 0.0f : 1.0f, g_closing ? 12.0f : 4.0f);
         if (g_closing && winA < 0.02f)
-            g_quit = true;
+        {
+            if (g_hiding)
+            {
+                // Solma bitti: süreç yaşıyor, pencere tepsideki simgeye kaldı.
+                // Alfa hemen 1'e çekiliyor; aksi halde geri açılışta ilk kareler
+                // soluk çizilip bir yanıp sönme yaratıyor.
+                g_hiding  = false;
+                g_closing = false;
+                ui::AnimSet(ImHashStr("##winalpha"), 1.0f);
+                ::ShowWindow(g_hwnd, SW_HIDE);
+                tray::ShowHintBalloon();
+            }
+            else g_quit = true;
+        }
 
         const float scrA = ui::Anim(ImHashStr("##screen"), g_switching ? 0.0f : 1.0f, g_switching ? 14.0f : 8.0f);
         if (g_switching && scrA < 0.03f)

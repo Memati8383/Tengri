@@ -143,6 +143,26 @@ namespace S
         SeveritySafe, SeverityCaution, SeverityRisky,
         FilterAll,
 
+        // Otomatik sürüm denetimi (Ayarlar > Güncellemeler kartı, Hakkında
+        // rozeti ve bildirimler). FlatEnd'den önce olmalı ki tweak blok
+        // başlangıçları kaymasın.
+        UpdatesHeading, AutoUpdateCheck, AutoUpdateCheckDesc,
+        UpdateChecking, UpdateCurrent, UpdateAvailableFmt,
+        UpdateNeverChecked, LastCheckFmt, JustNow,
+        BtnCheckNow, BtnDownload, BtnApplyUpdate, BtnCancelDownload,
+        UpdateDownloadingFmt, UpdateVerifying, UpdateReadyFmt, UpdateRestartNote,
+        UpdateNotWritableFmt, UpdateFailedFmt, UpdateSizeFmt,
+        FailNetwork, FailHttp, FailNotFound, FailBadManifest,
+        FailTrustHost, FailIo, FailHashMismatch, FailNotWritable,
+        UpdateFoundToast, UpdateFoundBodyFmt,
+        UpdateReadyToast, UpdateReadyBodyFmt,
+        BadgeUpdateAvailable, BadgeUpdateCurrent, BadgeUpdateChecking,
+
+        // Sistem tepsisi: kapatma davranışı ayarı ve sağ tık menüsü başlıkları.
+        // FlatEnd'den hemen önce olmalı (aşağıdaki blok başlangıçları buradan
+        // türetiliyor).
+        CloseToTray, CloseToTrayDesc, TrayOpen, TrayGoTo, TrayExit,
+
         // sonradan eklenenler: bildirim metinleri, kategori başlıkları ve ağ satır
         // başlangıçları buradan türetildiği için, sonrasına yeni bir düz anahtar
         // eklenmesi bütün tweak etiketlerini sessizce kaydırırdı. Daha önce de tam

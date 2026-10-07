@@ -768,6 +768,7 @@ namespace ui
         double      start;
         float       duration;
         float       y;
+        double      paused = 0.0;   // imleç üzerinde geçen süre
     };
     static std::vector<ToastItem> g_toasts;
 
@@ -786,65 +787,217 @@ namespace ui
         if ((!notificationsEnabled && type != Toast::Error) ||
             !notify::AllowInApp(lvl))
             return;
-        g_toasts.push_back({ type, title, message ? message : "", ImGui::GetTime(), duration, -1.0f });
+        g_toasts.push_back({ type, title, message ? message : "", ImGui::GetTime(), duration, -1.0f, 0.0 });
         if (g_toasts.size() > 4)
             g_toasts.erase(g_toasts.begin());
     }
 
+    // Metni verilen genişliğe göre satırlara böler. Kopya üretmez: her satır
+    // kaynak dizgede bir [başlangıç, bitiş) aralığı olarak döner ve çizim de o
+    // aralıkla yapılır.
+    struct TextLine { const char* b; const char* e; };
+
+    static int WrapText(ImFont* font, float size, const char* text, float maxW,
+                        int maxLines, TextLine* out)
+    {
+        int n = 0;
+        const char* p = text;
+        while (p && *p && n < maxLines)
+        {
+            const char* line = p;   // satırın ilk harfi
+            const char* end  = p;   // alana sığan son konum
+            const char* wd   = p;   // incelenen kelimenin başı
+            for (;;)
+            {
+                while (*wd == ' ') ++wd;
+                if (!*wd) { wd = nullptr; break; }        // metin bitti
+                const char* we = wd;
+                while (*we && *we != ' ') we += Utf8Len((unsigned char)*we);
+                if (font->CalcTextSizeA(px(size), FLT_MAX, 0.0f, line, we).x > maxW)
+                    break;                                 // bu kelime taşırdı
+                end = we;
+                wd  = we;
+            }
+
+            if (end == line)
+            {
+                // Tek kelime bile alana sığmıyor: harf harf kırılmazsa satır boş
+                // kalır ve döngü hiç ilerlemez.
+                const char* q = line;
+                while (*q)
+                {
+                    const char* nx = q + Utf8Len((unsigned char)*q);
+                    if (nx != line + 1 &&
+                        font->CalcTextSizeA(px(size), FLT_MAX, 0.0f, line, nx).x > maxW)
+                        break;
+                    q = nx;
+                }
+                // Tek bir glif bile sütundan genişse (aşırı DPI ölçeği) yine de
+                // ilerlenmeli, yoksa burada sonsuz döner.
+                if (q == line && *q)
+                    q += Utf8Len((unsigned char)*q);
+                end = q;
+                p   = q;
+            }
+            else
+            {
+                p = wd;   // taşıran kelimenin başı; nullptr ise akış burada biter
+            }
+
+            out[n].b = line;
+            out[n].e = end;
+            ++n;
+        }
+        return n;
+    }
+
     void RenderNotifications(const ImVec2& ds)
     {
-        ImDrawList* dl  = ImGui::GetForegroundDrawList();
-        const double now = ImGui::GetTime();
-        const float dt   = ImGui::GetIO().DeltaTime;
-        const float w = px(310), h = px(64), gap = px(10), margin = px(18), fade = 0.45f;
+        ImDrawList* dl    = ImGui::GetForegroundDrawList();
+        const double now  = ImGui::GetTime();
+        const float  dt   = ImGui::GetIO().DeltaTime;
+
+        const float w = px(340), gap = px(10), margin = px(18), fade = 0.45f;
+        const float padX = px(14), padT = px(13), padB = px(13), r = px(14);
+        const float chip = px(28);
+
+        const float titleLH = px(theme::size::Label) * 1.35f;
+        const float bodyLH  = px(theme::size::Body)  * 1.45f;
+
+        const ImVec2 mp = ImGui::GetIO().MousePos;
 
         float targetY = ds.y - margin;
         for (int i = (int)g_toasts.size() - 1; i >= 0; --i)
         {
             ToastItem& n = g_toasts[i];
-            const float age = (float)(now - n.start);
+
+            // Gövde sütununun genişliği karttan bağımsız sabit, dolayısıyla
+            // yükseklik hesaplanabilir: uzun mesaj kartı uzatıyor, kesilmiyor.
+            const float textX = padX + chip + px(11);
+            const float bodyW = w - textX - padX;
+
+            TextLine lines[3];
+            const int nl = WrapText(theme::fonts.regular, theme::size::Body,
+                                    n.message.c_str(), bodyW, 3, lines);
+            // Üç satır dolduysa ve hâlâ metin kaldıysa son satır kısaltılıp
+            // sonuna üç nokta konur.
+            const bool cut = (nl == 3 && *lines[2].e);
+            if (cut)
+            {
+                const float dots = theme::fonts.regular->CalcTextSizeA(
+                    px(theme::size::Body), FLT_MAX, 0.0f, "...").x;
+                const char* b = lines[2].b;
+                while (lines[2].e > b &&
+                       theme::fonts.regular->CalcTextSizeA(
+                           px(theme::size::Body), FLT_MAX, 0.0f, b, lines[2].e).x + dots > bodyW)
+                {
+                    const char* prev = lines[2].e - 1;
+                    while (prev > b && ((*prev & 0xC0) == 0x80)) --prev;   // devam baytı
+                    lines[2].e = prev;
+                }
+            }
+
+            const float h = padT + titleLH + px(2) + (nl ? nl * bodyLH : 0.0f) + padB;
+
+            const float age = (float)(now - n.start) - (float)n.paused;
             if (age > n.duration + fade)
             {
                 g_toasts.erase(g_toasts.begin() + i);
                 continue;
             }
 
-            float in = ImSaturate(age / 0.4f);
-            in = 1.0f - (1.0f - in) * (1.0f - in) * (1.0f - in);
-            const float out = age > n.duration ? 1.0f - (age - n.duration) / fade : 1.0f;
-            const float a   = in * out;
-
             targetY -= h;
-            if (n.y < 0.0f)
-                n.y = targetY;
+            if (n.y < 0.0f) n.y = targetY;
             n.y = ImLerp(n.y, targetY, 1.0f - expf(-14.0f * dt));
 
-            const float x = ds.x - margin - w + (1.0f - in) * (w + margin) + (1.0f - out) * px(30);
+            const float in  = ImSaturate(age / 0.4f);
+            const float inE = 1.0f - (1.0f - in) * (1.0f - in) * (1.0f - in);
+            const float out = age > n.duration ? 1.0f - (age - n.duration) / fade : 1.0f;
+            const float a   = inE * out;
+
+            const float x = ds.x - margin - w + (1.0f - inE) * (w + margin) + (1.0f - out) * px(30);
             const ImVec2 mn(x, n.y), mx(x + w, n.y + h);
-            const float r = px(12);
 
-            dl->AddRectFilled(mn - px(4, 4), mx + px(4, 6), Black(0.35f * a), r + px(4));
-            dl->AddRectFilled(mn, mx, ImGui::GetColorU32(ImVec4(0.06f, 0.06f, 0.065f, 0.97f * a)), r);
+            // İmleç kartın üzerindeyken geri sayım duruyor: okuma süresi mesaj
+            // uzunluğuna bağlı kalmıyor. Kart ön plandaki çizim listesinde
+            // olduğu için tıklama yakalanamıyor (alttaki arayüzü vururdu),
+            // bu yüzden yalnızca duraklama var.
+            if (mp.x >= mn.x && mp.x < mx.x && mp.y >= mn.y && mp.y < mx.y)
+                n.paused += dt;
+
+            // İki katmanlı gölge: geniş ve yumuşak olan kartı yüzeyden ayırır,
+            // dar ve koyu olan kenarı tanımlar.
+            dl->AddRectFilled(mn - px(6, 4), mx + px(6, 10), Black(0.22f * a), r + px(8));
+            dl->AddRectFilled(mn - px(1, 1), mx + px(2, 5),  Black(0.40f * a), r + px(2));
+
+            // Seviye renk yerine AĞIRLIKLA ayrılıyor (arayüzün tamamı monokrom):
+            // dolu plaka = sonuç bildiriyor (başarı/hata), boş plaka parlak
+            // kenar = dikkat istiyor (uyarı), boş plaka soluk kenar = bilgi.
+            const bool   loud   = (n.type == Toast::Success || n.type == Toast::Error);
+            const bool   urgent = (n.type == Toast::Warning);
+            const float  edge   = loud ? 0.16f : urgent ? 0.14f : 0.10f;
+            const float  chipLn = loud ? 0.0f  : urgent ? 0.34f : 0.16f;
+
+            // Üst kenardaki ince ışık çizgisi karta cam gibi bir derinlik
+            // veriyor; tek başına dolgu rengi düz kalıyor.
+            dl->AddRectFilled(mn, mx, ImGui::GetColorU32(ImVec4(0.075f, 0.075f, 0.082f, 0.98f * a)), r);
             dl->PushClipRect(mn, mx, true);
-            fx::RadialGradient(dl, ImVec2(mn.x + px(30), mn.y + h * 0.5f), px(70), px(50), White(0.06f * a), White(0.0f), 32);
+            fx::RadialGradient(dl, ImVec2(mn.x + px(26), mn.y + padT + titleLH * 0.5f),
+                               px(84), px(64), White((loud ? 0.075f : 0.05f) * a), White(0.0f), 32);
+            dl->AddRectFilled(ImVec2(mn.x + r, mn.y), ImVec2(mx.x - r, mn.y + px(1)),
+                              White(0.10f * a));
             dl->PopClipRect();
-            dl->AddRect(mn, mx, White(0.11f * a), r, 0, ImMax(1.0f, px(1)));
+            dl->AddRect(mn, mx, White(edge * a), r, 0, ImMax(1.0f, px(1)));
 
-            const ImVec2 ic(mn.x + px(30), mn.y + h * 0.5f);
-            dl->AddCircleFilled(ic, px(14), White(0.94f * a), 28);
+            // Simge plakası
+            const ImVec2 cs(mn.x + padX, mn.y + padT + (titleLH - chip) * 0.5f);
+            const ImVec2 ce(cs.x + chip, cs.y + chip);
+            const ImVec2 ic(cs + ImVec2(chip * 0.5f, chip * 0.5f));
+            if (loud)
+            {
+                dl->AddRectFilled(cs, ce, White(0.94f * a), px(9));
+            }
+            else
+            {
+                dl->AddRectFilled(cs, ce, Gray(0.16f, 0.9f * a), px(9));
+                dl->AddRect(cs, ce, White(chipLn * a), px(9), 0, ImMax(1.0f, px(1)));
+            }
+
             Icon icon = Icon::Check;
             if (n.type == Toast::Info)    icon = Icon::Info;
-            if (n.type == Toast::Warning) icon = Icon::Warning;
+            if (n.type == Toast::Warning) icon = Icon::Alert;
             if (n.type == Toast::Error)   icon = Icon::Error;
-            icons::Draw(dl, icon, ic, px(14), Gray(0.05f, a), px(1.8f));
+            icons::Draw(dl, icon, ic, loud ? px(14) : px(15),
+                        loud ? ImGui::GetColorU32(ImVec4(0.05f, 0.05f, 0.06f, a))
+                             : White(0.92f * a), px(1.6f));
 
-            dl->PushClipRect(mn, mx - ImVec2(px(12), 0), true);
-            Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(mn.x + px(56), mn.y + px(13)), Gray(0.96f, a), n.title.c_str());
-            Text(dl, theme::fonts.regular,theme::size::Body, ImVec2(mn.x + px(56), mn.y + px(33)), Gray(0.52f, a), n.message.c_str());
+            // Metin
+            const float tx = mn.x + textX;
+            dl->PushClipRect(ImVec2(tx, mn.y), mx - ImVec2(padX * 0.5f, 0), true);
+            Text(dl, theme::fonts.medium, theme::size::Label,
+                 ImVec2(tx, mn.y + padT + (titleLH - px(theme::size::Label)) * 0.5f),
+                 Gray(theme::ink::Primary, a), n.title.c_str());
+            for (int k = 0; k < nl; ++k)
+            {
+                const float by = mn.y + padT + titleLH + px(2) + k * bodyLH
+                               + (bodyLH - px(theme::size::Body)) * 0.5f;
+                Text(dl, theme::fonts.regular, theme::size::Body, ImVec2(tx, by),
+                     Gray(theme::ink::Secondary, a), lines[k].b, lines[k].e);
+                if (k == 2 && cut)
+                    Text(dl, theme::fonts.regular, theme::size::Body,
+                         ImVec2(tx + theme::fonts.regular->CalcTextSizeA(
+                                  px(theme::size::Body), FLT_MAX, 0.0f,
+                                  lines[k].b, lines[k].e).x, by),
+                         Gray(theme::ink::Secondary, a), "...");
+            }
             dl->PopClipRect();
 
+            // Okuma çubuğu: kartın alt kenarında, boşlukta değil; metinle
+            // yarışmıyor ve seviyeyle aynı ağırlığı taşıyor.
             const float life = ImSaturate(1.0f - age / n.duration);
-            dl->AddRectFilled(ImVec2(mn.x + r, mx.y - px(3)), ImVec2(mn.x + r + (w - 2.0f * r) * life, mx.y - px(1.5f)), White(0.45f * a), px(2));
+            dl->AddRectFilled(ImVec2(mn.x + r, mx.y - px(2.5f)),
+                              ImVec2(mn.x + r + (w - 2.0f * r) * life, mx.y - px(1.5f)),
+                              White((loud ? 0.55f : 0.30f) * a), px(2));
 
             targetY -= gap;
         }

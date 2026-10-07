@@ -7,6 +7,7 @@
 #include <propkey.h>    // PKEY_AppUserModel_ID
 #include <string>
 #include <vector>
+#include <cstring>    // memcpy: simge gövdeleri birleştirilirken
 
 // C++/WinRT yalnızca BU dosyada görünür. Uygulamanın geri kalanı WinRT
 // bilmez; tek istisna main.cpp'deki tek örnek kilidi (CreateMutex) ve
@@ -38,8 +39,20 @@ namespace notify
         constexpr int kCmdView    = 1;
         constexpr int kCmdUndo    = 2;
         constexpr int kCmdRetry   = 3;
+        constexpr int kCmdDownload = 4;
+
+        // kCmd* ile notify.hpp'teki Cmd* aynı sayılar olmak ZORUNDA: XML'e
+        // yazılan değer buradan, okuyan ParseLaunch enum'dan gelir. Biri
+        // sessizce kayarsa düğmeye basmak hiçbir şey yapmaz.
+        static_assert(kCmdView     == CmdView,     "CmdView kaydi");
+        static_assert(kCmdUndo     == CmdUndo,     "CmdUndo kaydi");
+        static_assert(kCmdRetry    == CmdRetry,    "CmdRetry kaydi");
+        static_assert(kCmdDownload == CmdDownload, "CmdDownload kaydi");
 
         bool g_ready = false;   // WinRT başlatıldı mı
+
+        // Marka simgesinin diske yazılmış .ico yolu; boşsa görsel hiç istenmez.
+        std::wstring g_iconFile;
 
         std::wstring Utf8(const char* s)
         {
@@ -79,6 +92,135 @@ namespace notify
             const std::wstring root = std::wstring(dir) + L"\\" + brand::kAppDataFolder;
             ::CreateDirectoryW(root.c_str(), nullptr);
             return root + L"\\notify.dat";
+        }
+
+        // ---- marka simgesi dosyası -------------------------------------------
+        // AUMID'in IconUri alanı bir GÖRSEL dosyası ister. Exe yolu yazılırsa
+        // Windows oradaki kaynağı çıkaramaz ve bildirim simgesiz kalır (yapılan
+        // hataydı). Kabuk simgesi çalışma anında exe'nin kendi RT_GROUP_ICON
+        // kaynağından yeniden birleştirilip %APPDATA%\TENGRI\tengri.ico yazılır:
+        // böylece bildirimdeki artwork ile görev çubuğundaki artwork aynı dosyanın
+        // kopyası olur, ayrı bir görsel bakımı yoktur.
+        //
+        // Başlıklardaki ICONDIR/GRPICONDIRENTRY tanımları iki farklı paket
+        // korumasında durduğu ve ikisi de 2 bayt hizalı olduğu için yapılar burada
+        // kendileri tanımlanır; altlarındaki static_assert'ler hizalama sessizce
+        // bozulursa derlemeyi durdurur.
+        #pragma pack(push, 2)
+        struct GrpEntry { BYTE bWidth, bHeight, bColors, bReserved; WORD planes, bits; DWORD size; WORD id; };
+        struct GrpDir   { WORD reserved, type, count; };
+        struct IcoEntry { BYTE bWidth, bHeight, bColors, bReserved; WORD planes, bits; DWORD size, offset; };
+        struct IcoDir   { WORD reserved, type, count; };
+        #pragma pack(pop)
+        static_assert(sizeof(GrpEntry) == 14, "GRPICONDIRENTRY 14 bayt olmali");
+        static_assert(sizeof(GrpDir)   ==  6, "GRPICONDIR 6 bayt olmali");
+        static_assert(sizeof(IcoEntry) == 16, "ICONDIRENTRY 16 bayt olmali");
+        static_assert(sizeof(IcoDir)   ==  6, "ICONDIR 6 bayt olmali");
+
+        std::wstring BrandIconPath()
+        {
+            wchar_t dir[MAX_PATH] = {};
+            if (!::GetEnvironmentVariableW(L"APPDATA", dir, MAX_PATH)) return {};
+            const std::wstring root = std::wstring(dir) + L"\\" + brand::kAppDataFolder;
+            ::CreateDirectoryW(root.c_str(), nullptr);
+            return root + L"\\tengri.ico";
+        }
+
+        // Exe'nin kendi simge kaynağını tek bir .ico dosyasına yazar.
+        // Başarısız olursa false döner ve çağıran exe yoluna düşer.
+        bool EnsureBrandIcon()
+        {
+            const std::wstring path = BrandIconPath();
+            if (path.empty()) return false;
+
+            const HMODULE mod = ::GetModuleHandleW(nullptr);
+            const HRSRC   gr  = ::FindResourceW(mod, MAKEINTRESOURCEW(brand::kIconId), RT_GROUP_ICON);
+            if (!gr) return false;
+
+            const DWORD   gsz = ::SizeofResource(mod, gr);
+            const HGLOBAL hg  = ::LoadResource(mod, gr);
+            if (!hg || gsz < sizeof(GrpDir)) return false;
+
+            const GrpDir*   hdr   = (const GrpDir*)::LockResource(hg);
+            const GrpEntry* entries = (const GrpEntry*)(hdr + 1);
+            if (!hdr || !hdr->count ||
+                gsz < sizeof(GrpDir) + (DWORD)hdr->count * sizeof(GrpEntry))
+                return false;
+            const WORD count = hdr->count > 16 ? 16 : hdr->count;   // uçmuş bir sayı sınırlanır
+
+            // Her girdinin RT_ICON gövdesi ayrı bir kaynaktır; toplanır.
+            std::vector<const BYTE*> img(count, nullptr);
+            std::vector<DWORD>       len(count, 0);
+            DWORD total = sizeof(IcoDir) + count * sizeof(IcoEntry);
+            for (WORD i = 0; i < count; ++i)
+            {
+                const HRSRC r = ::FindResourceW(mod, MAKEINTRESOURCEW(entries[i].id), RT_ICON);
+                if (!r) return false;
+                const DWORD s = ::SizeofResource(mod, r);
+                const HGLOBAL g = ::LoadResource(mod, r);
+                if (!g || !s) return false;
+                img[i] = (const BYTE*)::LockResource(g);
+                len[i] = s;
+                total += s;
+            }
+            if (!total || total > 4u << 20) return false;   // 4 MB'lik simge gerçek değil
+
+            // Dosya zaten aynı boyuttaysa yeniden yazma: içerik yalnızca exe
+            // değişirse değişir ve o durumda boyut da değişir.
+            {
+                WIN32_FILE_ATTRIBUTE_DATA fa;
+                if (::GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &fa) &&
+                    fa.nFileSizeLow == total && fa.nFileSizeHigh == 0)
+                    return true;
+            }
+
+            std::vector<BYTE> out(total);
+            IcoDir* od = (IcoDir*)out.data();
+            od->reserved = 0; od->type = 1; od->count = count;
+
+            IcoEntry* oe = (IcoEntry*)(od + 1);
+            DWORD     at = sizeof(IcoDir) + count * sizeof(IcoEntry);
+            for (WORD i = 0; i < count; ++i)
+            {
+                oe[i].bWidth   = entries[i].bWidth;
+                oe[i].bHeight  = entries[i].bHeight;
+                oe[i].bColors  = entries[i].bColors;
+                oe[i].bReserved= entries[i].bReserved;
+                oe[i].planes   = entries[i].planes;
+                oe[i].bits     = entries[i].bits;
+                oe[i].size     = len[i];
+                oe[i].offset   = at;
+                memcpy(out.data() + at, img[i], len[i]);
+                at += len[i];
+            }
+
+            // Önce yan dosyaya yaz, sonra taşı: yarı yazılmış bir .ico, hiç
+            // olmayan bir .ico'dan daha kötüdür (Windows onu okumaya çalışır).
+            const std::wstring tmp = path + L".tmp";
+            HANDLE f = ::CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, nullptr,
+                                     CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (f == INVALID_HANDLE_VALUE) return false;
+            bool ok = true;
+            for (DWORD w = 0; w < total; )
+            {
+                DWORD n = 0;
+                const DWORD chunk = (total - w < 65536) ? total - w : 65536;
+                if (!::WriteFile(f, out.data() + w, chunk, &n, nullptr) || n != chunk) { ok = false; break; }
+                w += n;
+            }
+            ::CloseHandle(f);
+            if (ok)
+                ok = ::MoveFileExW(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING);
+            if (!ok) ::DeleteFileW(tmp.c_str());
+            return ok;
+        }
+
+        // file:/// biçimi: WinRT görsel kaynağı mutlak Windows yolunu değil URI ister.
+        std::wstring IconUri(const std::wstring& path)
+        {
+            std::wstring s = path;
+            for (wchar_t& c : s) if (c == L'\\') c = L'/';
+            return L"file:///" + s;
         }
 
         void LoadPrefs()
@@ -126,17 +268,25 @@ namespace notify
                                   nullptr) != ERROR_SUCCESS)
                 return;
 
-            const wchar_t* display = L"TENGRI";
+            const wchar_t* display = brand::kMsgTitle;
             ::RegSetValueExW(h, L"DisplayName", 0, REG_SZ,
                              reinterpret_cast<const BYTE*>(display),
                              static_cast<DWORD>((wcslen(display) + 1) * sizeof(wchar_t)));
 
-            wchar_t exe[MAX_PATH] = {};
-            if (::GetModuleFileNameW(nullptr, exe, MAX_PATH))
+            // IconUri bir görsel dosyası ister; exe yolu Windows'a göre boş bir
+            // simgedir. Bu yüzden diske yazılmış .ico kullanılır, o da olmazsa
+            // eski davranışa (exe yolu) düşülür — hiçbir değer vermemekten iyi.
+            std::wstring icon = g_iconFile;
+            if (icon.empty())
+            {
+                wchar_t exe[MAX_PATH] = {};
+                if (::GetModuleFileNameW(nullptr, exe, MAX_PATH)) icon = exe;
+            }
+            if (!icon.empty())
             {
                 ::RegSetValueExW(h, L"IconUri", 0, REG_SZ,
-                                 reinterpret_cast<const BYTE*>(exe),
-                                 static_cast<DWORD>((wcslen(exe) + 1) * sizeof(wchar_t)));
+                                 reinterpret_cast<const BYTE*>(icon.c_str()),
+                                 static_cast<DWORD>((icon.size() + 1) * sizeof(wchar_t)));
             }
             // Bildirim kartındaki simge zemini: marka siyah-beyaz, koyu zemin uygun.
             const DWORD color = 0xFF101014;   // COLORREF(BGR) = RGB(20,16,16)
@@ -158,6 +308,17 @@ namespace notify
             if (SHGetFolderPathW(nullptr, CSIDL_PROGRAMS, nullptr, 0, dir) != S_OK)
                 return {};
             return std::wstring(dir) + L"\\TENGRI.lnk";
+        }
+
+        // Kısayolun simge kaynağı: marka .ico'sı varsa o, yoksa exe'nin kendisi.
+        // Görev çubuğu, AUMID ile gruplanmış düğmelerin simgesini bu kısayoldan
+        // alır; simge ayrı bir dosyada olduğunda exe taşındığında da bozulmaz.
+        std::wstring ShortcutIconSource()
+        {
+            if (!g_iconFile.empty()) return g_iconFile;
+            wchar_t exe[MAX_PATH] = {};
+            if (::GetModuleFileNameW(nullptr, exe, MAX_PATH)) return exe;
+            return {};
         }
 
         // Kısayolun taşıdığı uygulama kimliğini okur.
@@ -195,6 +356,30 @@ namespace notify
                     PropVariantClear(&v);
                     store->Release();
                 }
+            }
+
+            if (pf) pf->Release();
+            sl->Release();
+            return ok;
+        }
+
+        // Kısayolun simge kaynağını ve görevini okur. Görev sıfırdan başlar;
+        // kısayol hiç simge taşımıyorsa out boş kalır ve false döner.
+        bool ReadShortcutIcon(const std::wstring& path, wchar_t* out, int cap, int& index)
+        {
+            IShellLinkW*  sl = nullptr;
+            IPersistFile* pf = nullptr;
+            if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
+                                        IID_PPV_ARGS(&sl))))
+                return false;
+
+            bool ok = false;
+            if (SUCCEEDED(sl->QueryInterface(IID_PPV_ARGS(&pf))) &&
+                SUCCEEDED(pf->Load(path.c_str(), STGM_READ)))
+            {
+                *out = L'\0';
+                if (SUCCEEDED(sl->GetIconLocation(out, cap, &index)) && *out)
+                    ok = true;
             }
 
             if (pf) pf->Release();
@@ -261,7 +446,19 @@ namespace notify
             // elle bozulmuş olabilir.
             wchar_t got[128] = {};
             if (!ReadShortcutAumid(p, got)) return true;
-            return wcscmp(got, kAumid) != 0;
+            if (wcscmp(got, kAumid) != 0) return true;
+
+            // Eski sürümlerin yazdığı hatalı simge görevi (101) düzeltilsin diye
+            // simge kaynağı da karşılaştırılır; aksi halde kısayol hiç
+            // yenilenmez ve görev çubuğu jenerik simgede kalır.
+            const std::wstring want = ShortcutIconSource();
+            wchar_t iconGot[MAX_PATH] = {};
+            int idx = -1;
+            if (!want.empty() &&
+                ReadShortcutIcon(p, iconGot, MAX_PATH, idx) &&
+                (idx != 0 || _wcsicmp(iconGot, want.c_str()) != 0))
+                return true;
+            return false;
         }
 
         void WriteShortcut()
@@ -288,9 +485,18 @@ namespace notify
             sl->SetWorkingDirectory(dir);
             sl->SetDescription(L"TENGRI - Sistem Optimize Edici");
 
-            // Simge kaynağın 101 kimliğinde. Yol yerine kaynak kimliği yazılır,
-            // böylece exe taşınsa bile kısayol eski yolu göstermez.
-            sl->SetIconLocation(exe, static_cast<int>(brand::kIconId));
+            // Simge kaynağı olarak marka .ico'sı kullanılır; olmazsa exe'nin
+            // kendisine düşülür.
+            //
+            // SetIconLocation'ın ikinci parametresi sıfırdan başlayan GÖREV
+            // (index), kaynak KİMLİĞİ değildir. exe'de tek simge olduğundan
+            // doğru değer 0'dır. Daha önce kIconId (101) verilmişti: Explorer
+            // o indeksde simge bulamayınca kısayolu simgesiz sayıyor, AUMID
+            // üzerinden gruplanan görev çubuğu düğmesinde jenerik Windows
+            // simgesi çiziyordu.
+            const std::wstring iconSrc = ShortcutIconSource();
+            if (!iconSrc.empty())
+                sl->SetIconLocation(iconSrc.c_str(), 0);
 
             bool saved = false;
             if (SUCCEEDED(sl->QueryInterface(IID_PPV_ARGS(&pf))))
@@ -313,20 +519,45 @@ namespace notify
         }
 
         void PostXml(Level lvl, const char* title, const char* body,
-                     Target target, const std::vector<Button>& buttons)
+                     Target target, const std::vector<Button>& buttons,
+                     const wchar_t* tag = nullptr)
         {
             if (!ShouldSend(lvl)) return;
 
             const std::wstring wt = XmlEscape(Utf8(title).c_str());
             const std::wstring wb = XmlEscape(Utf8(body).c_str());
 
+            // Marka resmi: kartın solundaki uygulama logosu. AUMID'deki IconUri
+            // yalnızca Eylem Merkezi'nde kullanılıyor; kartın kendisinde görünmesi
+            // için appLogoOverride gerekiyor.
+            std::wstring logo;
+            if (!g_iconFile.empty())
+            {
+                const std::wstring uri = XmlEscape(IconUri(g_iconFile).c_str());
+                logo = L"<image placement=\"appLogoOverride\" src=\"" + uri + L"\"/>";
+            }
+
+            // Süreç bildirimleri sessizdir: aynı iş onlarca kez yinelenirse her
+            // biri ses çalarak kendi başına bir gürültü olur.
+            const bool silent = tag && *tag;
+
             std::wstring xml =
-                L"<toast launch=\"cmd:1\" activationType=\"foreground\">"
+                L"<toast launch=\"cmd:1\" activationType=\"foreground\" group=\"tengri\">"
                 L"<visual><binding template=\"ToastGeneric\">"
-                L"<text>" + wt + L"</text>"
-                L"<text>" + wb + L"</text>"
+                // Başlık koyu, gövde normal: Windows'un kendi tipografi basamakları
+                // kullanılır, kart böylece iki satırlık düz metin yığını gibi
+                // görünmüyor.
+                L"<text hint-style=\"subheader\" hint-wrap=\"true\">" + wt + L"</text>"
+                // hint-maxLines olmadan gövde iki satırda kesilip üç noktaya
+                // düşüyordu; uzun tarama sonuçları okunamaz hale geliyordu.
+                L"<text hint-style=\"body\" hint-wrap=\"true\" hint-maxLines=\"3\">" + wb + L"</text>" +
+                logo +
                 L"</binding></visual><actions>";
 
+            // İlk düğmeye verilen inline, tüm düğmeleri tek satıra dizer.
+            // Varsayılan dizilim düğme başına tam genişlik satır açtığı için
+            // üç düğmeli kart gereksiz yere uzuyor.
+            bool first = true;
             for (const Button& b : buttons)
             {
                 if (b.action == Action::Dismiss || b.action == Action::None) continue;
@@ -334,15 +565,18 @@ namespace notify
                 int cmd = 0;
                 switch (b.action)
                 {
-                case Action::View:  cmd = kCmdView;    break;
-                case Action::Undo:  cmd = kCmdUndo;    break;
-                case Action::Retry: cmd = kCmdRetry;   break;
+                case Action::View:     cmd = kCmdView;     break;
+                case Action::Undo:     cmd = kCmdUndo;     break;
+                case Action::Retry:    cmd = kCmdRetry;    break;
+                case Action::Download: cmd = kCmdDownload; break;
                 default: continue;
                 }
 
                 // arguments önce komut, sonra hedef sekme. Hedef olmayan
                 // düğmelerde -1 gider; alıcı taraf geçersiz değeri yok sayar.
-                xml += L"<action content=\"" + XmlEscape(Utf8(b.label).c_str()) +
+                xml += L"<action ";
+                if (first) { xml += L"placement=\"inline\" "; first = false; }
+                xml += L"content=\"" + XmlEscape(Utf8(b.label).c_str()) +
                        L"\" arguments=\"" + std::to_wstring(cmd) + L":" +
                        std::to_wstring(static_cast<int>(target)) +
                        L"\" activationType=\"foreground\"/>";
@@ -351,10 +585,14 @@ namespace notify
             // Sistem düğmesi uygulamayı açmaz; her bildirimde bulunması
             // kullanıcının "bunu bir daha gösterme" isteğini tek tıkla yerine
             // getirir.
-            xml += L"<action content=\"" + XmlEscape(Utf8(L(NotifBtnOk)).c_str()) +
+            xml += L"<action ";
+            if (first) xml += L"placement=\"inline\" ";
+            xml += L"content=\"" + XmlEscape(Utf8(L(NotifBtnOk)).c_str()) +
                    L"\" arguments=\"dismiss\" activationType=\"system\"/>";
 
-            xml += L"</actions></toast>";
+            xml += L"</actions>";
+            if (silent) xml += L"<audio silent=\"true\"/>";
+            xml += L"</toast>";
 
             try
             {
@@ -363,8 +601,15 @@ namespace notify
 
                 const auto doc = XmlDocument();
                 doc.LoadXml(xml);
-                ToastNotificationManager::CreateToastNotifier(kAumid)
-                    .Show(ToastNotification(doc));
+
+                auto note = ToastNotification(doc);
+                note.Group(L"tengri");
+                // Etiket, aynı işin sonraki bildirimlerinin eskisinin ÜSTÜNE
+                // yazılmasını sağlar: ilerleme bildirimi yığılmaz, tek kart yer
+                // değiştirir.
+                if (tag && *tag) note.Tag(tag);
+
+                ToastNotificationManager::CreateToastNotifier(kAumid).Show(note);
             }
             catch (...)
             {
@@ -401,6 +646,11 @@ namespace notify
         if (!g_ready) return;
 
         ::SetCurrentProcessExplicitAppUserModelID(kAumid);
+
+        // Bildirim kartının resmi, exe'nin kendi simge kaynağından üretilir.
+        // Başarısız olursa g_iconFile boş kalır ve kart simgesiz ama çalışır.
+        if (EnsureBrandIcon()) g_iconFile = BrandIconPath();
+
         RegisterAumid();
 
         // Bir kez yaz, sonra bir daha dokunma. Kısayol veya kayıt silinirse
@@ -432,7 +682,8 @@ namespace notify
     void PostProgress(const char* title, const char* body)
     {
         // Süreç bildirimi bir bilgi düzeyindedir; sessiz modda susturulur.
-        PostXml(Level::Info, title, body, TargetNone, {});
+        // Etiketlidir: aynı işin sonraki adımı kartı yenilemez, üstüne yazar.
+        PostXml(Level::Info, title, body, TargetNone, {}, L"tengri-progress");
     }
 
     int ParseLaunch(const wchar_t* args, int* target)
@@ -449,7 +700,7 @@ namespace notify
         const int cmd = (int)::wcstol(args + p, &end, 10);
         if (end == args + p)
             return 0;
-        if (cmd != CmdView && cmd != CmdUndo && cmd != CmdRetry)
+        if (cmd != CmdView && cmd != CmdUndo && cmd != CmdRetry && cmd != CmdDownload)
             return 0;   // tanınmayan kod: sessizce yok say
 
         // "cmd:N:hedef" biçiminde ikinci alan hedef sekmedir; yoksa -1 kalır.

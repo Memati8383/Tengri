@@ -31,6 +31,7 @@ namespace notify
         View,        // uygulamayı aç, hedef sayfaya git
         Undo,        // geri al ÖNCE onay ister
         Retry,       // işi yeniden dene
+        Download,    // duyurulan sürümü indirmeye başla
         Dismiss,     // sistem düğmesi: yalnızca kapatır
     };
 
@@ -99,6 +100,7 @@ namespace notify
         CmdView  = 1,   // uygulamayı aç, hedef sayfaya git
         CmdUndo  = 2,   // geri al ÖNCE onay ister
         CmdRetry = 3,   // işi yeniden dene
+        CmdDownload = 4, // güncellemeyi indirmeye başla
     };
 
     // Başlatma komutunun ön eki. Ayrıştırma burada yaşar çünkü XML üretimiyle
