@@ -170,6 +170,9 @@ function Get-Win {
     return $p
 }
 
+# Brings the app forward and REPORTS whether it actually got there. The boolean is
+# load-bearing: SetForegroundWindow is refused when the caller is not foreground,
+# and the only honest way to know is to read GetForegroundWindow back.
 function Focus-App {
     $p = Get-Win
     # Only un-minimize. Calling SW_RESTORE unconditionally also un-maximizes, which
@@ -177,8 +180,9 @@ function Focus-App {
     if ([Driver]::IsIconic($p.MainWindowHandle)) {
         [void][Driver]::ShowWindow($p.MainWindowHandle, 9)   # SW_RESTORE
     }
-    [Driver]::ForceForeground($p.MainWindowHandle) | Out-Null
+    $ok = [Driver]::ForceForeground($p.MainWindowHandle)
     Start-Sleep -Milliseconds 500
+    return $ok
 }
 
 # Clicks at a client-relative offset: Click-At 300 420
@@ -186,7 +190,7 @@ function Click-At([int]$cx, [int]$cy) {
     $p = Get-Win
     $w = New-Object Driver+RECT
     [void][Driver]::GetWindowRect($p.MainWindowHandle, [ref]$w)
-    Focus-App
+    $null = Focus-App
     $x = $w.Left + $cx
     $y = $w.Top + $cy
     [Driver]::Click($x, $y)
@@ -209,11 +213,28 @@ function Drag-At([int]$x1, [int]$y1, [int]$x2, [int]$y2) {
 }
 
 # Captures just the app window, so the screenshot is not full of whatever else is on the
-# desktop. Falls back to the full screen if the window cannot be isolated.
+# desktop.
+#
+# CopyFromScreen grabs whatever is physically on top, so a capture taken while
+# another window holds the foreground silently records THAT window instead - the
+# file is written, the size looks plausible, and the only symptom is a wrong
+# picture in docs/screenshots. So the foreground is confirmed to be the app before
+# every capture, with a few retries; if it can never be confirmed we fail loudly
+# rather than save the wrong thing.
 function Save-Shot([string]$Path) {
     $p = Get-Win
-    Focus-App
-    Start-Sleep -Milliseconds 700
+
+    $ready = $false
+    for ($i = 0; $i -lt 6 -and -not $ready; $i++) {
+        if (-not (Focus-App)) { Start-Sleep -Milliseconds 600 }
+        $ready = [Driver]::GetForegroundWindow() -eq $p.MainWindowHandle
+        if (-not $ready) { Start-Sleep -Milliseconds 500 }
+    }
+    if (-not $ready) {
+        throw "uygulama one ge(em)iyor; ekran goruntusu alinmadi ($Path). Baska bir pencere odagi cekmis olurdu."
+    }
+    Start-Sleep -Milliseconds 500
+
     $w = New-Object Driver+RECT
     [void][Driver]::GetWindowRect($p.MainWindowHandle, [ref]$w)
     $width  = $w.Right - $w.Left

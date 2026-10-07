@@ -87,8 +87,14 @@ function Get-Dib([int]$S) {
   $header = New-U32 40          # biSize
   $header = $header + (New-U32 $S)   # biWidth
   $header = $header + (New-U32 ($S * 2))  # biHeight = XOR + AND
-  $header = $header + (New-U32 1)   # biPlanes
-  $header = $header + (New-U32 32)  # biBitCount
+  # biPlanes ve biBitCount WORD'dur, DWORD degil. DWORD yazildiginda basliga dort
+  # bayt fazlalik girer, sonraki tum alanlar dort bayt kayar ve baslikta
+  # biBitCount=0, biCompression=32 (BI_BITFIELDS) okunur. Dosya ayri bir hata
+  # vermez, pikseller yerinde durur; ama Windows bu girdiyi reddedip simgeyi
+  # reddeder ve kabuk JENERIK bir simge gosterir. Gorev cubugu ve dosya
+  # gezginindeki belirti buydu.
+  $header = $header + (New-U16 1)   # biPlanes   (WORD)
+  $header = $header + (New-U16 32)  # biBitCount (WORD)
   $header = $header + (New-U32 0)   # biCompression = BI_RGB
   $header = $header + (New-U32 ($xor.Length + $and.Length))  # biSizeImage
   $header = $header + (New-U32 0)   # biXPelsPerMeter

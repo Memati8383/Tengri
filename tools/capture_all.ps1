@@ -13,7 +13,11 @@ param(
   [string]$OutDir = "docs\screenshots",
   # Sayfa basina bekleme; animasyonlar bitmeden goruntu alinirsa yarim kalmis
   # gecisler kaydedilir.
-  [int]$SettleMs = 1500
+  [int]$SettleMs = 1500,
+  # Gecikme grafigi 2 saniyede bir örnek alır. Varsayilan bekleme yeterli olmadigi
+  # icin o sayfa ayrica bekletilir: yalniz bir ornek dolu bir grafik, dokuz bos
+  # kutuyla yenilenmis hatanin ayni goruntusunu uretirdi.
+  [int]$LatencySettleSec = 40
 )
 
 . .\tools\shoot.ps1
@@ -33,18 +37,20 @@ Start-Sleep -Seconds 16
 # Nav listesi y=128'den baslar, her oge 44px. Y degerleri capture_about.ps1 ile
 # ayni kayan noktaya dayanir; kaydirma yok.
 $pages = @(
-    @{ File = '01-dashboard';   Y = 128 }
-    @{ File = '02-cleaner';     Y = 172 }
-    @{ File = '03-tweaks';      Y = 216 }
-    @{ File = '04-network';     Y = 260 }
-    @{ File = '05-system-info'; Y = 304 }
-    @{ File = '06-settings';    Y = 348 }
-    @{ File = '07-about';       Y = 392 }
+    @{ File = '01-dashboard';   Y = 128; WaitMs = $SettleMs }
+    @{ File = '02-cleaner';     Y = 172; WaitMs = $SettleMs }
+    @{ File = '03-tweaks';      Y = 216; WaitMs = $SettleMs }
+    # Gecikme sayfası: ölçüm 2 saniyede bir örnek alıyor, varsayılan bekleme
+    # tek örnekle yetiyor ve grafik boş görünüyor.
+    @{ File = '04-network';     Y = 260; WaitMs = $LatencySettleSec * 1000 }
+    @{ File = '05-system-info'; Y = 304; WaitMs = $SettleMs }
+    @{ File = '06-settings';    Y = 348; WaitMs = $SettleMs }
+    @{ File = '07-about';       Y = 392; WaitMs = $SettleMs }
 )
 
 foreach ($page in $pages) {
     Click-At 100 $page.Y
-    Start-Sleep -Milliseconds $SettleMs
+    Start-Sleep -Milliseconds $page.WaitMs
     # İmleci içerik alanına bırak: parçacık alanı ve üst ışık son tıklamanın
     # tepkisinde değil, temsili bir durumda olsun.
     Hover-At 600 400

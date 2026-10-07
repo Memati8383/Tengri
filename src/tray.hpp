@@ -11,7 +11,12 @@ namespace tray
     // atladığı için bir sonraki tam kareyi beklemek yerine hemen uyanabilsin.
     extern UINT kRestoreMsg;
 
-    bool Init(HWND hwnd);
+    // instance zorunludur: marka simgesi exe'nin KAYNAĞINDA (RT_GROUP_ICON 101)
+    // durur ve LoadImage yalnızca doğru modülle adresleyebilir. hInstance NULL
+    // verildiğinde kimlik bir SİSTEM kaynağı sayılır; 101 numaralı bir sistem
+    // simgesi olmadığı için çağrı çöp döner ve tepside sarı bir ünlem üçgeni
+    // belirir.
+    bool Init(HWND hwnd, HINSTANCE instance);
 
     // Kabuk ikonu reddederse false döner (Explorer yok, politika kısıtlı). Çağıran, geri
     // getirilemeyecek bir pencereyi gizlemek yerine sıradan küçültme davranışını korur.

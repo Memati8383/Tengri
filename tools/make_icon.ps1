@@ -77,8 +77,11 @@ function Get-Dib([int]$S) {
   $header = New-U32 40          # biSize
   $header = $header + (New-U32 $S)   # biWidth
   $header = $header + (New-U32 ($S * 2))  # biHeight = XOR + AND
-  $header = $header + (New-U32 1)   # biPlanes
-  $header = $header + (New-U32 32)  # biBitCount
+  # biPlanes ve biBitCount WORD'dur, DWORD degil. DWORD yazmak basliga dort bayt
+  # fazlalik katar ve sonraki alanlar kayar; sonuc biBitCount=0,
+  # biCompression=32 olur ve Windows girdiyi reddeder.
+  $header = $header + (New-U16 1)   # biPlanes   (WORD)
+  $header = $header + (New-U16 32)  # biBitCount (WORD)
   $header = $header + (New-U32 0)   # biCompression = BI_RGB
   $header = $header + (New-U32 ($xor.Length + $and.Length))  # biSizeImage
   $header = $header + (New-U32 0)   # biXPelsPerMeter

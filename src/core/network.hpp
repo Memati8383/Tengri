@@ -6,6 +6,15 @@
 // ilk örnek düşene kadar false döner.
 namespace network
 {
+    // İki örnek arasındaki hedef süre. Sondaç bu değere göre uyur, grafik de
+    // kaymasını bu değere göre animasyonlar; ikisi ayrı ayrı yazılırsa grafik
+    // örnekten daha sık ya da daha seyrek kayar. İkisi de buradan okur.
+    constexpr double kLatencyIntervalSec = 2.0;
+
+    // Bu kadar süredir örnek gelmezse sondaj ölmüş sayılır. Arayüz donmuş bir
+    // değeri göstermeye devam etmek, ölçtüğünü iddia etmekten daha kötüdür.
+    constexpr double kLatencyStaleSec = 12.0;
+
     void StartLatencyProbe();
     void StopLatencyProbe();
     bool PollLatency(float* ms);

@@ -107,7 +107,7 @@ namespace ui
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         const ImVec2 sz  = SpacedSize(theme::fonts.medium,theme::size::Meta, text, px(theme::track::Micro));
-        TextSpaced(dl, theme::fonts.medium, theme::size::Meta, pos, theme::ink::Tertiary,  text, px(theme::track::Micro));
+        TextSpaced(dl, theme::fonts.medium, theme::size::Meta, pos, Gray(theme::ink::Tertiary),  text, px(theme::track::Micro));
         ImGui::Dummy(sz);
     }
 
@@ -464,7 +464,7 @@ namespace ui
         dl->PushClipRect(bb.Min, ImVec2(bb.Max.x - px(16) - rightW, bb.Max.y), true);
         Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(tx, bb.Min.y + px(12)), Gray(0.78f + 0.2f * ImMax(on, hv)), label, VisibleEnd(label));
         if (desc)
-            Text(dl, theme::fonts.regular,theme::size::Body, ImVec2(tx, bb.Min.y + px(33)), theme::ink::Secondary, desc);
+            Text(dl, theme::fonts.regular,theme::size::Body, ImVec2(tx, bb.Min.y + px(33)), Gray(theme::ink::Secondary), desc);
         dl->PopClipRect();
         return pressed;
     }

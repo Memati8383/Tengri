@@ -1,5 +1,6 @@
 #include "network.hpp"
 #include "brand.hpp"
+#include "network.hpp"
 #include <windows.h>
 // IcmpCreateFile ve IcmpSendEcho2 yalnızca icmpapi.h içinde tanımlıdır; windows.h onları
 // içeri almadığı için bu başlık ayrıca ekleniyor.
@@ -465,9 +466,16 @@ namespace network
                     }
                 }
                 // Bekleme tek seferde değil dilimler hâlinde yapılıyor; durdurma olayı ancak
-                // böyle beklemeden fark edilir.
-                for (int i = 0; i < 20 && WaitForSingleObject(g_pingStop, 0) != WAIT_OBJECT_0; ++i)
-                    Sleep(250);
+                // böyle beklemeden fark edilir. Süre kLatencyIntervalSec'ten gelir:
+                // 250 ms dilimleriyle, tur-çevrim süresi kadarını hesaba katarak.
+                // Kaba bir 5 saniyelik bekleme koyulduğunda örnek başına ~6 s
+                // düşüyor ve 61 noktalık grafik ancak altı dakikada doluyordu.
+                const double due = GetTickCount64() / 1000.0 + kLatencyIntervalSec;
+                while (GetTickCount64() / 1000.0 < due)
+                {
+                    if (WaitForSingleObject(g_pingStop, 0) == WAIT_OBJECT_0) break;
+                    Sleep(50);
+                }
             }
             IcmpCloseHandle(hIcmp);
         }

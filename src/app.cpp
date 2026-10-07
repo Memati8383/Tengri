@@ -96,6 +96,14 @@ namespace app
         float  g_latency    = 0.0f;
         bool   g_pingSampled = false;
         double g_lastSample = -1.0;
+
+        // Gecikme geçmişinde kaç kutunun GERÇEK örnek olduğu. Dizinin kalanı sıfır
+        // olmak "0 ms gecikme" demek değildir, "henüz ölçülmedi" demektir; ikisi
+        // grafikte tamamen farklı görünür. Sıfırları çizmek en iyi senaryoyu
+        // uyduruyordu - ekrandaki düz çizginin sebebi buydu.
+        int    g_pingFilled  = 0;
+        double g_pingSampleAt = -1.0;   // son örneğin düştüğü an
+
         float  g_health     = 0.0f;
         bool   g_optimizing = false;
         double g_optStart   = 0.0;
@@ -552,18 +560,18 @@ namespace app
                 g_health = ComputeHealth();
             }
 
-            // Gecikme geçmişi yalnızca arkasında gerçek bir örnek varken ilerletilir. Sondaç henüz
-            // yanıt vermedikçe grafik tohumlanmış değerlerde kalır; rastgele bir yürüyüş
-            // ölçüm gibi görünmesin diye.
+            // Gecikme geçmişi yalnızca arkasında gerçek bir örnek varken ilerletilir. Sondaç
+            // yanıt vermedikçe kutular boş kalır ve grafik onları ÇİZMEZ; sıfır
+            // yazıp "0 ms" diye göstermek ölçüm uydurmak olurdu.
             if (network::PollLatency(&g_latency))
             {
                 const float v = ImClamp(g_latency, 1.0f, 500.0f);
                 g_ping.erase(g_ping.begin());
                 g_ping.push_back(v);
-                g_pingSampled = true;
+                g_pingFilled  = ImMin((int)g_ping.size(), g_pingFilled + 1);
+                g_pingSampleAt = now;
+                g_pingSampled  = true;
             }
-            if (!g_pingSampled && !g_ping.empty())
-                g_ping.assign(g_ping.size(), 0.0f);
 
             if (g_waiting)
             {
@@ -808,7 +816,7 @@ namespace app
             // sol üstte marka
             ui::TextSpaced(dl, F.bold,theme::size::Body, px(22, 19), Gray(0.9f), brand::kNameA, px(theme::track::Micro));
             const float bw = ui::SpacedSize(F.bold,theme::size::Body, brand::kNameA, px(theme::track::Micro)).x;
-            ui::Text(dl, F.regular,theme::size::Body, ImVec2(px(22) + bw + px(10), px(19)), theme::ink::Tertiary,  L(SecureLoader));
+            ui::Text(dl, F.regular,theme::size::Body, ImVec2(px(22) + bw + px(10), px(19)), Gray(theme::ink::Tertiary),  L(SecureLoader));
 
             // kart (hata durumunda titrer)
             const float cw = px(380), ch = px(468);
@@ -832,7 +840,7 @@ namespace app
 
             // form alanları
             const float fx0 = cmin.x + px(32), fw = cw - px(64);
-            ui::TextSpaced(dl, F.medium,theme::size::Meta, ImVec2(fx0, cmin.y + px(188)), theme::ink::Tertiary,  L(LicenseKey), px(theme::track::Micro));
+            ui::TextSpaced(dl, F.medium,theme::size::Meta, ImVec2(fx0, cmin.y + px(188)), Gray(theme::ink::Tertiary),  L(LicenseKey), px(theme::track::Micro));
 
             const float gbw = px(88);
             ImGui::SetCursorScreenPos(ImVec2(fx0 + fw - gbw, cmin.y + px(183)));
@@ -872,18 +880,18 @@ namespace app
             {
                 char demoMsg[128];
                 snprintf(demoMsg, sizeof(demoMsg), "%s \xC2\xB7 %s", L(DemoMode), L(AnyKeyAccepted));
-                TextCentered(dl, F.regular,theme::size::Body, cx, sy, theme::ink::Tertiary,  demoMsg);
+                TextCentered(dl, F.regular,theme::size::Body, cx, sy, Gray(theme::ink::Tertiary),  demoMsg);
             }
 
             // alt bilgi
             const float fy = cmax.y - px(50);
             dl->AddLine(ImVec2(cmin.x + px(1), fy), ImVec2(cmax.x - px(1), fy), White(0.06f));
-            ui::TextSpaced(dl, F.medium,theme::size::Meta, ImVec2(fx0, fy + px(19)), theme::ink::Tertiary,  L(HWID), px(theme::track::Micro));
+            ui::TextSpaced(dl, F.medium,theme::size::Meta, ImVec2(fx0, fy + px(19)), Gray(theme::ink::Tertiary),  L(HWID), px(theme::track::Micro));
             ui::Text(dl, F.regular,theme::size::Caption, ImVec2(fx0 + px(44), fy + px(17)), Gray(0.62f), sys::Hwid().c_str());
             char ver[16];
             snprintf(ver, sizeof(ver), "v%s", kVersion);
             const ImVec2 vs = ui::TextSize(F.regular,theme::size::Caption, ver);
-            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(cmax.x - px(32) - vs.x, fy + px(17)), theme::ink::Tertiary,  ver);
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(cmax.x - px(32) - vs.x, fy + px(17)), Gray(theme::ink::Tertiary),  ver);
         }
 
         // ------------------------------------------------------------------ yükleme
@@ -915,7 +923,7 @@ namespace app
 
             char pct[8];
             snprintf(pct, sizeof(pct), "%d%%", (int)(p * 100.0f));
-            TextCentered(dl, F.medium,theme::size::Meta, c.x, c.y + px(156), theme::ink::Secondary, pct);
+            TextCentered(dl, F.medium,theme::size::Meta, c.x, c.y + px(156), Gray(theme::ink::Secondary), pct);
 
             if (t > dur + 0.3f)
                 GoTo(Screen::Main);
@@ -941,7 +949,7 @@ namespace app
 
             ui::Text(dl, F.medium,theme::size::Body, ImVec2(mn.x + px(56), mn.y + px(22)), Gray(0.60f), label);
             ui::Text(dl, F.bold,theme::size::PageTitle, ImVec2(mn.x + px(16), mn.y + px(54)), Gray(0.97f), value);
-            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(mn.x + px(16), mn.y + px(88)), theme::ink::Tertiary,  sub);
+            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(mn.x + px(16), mn.y + px(88)), Gray(theme::ink::Tertiary),  sub);
 
             const ImVec2 b0(mn.x + px(16), mx.y - px(15)), b1(mx.x - px(16), mx.y - px(12));
             dl->AddRectFilled(b0, b1, White(0.07f), px(2));
@@ -984,7 +992,7 @@ namespace app
             const float gw = floorf((cw - gap) * 0.64f), rh = px(236);
             ui::Card(dl, p, p + ImVec2(gw, rh));
             ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(ProcessorLoad));
-            ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), theme::ink::Secondary, L(LiveLast30s));
+            ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(theme::ink::Secondary), L(LiveLast30s));
 
             const float cur = ui::Anim(ImGui::GetID("##cpucur"), g_cpu.back() * 100.0f, 6.0f);
             snprintf(v, sizeof(v), "%.0f%%", cur);
@@ -1000,7 +1008,7 @@ namespace app
             const ImVec2 o(p.x + gw + gap, p.y), osz(cw - gw - gap, rh);
             ui::Card(dl, o, o + osz);
             ui::Text(dl, F.bold,theme::size::Title, o + px(18, 16), Gray(0.96f), L(QuickOptimize));
-            ui::Text(dl, F.regular,theme::size::Body, o + px(18, 38), theme::ink::Secondary, L(OneClickEvery));
+            ui::Text(dl, F.regular,theme::size::Body, o + px(18, 38), Gray(theme::ink::Secondary), L(OneClickEvery));
 
             const float prog  = g_optimizing ? ImSaturate((float)(now - g_optStart) / 3.2f) : 0.0f;
             const float ringV = ui::Anim(ImGui::GetID("##ring"), g_optimizing ? prog : health / 100.0f, 6.0f);
@@ -1008,7 +1016,7 @@ namespace app
             ui::Ring(dl, rc, px(40), px(6), ringV);
             snprintf(v, sizeof(v), g_optimizing ? "%.0f%%" : "%.0f", g_optimizing ? prog * 100.0f : health);
             TextCentered(dl, F.bold,theme::size::PageTitle, rc.x, rc.y - px(19), Gray(0.97f), v);
-            TextCentered(dl, F.regular,theme::size::Meta, rc.x, rc.y + px(8), theme::ink::Tertiary,  g_optimizing ? L(Optimizing) : L(HealthScore));
+            TextCentered(dl, F.regular,theme::size::Meta, rc.x, rc.y + px(8), Gray(theme::ink::Tertiary),  g_optimizing ? L(Optimizing) : L(HealthScore));
 
             ImGui::SetCursorScreenPos(ImVec2(o.x + px(18), o.y + rh - px(58)));
             if (ui::Button(L(OptimizeNow), ImVec2(osz.x - px(36), px(40)), ButtonStyle::Primary, Icon::Bolt, g_optimizing))
@@ -1197,7 +1205,7 @@ namespace app
             const float  ch = px(238);
             ui::Card(dl, p0, p0 + ImVec2(cw, ch));
             ui::Text(dl, F.bold,theme::size::Title, p0 + px(18, 16), Gray(0.96f), L(RamOptimization));
-            ui::Text(dl, F.regular,theme::size::Body, p0 + px(18, 38), theme::ink::Secondary, L(RamOptDesc));
+            ui::Text(dl, F.regular,theme::size::Body, p0 + px(18, 38), Gray(theme::ink::Secondary), L(RamOptDesc));
 
             // sağ üstte kurulu bellek rozeti
             {
@@ -1374,44 +1382,81 @@ namespace app
             const float gh = px(210);
             ui::Card(dl, p, p + ImVec2(cw, gh));
             ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(Latency));
+
+            // Sondaç ölmüşse donmuş bir değeri göstermek yanlış olur; böyle bir
+            // durumda "ölçülmedi" kabul edilir. Etiketten önce hesaplanır çünkü
+            // ikisi de aynı koşula bağlı.
+            const bool stale = g_pingSampleAt < 0.0 ||
+                               (now - g_pingSampleAt) > network::kLatencyStaleSec;
+            const bool have = g_pingSampled && !stale && g_pingFilled > 0;
+
             {
                 char rtLabel[128];
                 snprintf(rtLabel, sizeof(rtLabel), "%s \xC2\xB7 %s", L(RoundTrip),
-                         g_pingSampled ? "1.1.1.1" : L(Simulated));
-                ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), theme::ink::Secondary, rtLabel);
+                         have ? "1.1.1.1" : L(Simulated));
+                ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(theme::ink::Secondary), rtLabel);
             }
 
             const float cur = ui::Anim(ImGui::GetID("##pingcur"), g_latency, 6.0f);
-            // Jitter yalnızca gerçekten alınan örnekler üzerinden hesaplanır; iki örnekten az
-            // varsa değer uydurulmuş olur, bu yüzden o ana kadar gösterilmez.
-            const int window = ImMin(10, (int)g_pingSampled ? (int)g_ping.size() : 0);
+
+            // Jitter YALNIZCA gerçek örnekler üzerinden hesaplanır. Doldurulmamış
+            // kutular sıfır olduğu için, onları dahil etmek 138 ms'lik sabit bir
+            // bağlantıda 41 ms jitter üretiyordu.
+            const int window = have ? ImMin(10, g_pingFilled) : 0;
             float mean = 0.0f, var = 0.0f;
             for (int i = (int)g_ping.size() - window; i < (int)g_ping.size(); ++i)
                 mean += g_ping[i] / (float)window;
             for (int i = (int)g_ping.size() - window; i < (int)g_ping.size(); ++i)
                 var += (g_ping[i] - mean) * (g_ping[i] - mean) / (float)window;
 
-            if (g_pingSampled)
+            if (have)
             {
                 snprintf(v, sizeof(v), "%.0f ms", cur);
-                const ImVec2 cs = ui::TextSize(F.bold,theme::size::Heading, v);
-                ui::Text(dl, F.bold,theme::size::Heading, ImVec2(p.x + cw - px(18) - cs.x, p.y + px(14)), Gray(0.97f), v);
+                const ImVec2 cs = ui::TextSize(F.bold, theme::size::Heading, v);
+                ui::Text(dl, F.bold, theme::size::Heading, ImVec2(p.x + cw - px(18) - cs.x, p.y + px(14)), Gray(theme::ink::Primary), v);
 
-                snprintf(v, sizeof(v), "%s %.1f ms", L(Jitter), sqrtf(var));
-                const ImVec2 js = ui::TextSize(F.regular,theme::size::Caption, v);
-                ui::Text(dl, F.regular,theme::size::Caption, ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), theme::ink::Tertiary,  v);
+                // Tek örnekten sapma sıfırdır; "0.0 ms jitter" yazmak ölçülmüş bir
+                // kesinlik izlenimi verirdi. İki örnekten sonra gösterilir.
+                if (window >= 2)
+                {
+                    snprintf(v, sizeof(v), "%s %.1f ms", L(Jitter), sqrtf(var));
+                    const ImVec2 js = ui::TextSize(F.regular, theme::size::Caption, v);
+                    ui::Text(dl, F.regular, theme::size::Caption,
+                             ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), Gray(theme::ink::Tertiary), v);
+                }
             }
             else
             {
                 const char* pending = L(PingUnavailable);
-                const ImVec2 cs = ui::TextSize(F.medium,theme::size::Title, pending);
-                ui::Text(dl, F.medium,theme::size::Title, ImVec2(p.x + cw - px(18) - cs.x, p.y + px(18)), theme::ink::Secondary, pending);
+                const ImVec2 cs = ui::TextSize(F.medium, theme::size::Title, pending);
+                ui::Text(dl, F.medium, theme::size::Title,
+                         ImVec2(p.x + cw - px(18) - cs.x, p.y + px(18)), Gray(theme::ink::Secondary), pending);
             }
-            const ImVec2 js = ui::TextSize(F.regular,theme::size::Caption, v);
-            ui::Text(dl, F.regular,theme::size::Caption, ImVec2(p.x + cw - px(18) - js.x, p.y + px(40)), theme::ink::Tertiary,  v);
 
-            ui::Graph(dl, p + px(18, 70), p + ImVec2(cw - px(18), gh - px(18)), g_ping.data(), (int)g_ping.size(), 0.0f, 60.0f,
-                      (float)((now - g_lastSample) / 0.5));
+            // Düşey eksen gerçek zirveye göre. Sabit bir tavan (60 ms) 138 ms'lik
+            // bir bağlantıyı tepede sabitler ve 61 ms ile 600 ms arasındaki farkı
+            // tamamen yok ederdi.
+            float peak = 60.0f;
+            for (int i = (int)g_ping.size() - g_pingFilled; i < (int)g_ping.size(); ++i)
+                peak = ImMax(peak, g_ping[i]);
+            peak = ceilf(peak / 50.0f) * 50.0f;   // 50 ms'lik dilimler
+            // Yumuşatma: her tepe ekseni zıplatıp geri indirip grafiği titrettiğinden
+            // daha okunaklı.
+            const float vmax = ui::Anim(ImGui::GetID("##pingvmax"), peak, 3.0f);
+
+            // Kaydırma kendi saatinden gelir. g_lastSample CPU grafiğinin 0.5
+            // saniyelik sayacıydı; gecikme grafiği onunla sürülünce örnek başına
+            // değil, yarım saniyede bir kayıyordu.
+            const float scroll = g_pingSampleAt < 0.0
+                ? 0.0f
+                : ImSaturate((float)((now - g_pingSampleAt) / network::kLatencyIntervalSec));
+
+            // Yalnızca dolu olan kuyruk çizilir. Boş kutular sıfır olarak ekrana
+            // yansıdığı için grafik "0 ms gecikme" izlenimi veriyordu - ekrandaki
+            // düz çizgi buydu.
+            ui::Graph(dl, p + px(18, 70), p + ImVec2(cw - px(18), gh - px(18)),
+                      g_ping.data() + (g_ping.size() - g_pingFilled), g_pingFilled,
+                      0.0f, vmax, scroll);
             ImGui::Dummy(ImVec2(cw, gh));
 
             // DNS
@@ -1422,7 +1467,7 @@ namespace app
             const float dh = px(136);
             ui::Card(dl, p, p + ImVec2(cw, dh));
             ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(DnsProvider));
-            ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), theme::ink::Secondary, L(ResolverUsed));
+            ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(theme::ink::Secondary), L(ResolverUsed));
 
             const float fbw = px(160);
             ImGui::SetCursorScreenPos(p + px(18, 78));
@@ -1455,7 +1500,7 @@ namespace app
                 const float ih = px(136);
                 ui::Card(dl, p, p + ImVec2(cw, ih));
                 ui::Text(dl, F.bold,theme::size::Title, p + px(18, 16), Gray(0.96f), L(Connection));
-                ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), theme::ink::Secondary, L(ActiveAdapter));
+                ui::Text(dl, F.regular,theme::size::Body, p + px(18, 38), Gray(theme::ink::Secondary), L(ActiveAdapter));
                 const float rw = cw - px(36);
                 ImGui::SetCursorScreenPos(p + px(18, 64));
                 ImGui::BeginGroup();

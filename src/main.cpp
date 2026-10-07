@@ -257,7 +257,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     logo::Init(g_device);
 
     app::Init(hwnd, corner);
-    tray::Init(hwnd);
+    tray::Init(hwnd, hInstance);
 
 #ifdef TENGRI_DEV
     // Geliştirme sürümü: odağı çalma, diğer pencerelerin arkasında kal.

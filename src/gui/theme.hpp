@@ -50,6 +50,13 @@ namespace theme
     // Kontrast jetonları. Arka plan koyu (yaklaşık rgb 0.04), WCAG oranı:
     //   0.40 -> 3.45:1   0.45 -> 4.16:1   0.48 -> 4.64:1   0.52 -> 5.33:1
     // 18pt altı her şey 4.5:1 istir; 0.48'in altı bilgi metni için yetersiz.
+    //
+    // BUNLAR float'tur, renk DEĞİLDİR. İki farklı kullanım vardır ve karıştırılırsa
+    // metin sessizce kaybolur:
+    //   ui::Text / TextSpaced / TextCentered  ImU32 bekler  -> Gray(ink::Tertiary)
+    //   ui::Label                            float bekler -> ink::Tertiary
+    // Çıplak float bir ImU32'ye dönüştürülürse 0.52 -> 0 olur, yani IM_COL32(0,0,0,0):
+    // tamamen saydam siyah. Derleyici uyarmaz, hata da vermez, metin sadece çizilmez.
     namespace ink
     {
         constexpr float Primary   = 0.96f;   // başlık, değer, vurgu

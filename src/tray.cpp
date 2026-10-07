@@ -35,21 +35,27 @@ namespace tray
         }
     }
 
-    bool Init(HWND hwnd)
+    bool Init(HWND hwnd, HINSTANCE instance)
     {
         g_nid = { sizeof(g_nid) };
         g_nid.hWnd = hwnd;
         g_nid.uID = 1;
 
         // Simge kaynaktan, görev çubuğu ve pencere ile aynı artwork olsun diye.
-        // LR_DEFAULTSIZE sistem ikon ölçülerini ister ve LR_SHARED verilmediği için
-        // bu modülün sahibi olduğu, kapanışta yok edilebilen bir kopya döndürür.
-        // (LR_DEFAULTCOPY Windows SDK başlıklarında yok, bu yüzden kullanılmıyor.)
-        const int cx = GetSystemMetrics(SM_CXSMICON), cy = GetSystemMetrics(SM_CYSMICON);
-        g_icon = (HICON)::LoadImageW(nullptr, MAKEINTRESOURCEW(brand::kIconId), IMAGE_ICON, cx, cy,
-                                     LR_DEFAULTSIZE);
+        // instance ZORUNLU: modül NULL iken LoadImage kimliği sistem kaynağı
+        // sanar. LR_DEFAULTSIZE sistem ikon ölçülerini ister ve LR_SHARED
+        // verilmediği için bu modülün sahibi olduğu, kapanışta yok edilebilen bir
+        // kopya döndürür. (LR_DEFAULTCOPY SDK başlıklarında yok.)
+        g_icon = (HICON)::LoadImageW(instance, MAKEINTRESOURCEW(brand::kIconId), IMAGE_ICON,
+                                     0, 0, LR_DEFAULTSIZE);
+
+        // Kaynak yine de okunamazsa kabuk JENERIK simge gösterir; sarı ünlem
+        // üçgeni değil. LoadImage başarısız olup çöp bir tutamak döndürebilir,
+        // o yüzden yedek yalnızca null için devreye girer.
         if (!g_icon)
-            g_icon = (HICON)::LoadImageW(nullptr, IDI_APPLICATION, IMAGE_ICON, cx, cy, LR_DEFAULTSIZE);
+            g_icon = (HICON)::LoadImageW(nullptr, IDI_APPLICATION, IMAGE_ICON,
+                                         GetSystemMetrics(SM_CXSMICON),
+                                         GetSystemMetrics(SM_CYSMICON), LR_DEFAULTSIZE);
 
         Add();
         g_have = g_added;
