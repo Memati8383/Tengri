@@ -1,4 +1,4 @@
-# TENGRİ — Sistem Optimize Edici
+﻿# TENGRİ — Sistem Optimize Edici
 
 <p align="center">
   <a href="LICENSE"><img alt="Lisans: MIT" src="https://img.shields.io/badge/lisans-MIT-8a8a8a?style=flat-square" /></a>
@@ -8,7 +8,7 @@
   <img alt="Çalışma zamanı yok" src="https://img.shields.io/badge/%C3%A7al%C4%B1%C5%9Fma%20zaman%C4%B1-yok-7a4ea3?style=flat-square" />
   <img alt="1.7 MB tek dosya" src="https://img.shields.io/badge/tek%20dosya-1.7%20MB-2e8b57?style=flat-square" />
   <img alt="56 registry anahtarı" src="https://img.shields.io/badge/registry%20anahtar%C4%B1-56-b06a2c?style=flat-square" />
-  <img alt="374 denetim, 0 hata" src="https://img.shields.io/badge/denetim-374%20%2F%200%20hata-4b8b4b?style=flat-square" />
+  <img alt="387 denetim, 0 hata" src="https://img.shields.io/badge/denetim-387%20%2F%200%20hata-4b8b4b?style=flat-square" />
   <a href="https://github.com/Memati8383/Tengri/releases"><img alt="En yeni sürüm" src="https://img.shields.io/github/v/release/Memati8383/Tengri?style=flat-square&label=s%C3%BCr%C3%BCm" /></a>
 </p>
 
@@ -46,7 +46,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 - [Ekran görüntüleri](#ekran-görüntüleri)
 - [Çalıştırmadan önce](#çalıştırmadan-önce)
 - [Özellikler](#özellikler) — 9 ekran, tek tek
-- [Testler](#testler) — 5 paket, 374 denetim
+- [Testler](#testler) — 5 paket, 387 denetim
 - [Nasıl çalışıyor](#nasıl-çalışıyor)
 - [Ağ kullanımı](#ağ-kullanımı) — dışarı giden üç isteğin tam listesi
 - [Yükseltme](#yükseltme)
@@ -65,7 +65,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 |---|---|
 | İşletim sistemi | Windows 10 ve Windows 11 (x64) |
 | Mimari | 64-bit |
-| Disk | 1.7 MB — Releases'taki `TENGRI.exe` (v1.3.0, CI derlemesi) 1.739.264 bayt, yerel derleme 1.750.528 bayt (araç seti yamasına göre birkaç KB oynar) |
+| Disk | 1.7 MB - v1.4.0 yerel derlemesi 1.758.720 bayt (v1.3.0 CI derlemesi 1.739.264 bayt; araç seti yamasına göre birkaç KB oynar) |
 | Ek bağımlılık | Yok — .NET, Python veya çalışma zamanı gerekmez |
 | Yönetici | Yalnızca ayar uygularken gerekir; açılışta gerekmez |
 
@@ -431,27 +431,55 @@ ulaşmadan önce temizlenir.
 ### Başlatma
 
 Windows'un otomatik başlatma mekanizmaları çok sayıdadır (zamanlanmış görevler,
-hizmetler, WMI tetikleyicileri, kabuk klasörleri). Bu ekran aşamada **en yaygın
-olanı** yönetir ve yalnızca dört anahtarı okur:
+hizmetler, WMI tetikleyicileri, kabuk klasörleri). Bu ekran yalnızca **oturum
+açıldığında doğrudan çalışan kodu** listeleyebilen yolları yönetir; dolaylı yollar
+(GPO betiği, hizmet tetikleyicisi, WMI aboneliği) kapsam dışıdır.
 
-| Kapsam | Anahtar | Yazma yetkisi |
+**Devre dışı bırakılabilen kapsamlar**
+
+| Kapsam | Anahtar / yol | Yazma yetkisi |
 |---|---|---|
 | HKCU · Run | `Software\Microsoft\Windows\CurrentVersion\Run` | **istemez** |
 | HKCU · RunOnce | `Software\Microsoft\Windows\CurrentVersion\RunOnce` | **istemez** |
 | HKLM · Run | `Software\Microsoft\Windows\CurrentVersion\Run` | ister |
 | HKLM · RunOnce | `Software\Microsoft\Windows\CurrentVersion\RunOnce` | ister |
+| HKCU · Policy · Explorer · Run | `...\CurrentVersion\Policies\Explorer\Run` | **istemez** |
+| HKLM · Policy · Explorer · Run | `...\CurrentVersion\Policies\Explorer\Run` | ister |
+| Başlangıç klasörü (kullanıcı) | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` | **istemez** |
+| Başlangıç klasörü (tüm kullanıcılar) | `%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs\Startup` | ister |
+
+**Yalnızca gösterilen kapsam**
+
+| Kapsam | Anahtar |
+|---|---|
+| HKCU · Winlogon | `Software\Microsoft\Windows NT\CurrentVersion\Winlogon` |
+| HKLM · Winlogon | `SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon` |
+
+> **Neden Winlogon yönetilmiyor.** `Shell` ve `Userinit` oturum açmanın kendisidir.
+> `Userinit` kapatıldığında Windows bu değeri kullanıcı oturumunda yeniden yazar
+> (yani zararsız görünür); ama `Shell` boşalırsa **oturum açılmaz** ve düzeltmek
+> başka bir oturum açmayı gerektirir. Bu yüzden bu iki kapsam listelenir,
+> standart değerden saptıklarında **işaretlenir**, düğmeleri kapalı gelir.
+> Bir yarım kalmış temizlikten iyidir.
+>
+> Yalnızca `Shell` ve `Userinit` listelenir: Winlogon anahtarında `Taskman`,
+> `GINA`, `ReportFault` gibi kırk değer daha vardır ve hiçbiri başlangıç öğesi
+> değildir. `Userinit` için varsayılan `userinit.exe,` (kendisi virgülle biten)
+> **sapan sayılmaz**; sapan olan, sonuna eklenen ikinci yoldur.
 
 | Davranış | Ayrıntı |
 |---|---|
 | Devre dışı bırakma | Değer **silinmez**, `HKCU\Software\TENGRI\StartupDisabled\<kapsam>` anahtarına **taşınır**. Açıp kapamak gerçek bir ters işlemdir; kullanıcının kendi değeri kaybolmaz |
+| Startup klasörü | Dosya **taşınır**: `%APPDATA%\TENGRI\startup-disabled\`. Aynı adda bir dosya zaten oradaysa işlem reddedilir — üstüne yazmak geri almanın yanlış dosyayı döndürmesine yol açardı |
 | Neden `StartupApproved` değil | Windows'un kendi devre dışı bırakma anahtarı sürümden sürüme anlambilim değiştiriyor ve üçüncü parti araçlarla çarpışma riski taşıyor. Kendi anahtarımız bu riski hiç taşımaz |
 | Silme | Ayrı bir düğme, gerçek `RegDeleteValue`. Taşımaktan farklı bir eylem olduğu için arayüzde de ayrı durur |
 | Yedeklerin yeri | Bilinçli olarak yalnızca HKCU'da: HKLM'e yedek yazmak her yazmada UAC istemek anlamına gelirdi |
 | Kendi kaydı | Uygulamanın `Run` girdisi listede **"TENGRİ otobaşlatma"** olarak görünür ama **silme düğmesi kilitlidir** — kendi kendini kaldıramaz. Açıp kapatmak Ayarlar ekranından yapılır, iki yerin ayrışmaması için |
 | Satır içeriği | Ad + kapsam, altında yayıncı (`VERSIONINFO` şirket adı; yoksa çözülen yol), etki ve komut satırı |
 | Etki tahmini | Hedef dosyanın disk boyutundan sezgisel (Düşük <2 MB, Orta <20 MB, Yüksek ≥20 MB, okunamazsa Bilinmiyor). Kesin bir ölçüm değil, bir sıralama ipucu |
-| Filtre | Tümü / HKCU / HKLM; her işlemden sonra liste baştan taranır, kayan index üzerinden yanlış satıra dokunulmaz |
-| Yetki yoksa | HKLM yazması sessizce başarısız olmaz — uyarı bildirimi gösterilir, arayüzü değişmiş gibi yapmaz |
+| Filtre | Tümü / HKCU / HKLM / Sistem. **Sistem** kapsamı registry'de olmayan veya oturumun parçası olan yolları toplar: iki Startup klasörü ve iki Winlogon anahtarı. Her işlemden sonra liste baştan taranır, kayan index üzerinden yanlış satıra dokunulmaz |
+| Kapatılamayan girdi | Düğmeler yerine nedeni yazılır. Boş bir düğmeden çok nedeni bilmek işe yarar |
+| Yetki yoksa | HKLM ve ortak Startup klasörü yazması sessizce başarısız olmaz — uyarı bildirimi gösterilir, arayüzü değişmiş gibi yapmaz. Kapsamın yetki isteyip istemediği `startup::NeedsElevation()` ile **işlemden önce** sorulur; deneme-yanılma yolu yoktur |
 
 ---
 
@@ -740,8 +768,9 @@ Kullanıcı UAC sorusunu bir kez görür; ayarının uygulanmış olduğunu aça
 | RAM profili | `HKLM` | ister |
 | DNS sağlayıcısı | `HKLM` + ağ adaptörü | ister |
 | Hizmet başlangıç türü / oyun profili | SCM (`SERVICE_CHANGE_CONFIG`) + `HKLM\SOFTWARE\TENGRI\ServicesBackup` | ister |
-| Başlatma — HKLM satırları | `HKLM\...\Run` / `RunOnce` | ister |
-| Başlatma — HKCU satırları | `HKCU\...\Run` / `RunOnce` + `HKCU\Software\TENGRI\StartupDisabled` | **istemez** |
+| Başlatma — HKLM satırları | `HKLM\...\Run` / `RunOnce` / `Policies\Explorer\Run` + ortak Startup klasörü | ister |
+| Başlatma — HKCU satırları | `HKCU\...\Run` / `RunOnce` / `Policies\Explorer\Run` + `HKCU\Software\TENGRI\StartupDisabled` + kullanıcı Startup klasörü | **istemez** |
+| Başlatma — Winlogon satırları | `HKCU` / `HKLM\...\Winlogon` | **istemez** — **salt-okunur**, hiçbir işlem yapmaz |
 | Başlangıçta çalıştır | `HKCU\...\Run` | **istemez** |
 | Temizleyici (kendi dosyaları siler) | dosya sistemi | **istemez** |
 | Hizmet listesini okumak | SCM sorgusu | **istemez** |
@@ -798,12 +827,12 @@ CI'da ayrıca etiketle exe içindeki `VERSIONINFO` sürümünün aynı olduğunu
 
 ## Testler
 
-`build.bat` derlemenin sonunda beş paket çalıştırır. Toplam **374 denetim**, 0 hata:
+`build.bat` derlemenin sonunda beş paket çalıştırır. Toplam **387 denetim**, 0 hata:
 
 | Paket | Denetim | Kapsam | Gerçek sisteme dokunur mu |
 |---|---|---|---|
 | `test_pure.cpp` | 122 | i18n tabloları (boyut **+ sıra**), RAM ön ayarları, tweak sözleşmeleri, `.reg` paket gövdeleri ve açma/kapama simetrisi, yetki yükseltme komut kodlama/çözme gidiş-dönüşü | Hayır — saf mantık |
-| `test_modules.cpp` | 31 | Geri yükleme noktası sonuç metinleri, hizmet beyaz listesi güvenlik kapısı, hizmet ve başlangıç sorguları, shader taraması | Hayır — beşi de salt-okunur |
+| `test_modules.cpp` | 44 | Geri yükleme noktası sonuç metinleri, hizmet beyaz listesi güvenlik kapısı, hizmet ve başlangıç sorguları, shader taraması | Hayır — beşi de salt-okunur |
 | `test_license.cpp` | 22 | `license::Mask` çırpısı ve grup konumları, `sys::Hwid` determinizması ve biçimi, "beni hatırla" kalıcılığı | Hayır — izole APPDATA |
 | `test_write_paths.cpp` | 29 | Shader ve geçici dosya temizleyicilerinin tarama/temizleme tersinirliği, yedek kök dizini + listeleme/en-yeni sıralaması, içe aktarmayı reddetme yolları | Hayır — izole ortam |
 | `test_update.cpp` | 170 | Üç parçalı sürüm karşılaştırması, `latest.json` ayrıştırması (eksik/bozuk/taşkın alanlar, sınırda boyut), adres kilidi `HostAllowed` (şema, nokta sonu, alt alan, kullanıcı adı tuzağı), SHA-1/SHA-256 akış hesaplayıcısı bilinen vektörlerle, takas planı ve zamanlayıcı/24 saat matematiği | Hayır — **ağ istemi yok**, döngü içi istek de yok |
@@ -885,7 +914,7 @@ src/core/lang.cpp            İngilizce / Türkçe metin tabloları
 src/core/license.cpp         Demo lisans ekranı, HWID ve Mask
 src/core/elevate.cpp         Yetki yükseltme: runas ile yeniden başlatma, komut satırı kodlama
 src/core/backup.cpp          Uygulama öncesi registry yedeği (reg export) ve geri alma (reg import)
-src/core/startup.cpp         Başlatma girdileri; devre dışı bırakmak = HKCU yedeğine taşımak
+src/core/startup.cpp         10 başlangıç kapsamı; devre dışı bırakmak = HKCU yedeğine taşımak (dosya girdileri taşınır), Winlogon salt-okunur
 src/core/services.cpp        16 hizmetlik beyaz liste, başlangıç türü, oyun profili + yedeği
 src/core/restore.cpp         Sistem geri yükleme noktası API'si (SRSetRestorePointW, throttling)
 src/core/notify.cpp          Windows bildirimleri: WinRT toast, AUMID kurulumu, komut ayrıştırma
@@ -907,7 +936,7 @@ tools/shrink.ps1, zoom.ps1   Görsel küçültme / bölgesel yakınlaştırma (g
 tools/normalise_type_scale.ps1  Sabit font boyotlarını theme.hpp ölçeğine taşıyan tek seferlik göç betiği
 tools/_health.ps1, _probe.ps1   Geliştirme sırasındaki tek seferlik teşhis betikleri
 tests/test_pure.cpp          Registry'ye dokunmayan saf mantık — 122 denetim
-tests/test_modules.cpp       restore/startup/services/shader yüzeyleri, salt-okunur — 31 denetim
+tests/test_modules.cpp       restore/startup/services/shader yüzeyleri, salt-okunur - 44 denetim
 tests/test_license.cpp       HWID, Mask ve kalıcılık (izole APPDATA) — 22 denetim
 tests/test_write_paths.cpp   Yazma yolları, tamamen izole ortam değişkenlerinde — 29 denetim
 tests/test_update.cpp        Sürüm karşılaştırma, bildirim ayrıştırma, adres kilidi, özet, takas planı — 170 denetim (ağ istemi yok)

@@ -133,6 +133,9 @@ namespace S
         StartupEmpty, ServicesEmpty,
         ColName, ColPublisher, ColScope, ColCommand, ColState, ColStartType,
         ScopeUserRun, ScopeUserRunOnce, ScopeMachineRun, ScopeMachineRunOnce,
+        ScopePolicyExplorerRun, ScopePolicyExplorerRunMachine,
+        ScopeStartupFolderUser, ScopeStartupFolderCommon,
+        ScopeWinlogonUser, ScopeWinlogonMachine,
         ImpactLow, ImpactMedium, ImpactHigh, ImpactUnknown,
         StAutomatic, StAutoDelayed, StManual, StDisabled, StUnknown, StRunning,
         BtnEnable, BtnDisable, BtnRemove, BtnRefresh, BtnRescan,
@@ -140,8 +143,10 @@ namespace S
         GameProfileApplied, GameProfileRestored, ProtectionDisabled,
         StartupAdminRequired, ServicesAdminRequired,
         StartupSelf, ScopeTooltip,
+        // Winlogon kapsamı: sapma işareti ve neden kapatılamadığı.
+        EntryAbnormal, WinlogonReadOnly,
         SeveritySafe, SeverityCaution, SeverityRisky,
-        FilterAll,
+        FilterAll, FilterSystem,
 
         // Otomatik sürüm denetimi (Ayarlar > Güncellemeler kartı, Hakkında
         // rozeti ve bildirimler). FlatEnd'den önce olmalı ki tweak blok

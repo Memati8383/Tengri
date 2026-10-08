@@ -7,13 +7,26 @@
 // Başlangıç öğeleri yöneticisi.
 //
 // Windows'un otomatik başlatma mekanizmaları çok sayıdadır (Zamanlanmış
-// görevler, hizmetler, WMI tetikleyicileri, kabuk klasörleri). TENGRI bu
-// aşamada yalnızca EN YAYGIN olanı yönetir:
+// görevler, hizmetler, WMI tetikleyicileri, kabuk klasörleri). TENGRI
+// yalnızca oturum açıldığında doğrudan ÇALIŞAN kodu listeleyebilen yolları
+// yönetir; dolaylı yollar (GPO, betik, hizmet tetikleyicisi) kapsam dışıdır.
 //
-//   HKCU\Software\Microsoft\Windows\CurrentVersion\Run
-//   HKCU\Software\Microsoft\Windows\CurrentVersion\RunOnce
-//   HKLM\Software\Microsoft\Windows\CurrentVersion\Run
-//   HKLM\Software\Microsoft\Windows\CurrentVersion\RunOnce
+//   Registry — devre dışı bırakılabilir:
+//     HKCU/HKLM\...\Run, \RunOnce
+//     HKCU/HKLM\...\Policies\Explorer\Run   (GPO'nun uyguladığı Run yolu)
+//   Registry — YALNIZCA GÖSTERİLİR:
+//     HKCU/HKLM\...\Winlogon                (Shell, Userinit, Taskman, ...)
+//   Dosya sistemi — devre dışı bırakılabilir:
+//     %APPDATA%\...\Start Menu\Programs\Startup
+//     %PROGRAMDATA%\...\Start Menu\Programs\Startup
+//
+// Winlogon neden yönetilmiyor: Shell ve Userinit değerleri oturum açmanın
+// kendisidir. Userinit'in devre dışı bırakılması Windows'un bu değeri
+// kullanıcı oturumunda yeniden yazmasıyla "düzelir", ama Shell'in boşalması
+// oturumun açılmamasına yol açar — düzeltilebilmesi de başka bir oturum
+// açmayı gerektirir. Bu yüzden Winlogon girdileri listelenir, standart
+// değerden sapmaları işaretlenir, ancak düğmeleri kapalı gelir. Bir
+// yarım kalmış temizlikten iyidir.
 //
 // Devre dışı bırakma: değeri silmek yerine kendi yedek anahtarımıza
 // taşınır. Böylece açıp kapamak gerçek bir ters işlemdir ve kullanıcı
@@ -27,11 +40,28 @@ namespace startup
 {
     enum class Scope : uint8_t
     {
-        UserRun = 0,       // HKCU Run
+        UserRun = 0,        // HKCU Run
         UserRunOnce = 1,
-        MachineRun = 2,    // HKLM Run — yazma UAC ister
+        MachineRun = 2,     // HKLM Run — yazma UAC ister
         MachineRunOnce = 3,
+        PolicyExplorerRun = 4,      // HKCU ...\Policies\Explorer\Run
+        PolicyExplorerRunMachine = 5,// HKLM ...\Policies\Explorer\Run
+        StartupFolderUser = 6,      // %APPDATA%\...\Startup
+        StartupFolderCommon = 7,    // %PROGRAMDATA%\...\Startup
+
+        WinlogonUser = 8,           // HKCU ...\Winlogon — salt-okunur
+        WinlogonMachine = 9,        // HKLM ...\Winlogon — salt-okunur
+
+        Count = 10,
     };
+
+    // Bir kapsamın devre dışı bırakılıp bırakılamayacağı. Winlogon için false:
+    // Shell/Userinit oturumun kendisidir, kapatmak oturumu açılmaz yapar.
+    bool IsToggleable(Scope s);
+
+    // HKLM yazma yetkisi isteyen kapsamlar. Arayüz, yetki yoksa bu girdileri
+    // pasif gösterip nedenini söyler; işlem denemeden önce bilmek daha iyidir.
+    bool NeedsElevation(Scope s);
 
     enum class Impact : uint8_t
     {
@@ -51,6 +81,8 @@ namespace startup
         bool         enabled;      // true: aktif değer; false: yedekte duruyor
         bool         isTengri;     // TENGRI'nin kendi otobaşlangıç kaydı
         Impact       impact;       // kaba tahmin (dosya boyutu + imzalı mı)
+        bool         abnormal;     // Winlogon/Winlogon dışı: standarttan sapan
+                                   // değer (Shell/Userinit ele geçirilmiş olabilir)
     };
 
     // Dört kapsamın tümünü tarar — hem canlı girdiler hem yedekteki

@@ -170,10 +170,14 @@ static void Test_Startup()
 {
     std::printf("baslangic yoneticisi (salt-okunur)\n");
 
-    // ScopeLabel: 4 kapsam dolu ve ikili farkli.
+    // ScopeLabel: 10 kapsam dolu ve ikili farkli. Ayni etiket iki kapsama
+    // düşerse kullanıcı hangi anahtara dokunduğunu anlamaz.
     const startup::Scope kapsamlar[] = {
         startup::Scope::UserRun, startup::Scope::UserRunOnce,
         startup::Scope::MachineRun, startup::Scope::MachineRunOnce,
+        startup::Scope::PolicyExplorerRun, startup::Scope::PolicyExplorerRunMachine,
+        startup::Scope::StartupFolderUser, startup::Scope::StartupFolderCommon,
+        startup::Scope::WinlogonUser, startup::Scope::WinlogonMachine,
     };
     int cakisma = 0, bos = 0;
     for (auto s : kapsamlar)
@@ -181,25 +185,58 @@ static void Test_Startup()
         const wchar_t* lbl = startup::ScopeLabel(s);
         if (!lbl || !*lbl) ++bos;
     }
-    for (int i = 0; i < 4; ++i)
-        for (int j = i + 1; j < 4; ++j)
+    for (int i = 0; i < 10; ++i)
+        for (int j = i + 1; j < 10; ++j)
             if (std::wcscmp(startup::ScopeLabel(kapsamlar[i]),
                             startup::ScopeLabel(kapsamlar[j])) == 0) ++cakisma;
     CheckEq(bos, 0, "ScopeLabel tum kapsamlarda dolu");
     CheckEq(cakisma, 0, "ScopeLabel kapsamlari ayirt ediyor");
+
+    // Kapatilabilirlik kapisi: Winlogon'da oturumun kendisi olan degerler
+    // kapatilamaz. Kapi acilirsa bir tiklama oturumu acilmayaz yapar ve
+    // geri almak baska bir oturum gerektirir.
+    Check(startup::IsToggleable(startup::Scope::UserRun), "Run kapatilabilir");
+    Check(startup::IsToggleable(startup::Scope::PolicyExplorerRunMachine),
+          "Policy Explorer Run kapatilabilir");
+    Check(startup::IsToggleable(startup::Scope::StartupFolderUser),
+          "kullanici baslangic klasoru kapatilabilir");
+    Check(startup::IsToggleable(startup::Scope::StartupFolderCommon),
+          "ortak baslangic klasoru kapatilabilir");
+    Check(!startup::IsToggleable(startup::Scope::WinlogonUser),  "HKCU Winlogon salt-okunur");
+    Check(!startup::IsToggleable(startup::Scope::WinlogonMachine), "HKLM Winlogon salt-okunur");
+
+    // Yetki kapisi: HKLM ve ortak Startup klasoru yonetici ister, kullanici
+    // tarafi ve salt-okunur Winlogon istemez.
+    Check(startup::NeedsElevation(startup::Scope::MachineRun), "HKLM Run yetki ister");
+    Check(startup::NeedsElevation(startup::Scope::PolicyExplorerRunMachine), "HKLM Policy Run yetki ister");
+    Check(startup::NeedsElevation(startup::Scope::StartupFolderCommon), "ortak Startup klasoru yetki ister");
+    Check(!startup::NeedsElevation(startup::Scope::StartupFolderUser), "kullanici Startup klasoru yetki istemez");
+    Check(!startup::NeedsElevation(startup::Scope::WinlogonUser), "HKCU Winlogon yetki istemez");
 
     // Enumerate() salt-okunur tarama: bu makinedeki gercek Run/RunOnce anahtarlarini
     // okur, hicbir sey yazmaz/silmez.
     std::vector<startup::Entry> entries = startup::Enumerate();
 
     int adBos = 0, kapsamGecersiz = 0, etkiGecersiz = 0, tirnakKalin = 0;
+    int winlogonSizinti = 0, abnormalHafif = 0;
     for (const startup::Entry& en : entries)
     {
         if (en.name.empty()) ++adBos;
         const int sk = (int)en.scope;
-        if (sk < 0 || sk > 3) ++kapsamGecersiz;
+        if (sk < 0 || sk >= (int)startup::Scope::Count) ++kapsamGecersiz;
         const int im = (int)en.impact;
         if (im < 0 || im > 3) ++etkiGecersiz;
+
+        // Kapatilamayan kapsamda yalnizca Shell/Userinit gorunur: Winlogon
+        // anahtarinda "Taskman", "GINA" gibi baslangic olmayan kirk deger daha
+        // vardir ve hepsini gostermek listeyi kullanilamaz yapar.
+        if (!startup::IsToggleable((startup::Scope)sk) &&
+            en.name != L"Shell" && en.name != L"Userinit")
+            ++winlogonSizinti;
+
+        // Sapmali bir Winlogon degeri her zaman yuksek etkilidir: oturumu
+        // ele gecirir. Etki tahmininin altinda kalmasi sessizce hafif gosterir.
+        if (en.abnormal && im != (int)startup::Impact::High) ++abnormalHafif;
 
         // resolvedPath, ParseExePath'in tırnakları soyulmus hali olmali; kenarda
         // tırnak kalirsaysa ayristirma bozuk demektir.
@@ -211,6 +248,8 @@ static void Test_Startup()
     CheckEq(kapsamGecersiz, 0, "kapsam degerleri gecerli aralikta");
     CheckEq(etkiGecersiz, 0, "etki degerleri gecerli aralikta");
     CheckEq(tirnakKalin, 0, "ayristirilmis yolda tırnak kalmadi");
+    CheckEq(winlogonSizinti, 0, "Winlogon kapsaminda yalnizca Shell/Userinit listeleniyor");
+    CheckEq(abnormalHafif, 0, "sapan deger daima yuksek etkili isaretleniyor");
 
     // TENGRI kendi kaydini tanimali: eger HKCU Run'da TENGRI degeri varsa ve
     // bu surec uygulamanin kendisi ise isTengri dogru olur; aksi halde en azindan

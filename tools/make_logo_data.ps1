@@ -120,6 +120,10 @@ $($lines -join "`r`n")
 $outDir = Split-Path -Parent $OutPath
 if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
 $utf8 = New-Object System.Text.UTF8Encoding $false
-[System.IO.File]::WriteAllText((Join-Path (Get-Location) $OutPath), $out, $utf8)
+# Join-Path mutlak bir yolun başına Get-Location'u ekleyemez ("Verilen yolun
+# biçimi desteklenmiyor" hatası verir). make_tweak_table.ps1'deki gibi kök
+# yolun kendisi geçerliyse olduğu gibi kullanılır.
+$outPath = if ([System.IO.Path]::IsPathRooted($OutPath)) { $OutPath } else { Join-Path (Get-Location) $OutPath }
+[System.IO.File]::WriteAllText($outPath, $out, $utf8)
 
 Write-Output ("{0}: {1}x{2}, {3:N0} bayt PNG ({4})" -f $OutPath, $outW, $outH, $bytes.Length, $mode)

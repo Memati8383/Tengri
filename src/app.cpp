@@ -2453,6 +2453,12 @@ void NotifyDelegating(const elevate::Pending& p);
                 case startup::Scope::UserRunOnce:    return L(ScopeUserRunOnce);
                 case startup::Scope::MachineRun:     return L(ScopeMachineRun);
                 case startup::Scope::MachineRunOnce: return L(ScopeMachineRunOnce);
+                case startup::Scope::PolicyExplorerRun:      return L(ScopePolicyExplorerRun);
+                case startup::Scope::PolicyExplorerRunMachine: return L(ScopePolicyExplorerRunMachine);
+                case startup::Scope::StartupFolderUser:      return L(ScopeStartupFolderUser);
+                case startup::Scope::StartupFolderCommon:    return L(ScopeStartupFolderCommon);
+                case startup::Scope::WinlogonUser:           return L(ScopeWinlogonUser);
+                case startup::Scope::WinlogonMachine:        return L(ScopeWinlogonMachine);
             }
             return "?";
         }
@@ -2483,8 +2489,8 @@ void NotifyDelegating(const elevate::Pending& p);
             const float segW = ImMin(px(360), cw - bw - px(12));
             // L() tabloyu çizim anında çözüyor; static bir dizi dil değişiminde
             // eski tabloyu göstermeye devam ederdi.
-            const char* const filters[] = { L(FilterAll), "HKCU", "HKLM" };
-            ui::Segmented("##startupfilter", filters, 3, &g_startupFilter, segW);
+            const char* const filters[] = { L(FilterAll), "HKCU", "HKLM", L(FilterSystem) };
+            ui::Segmented("##startupfilter", filters, 4, &g_startupFilter, segW);
 
             ImGui::SetCursorScreenPos(ImVec2(p.x + cw - bw, p.y));
             if (ui::Button(L(BtnRefresh), ImVec2(bw, bh), ButtonStyle::Secondary, Icon::Refresh))
@@ -2499,10 +2505,23 @@ void NotifyDelegating(const elevate::Pending& p);
             rows.reserve(g_startupEntries.size());
             for (const startup::Entry& e : g_startupEntries)
             {
-                const bool machine = (e.scope == startup::Scope::MachineRun ||
-                                      e.scope == startup::Scope::MachineRunOnce);
+                // Filtre kapsamın HKEY köküne bakar. Startup klasörleri
+                // registry'de değildir; ortak klasör tüm kullanıcıları
+                // etkilediği için HKLM ile aynı tarafta sayılır.
+                const bool machine =
+                    e.scope == startup::Scope::MachineRun ||
+                    e.scope == startup::Scope::MachineRunOnce ||
+                    e.scope == startup::Scope::PolicyExplorerRunMachine ||
+                    e.scope == startup::Scope::StartupFolderCommon ||
+                    e.scope == startup::Scope::WinlogonMachine;
+                const bool system =
+                    e.scope == startup::Scope::WinlogonUser ||
+                    e.scope == startup::Scope::WinlogonMachine ||
+                    e.scope == startup::Scope::StartupFolderUser ||
+                    e.scope == startup::Scope::StartupFolderCommon;
                 if (g_startupFilter == 1 && machine) continue;
                 if (g_startupFilter == 2 && !machine) continue;
+                if (g_startupFilter == 3 && !system) continue;
                 rows.push_back(&e);
             }
 
@@ -2534,27 +2553,40 @@ void NotifyDelegating(const elevate::Pending& p);
                 sub += " \xC2\xB7 ";
                 sub += ImpactText(e.impact);
                 if (!e.enabled) { sub += " \xC2\xB7 "; sub += L(StDisabled); }
+                // Sapma en çok anlaşılan bilgi: kullanıcı bunu görürse
+                // neyin değiştirildiğini bilir. Impact zaten High olduğu için
+                // ayrı bir renk gerekmiyor.
+                if (e.abnormal) { sub += " \xC2\xB7 "; sub += L(EntryAbnormal); }
                 ImGui::TextWrapped("%s", sub.c_str());
                 ImGui::TextWrapped("%s", W2S(e.command).c_str());
 
                 const float smallW = px(96);
                 ImGui::Dummy(ImVec2(0, px(2)));
                 ImGui::BeginGroup();
-                if (e.enabled)
+                // Kapatılamayan kapsamlarda düğmeler yerine nedeni yazılır:
+                // boş bir düğmeden çok, nedeni bilmek işe yarar.
+                if (!startup::IsToggleable(e.scope))
                 {
-                    if (ui::Button(L(BtnDisable), ImVec2(smallW, px(28)), ButtonStyle::Secondary, Icon::EyeOff))
-                    { pendingToggle = (int)ri; pendingEnable = false; }
+                    ImGui::TextDisabled("%s", L(WinlogonReadOnly));
                 }
                 else
                 {
-                    if (ui::Button(L(BtnEnable), ImVec2(smallW, px(28)), ButtonStyle::Primary, Icon::Eye))
-                    { pendingToggle = (int)ri; pendingEnable = true; }
+                    if (e.enabled)
+                    {
+                        if (ui::Button(L(BtnDisable), ImVec2(smallW, px(28)), ButtonStyle::Secondary, Icon::EyeOff))
+                        { pendingToggle = (int)ri; pendingEnable = false; }
+                    }
+                    else
+                    {
+                        if (ui::Button(L(BtnEnable), ImVec2(smallW, px(28)), ButtonStyle::Primary, Icon::Eye))
+                        { pendingToggle = (int)ri; pendingEnable = true; }
+                    }
+                    ImGui::SameLine();
+                    ImGui::BeginDisabled(e.isTengri);
+                    if (ui::Button(L(BtnRemove), ImVec2(smallW, px(28)), ButtonStyle::Ghost, Icon::Close))
+                        pendingRemove = (int)ri;
+                    ImGui::EndDisabled();
                 }
-                ImGui::SameLine();
-                ImGui::BeginDisabled(e.isTengri);
-                if (ui::Button(L(BtnRemove), ImVec2(smallW, px(28)), ButtonStyle::Ghost, Icon::Close))
-                    pendingRemove = (int)ri;
-                ImGui::EndDisabled();
                 ImGui::EndGroup();
 
                 ui::EndCard();
@@ -2564,14 +2596,12 @@ void NotifyDelegating(const elevate::Pending& p);
             {
                 const int idx = (pendingToggle >= 0) ? pendingToggle : pendingRemove;
                 const startup::Entry& target = *rows[idx];
-                const bool machine = (target.scope == startup::Scope::MachineRun ||
-                                      target.scope == startup::Scope::MachineRunOnce);
 
                 bool ok = false;
                 if (pendingToggle >= 0) ok = startup::SetEnabled(target, pendingEnable);
                 else                    ok = startup::Remove(target);
 
-                if (!ok && machine && !admin)
+                if (!ok && startup::NeedsElevation(target.scope) && !admin)
                 {
                     ui::Notify(Toast::Warning, L(Startup), L(StartupAdminRequired));
                 }

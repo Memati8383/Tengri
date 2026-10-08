@@ -118,6 +118,9 @@ namespace lang
             "No startup entries found", "No services found",
             "Name", "Publisher", "Scope", "Command", "State", "Start type",
             "HKCU \\ Run", "HKCU \\ RunOnce", "HKLM \\ Run", "HKLM \\ RunOnce",
+            "HKCU \\ Policy \\ Explorer \\ Run", "HKLM \\ Policy \\ Explorer \\ Run",
+            "Startup folder (user)", "Startup folder (all users)",
+            "HKCU \\ Winlogon", "HKLM \\ Winlogon",
             "Low", "Medium", "High", "Unknown",
             "Automatic", "Automatic (Delayed)", "Manual", "Disabled", "Unknown", "Running",
             "Enable", "Disable", "Remove", "Refresh", "Rescan",
@@ -127,8 +130,9 @@ namespace lang
             "Administrator rights required for HKLM entries",
             "Administrator rights required to change services",
             "TENGRI auto-start", "Where this entry lives in the registry",
+            "Differs from the Windows default", "Logon value - listed only, disabling it locks you out",
             "Safe", "Caution", "Risky",
-            "All",
+            "All", "System",
 
             // ---- Updates (otomatik sürüm denetimi) ----
             "Updates", "Automatic update check",
@@ -376,6 +380,9 @@ namespace lang
             "Başlatma öğesi bulunamadı", "Hizmet bulunamadı",
             "Ad", "Yayıncı", "Kapsam", "Komut", "Durum", "Başlangıç türü",
             "HKCU \\ Run", "HKCU \\ RunOnce", "HKLM \\ Run", "HKLM \\ RunOnce",
+            "HKCU \\ Policy \\ Explorer \\ Run", "HKLM \\ Policy \\ Explorer \\ Run",
+            "Başlangıç klas\xC3\xB6r\xC3\xBC (kullanıcı)", "Başlangıç klas\xC3\xB6r\xC3\xBC (tüm kullanıcılar)",
+            "HKCU \\ Winlogon", "HKLM \\ Winlogon",
             "Düşük", "Orta", "Yüksek", "Bilinmiyor",
             "Otomatik", "Otomatik (Gecikmeli)", "Elle", "Devre dışı", "Bilinmiyor", "Çalışıyor",
             "Etkinleştir", "Devre dışı bırak", "Kaldır", "Yenile", "Tara",
@@ -385,8 +392,9 @@ namespace lang
             "HKLM kayıtları için yönetici yetkisi gerekir",
             "Hizmetleri değiştirmek için yönetici yetkisi gerekir",
             "TENGRİ otobaşlatma", "Kaydın registry'de bulunduğu konum",
+            "Windows varsayılanından farklı", "Oturum açma değeri - yalnız listelenir, kapatılırsa kilitlenirsiniz",
             "Güvenli", "Dikkat", "Riskli",
-            "Tümü",
+            "Tümü", "Sistem",
 
             // ---- Güncellemeler (otomatik sürüm denetimi) ----
             "Güncellemeler", "Otomatik güncelleme denetimi",
