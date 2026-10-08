@@ -6,14 +6,14 @@
   <img alt="C++17" src="https://img.shields.io/badge/C%2B%2B-17-659ad2?style=flat-square&logo=cplusplus&logoColor=ffffff" />
   <img alt="Dear ImGui + DirectX 11" src="https://img.shields.io/badge/Dear_ImGui_1.92%2B-DirectX_11-0078d7?style=flat-square" />
   <img alt="Çalışma zamanı yok" src="https://img.shields.io/badge/%C3%A7al%C4%B1%C5%9Fma%20zaman%C4%B1-yok-7a4ea3?style=flat-square" />
-  <img alt="1.6 MB tek dosya" src="https://img.shields.io/badge/tek%20dosya-1.6%20MB-2e8b57?style=flat-square" />
+  <img alt="1.7 MB tek dosya" src="https://img.shields.io/badge/tek%20dosya-1.7%20MB-2e8b57?style=flat-square" />
   <img alt="56 registry anahtarı" src="https://img.shields.io/badge/registry%20anahtar%C4%B1-56-b06a2c?style=flat-square" />
   <img alt="374 denetim, 0 hata" src="https://img.shields.io/badge/denetim-374%20%2F%200%20hata-4b8b4b?style=flat-square" />
   <a href="https://github.com/Memati8383/Tengri/releases"><img alt="En yeni sürüm" src="https://img.shields.io/github/v/release/Memati8383/Tengri?style=flat-square&label=s%C3%BCr%C3%BCm" /></a>
 </p>
 
 C++ ile yazılmış bir Windows sistem optimize edici. .NET yok, Electron yok, çalışma
-zamanı yok — tek bir 1.6 MB yerel çalıştırılabilir dosya, DirectX 11 üzerinde çizilen
+zamanı yok — tek bir 1.7 MB yerel çalıştırılabilir dosya, DirectX 11 üzerinde çizilen
 kendi monokrom arayüzüyle.
 
 Rozetlerin tamamı bu depodan türetilir (son biri hariç — o GitHub'daki en yeni etiketi
@@ -65,7 +65,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 |---|---|
 | İşletim sistemi | Windows 10 ve Windows 11 (x64) |
 | Mimari | 64-bit |
-| Disk | 1.6 MB — Releases'taki `TENGRI.exe` 1.673.728 bayt, yerel derleme 1.681.408 bayt (araç seti yamasına göre birkaç KB oynar) |
+| Disk | 1.7 MB — Releases'taki `TENGRI.exe` (v1.3.0, CI derlemesi) 1.739.264 bayt, yerel derleme 1.750.528 bayt (araç seti yamasına göre birkaç KB oynar) |
 | Ek bağımlılık | Yok — .NET, Python veya çalışma zamanı gerekmez |
 | Yönetici | Yalnızca ayar uygularken gerekir; açılışta gerekmez |
 
