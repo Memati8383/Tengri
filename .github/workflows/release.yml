@@ -216,42 +216,21 @@ jobs:
           }
           Write-Host "yayindaki exe boyutu dogrulandi: $yerelBoyut"
 
-          # Notlar bozulmadan yayinlandi mi? Buraya tek bir Turkce harfli deneme
-          # sürüm atilir ve baytlari okunur. Once "C4 B0" (I), bozulmus halde
-          # "E2 84 98 E2 80 98" beklenir. Bu deneme yayini bozmaz: --notes
-          # verilmezse GitHub mevcut notu KORUR.
-          #
-          # Neden ayri bir adim: kodlama hatasi notlarin icinde gizli kalir,
-          # kimse yayin sayfasina bakmaz; sonucu ancak bayt duzeyinde gormek
-          # yakalar. "Notlar uzgun gorunuyor" bir denetim degildir.
-          # Yayınlanan notlar bayt bayt doğru mu? GERÇEK not dosyasıyla
-          # karşılaştırılır, tek satırlık bir denemeyle DEĞİL.
+          # Yayınlanan notlar bozulmadan gitmiş mi? GERÇEK not dosyasıyla
+          # karşılaştırılır; tek satırlık bir denemeyle DEĞİL.
           #
           # Neden gerçek dosya: ölçümde --notes TEK SATIRDA doğru, ÇOK SATIRDA
           # bozuk çıktı. Kısa bir probe her zaman geçer ve hatayı gizler —
-          # v1.5.0'ın ilk düzeltmesinde tam olarak böyle yanlış pozifif verdi.
+          # v1.5.0'ın ilk düzeltmesinde tam olarak böyle yanlış pozitif verdi.
           #
-          # Karşılaştırma bayt üzerinden yapılır: metin karşılaştırması PowerShell
-          # hattındaki satır sonu dönüşümleri yüzünden aynı metni farklı sayabilir
-          # (bu da bir ölçüm hatasının ikinci kaynağıydı).
+          # Karşılaştırma satır sonlarından ARINDIRILMIŞ metin üzerinden yapılır:
+          # GitHub gövdeyi CRLF saklar, bayt bayt karşılaştırmak "0A 0A" ->
+          # "0D 0A 0D 0A" yüzünden hizalamayı kaydırır ve doğru metni yanlışlıkla
+          # bozuk sayar.
           $yayinlanan = gh release view $tag --json body --jq '.body' 2>$null | Out-String
           $beklenenBayt = [System.IO.File]::ReadAllBytes((Resolve-Path $notesFile))
-          # Yayınlanan gövde gh tarafından UTF-8 olarak döner; aynı kodlamaya çevir.
           $yayinBayt = [System.Text.UTF8Encoding]::new($false).GetBytes($yayinlanan.TrimEnd("`r","`n"))
 
-          # Uzunluk farkı satır sonu normalleştirmesinden gelir; içerik kontrolü
-          # ilk Türkçe harfin baytları üzerinden yapılır, o zaman normalleştirme
-          # önemsizdir.
-          $ilkTurkce = -1
-          for ($i = 0; $i -lt $beklenenBayt.Length - 1; $i++) {
-            if ($beklenenBayt[$i] -eq 0xC4 -and $beklenenBayt[$i+1] -eq 0xB0) { $ilkTurkce = $i; break }
-          }
-          if ($ilkTurkce -lt 0) { $ilkTurkce = 0 }
-
-          # Karşılaştırma satır sonlarından ARINDIRILMIŞ metin üzerinden yapılır.
-          # GitHub gövdeyi CRLF olarak saklar; bayt bayt karşılaştırmak
-          # "0A 0A" -> "0D 0A 0D 0A" yüzünden hizalama kaydırır ve doğru metni
-          # yanlışlıkla "bozuk" sayar. İkinci ölçüm hatası da buydu.
           function Normalize([byte[]]$b) {
             $s = [System.Text.Encoding]::UTF8.GetString($b)
             return ($s -replace "`r`n", "`n").TrimEnd("`n")
@@ -271,11 +250,6 @@ jobs:
             Write-Host ("beklenen ...: " + $normBeklenen.Substring([Math]::Max(0,$ilk-10), 30))
             Write-Host ("gelen    ...: " + $normYayinlanan.Substring([Math]::Max(0,$ilk-10), 30))
             throw "release notlari kodlamasi bozuk"
-          }
-          else {
-            Write-Host "beklenen baytlar: $([BitConverter]::ToString($beklenenBayt[$ilkTurkce..($ilkTurkce+9)]))"
-            Write-Host "gelen    baytlar: $([BitConverter]::ToString($yayinBayt[$ilkTurkce..($ilkTurkce+9)]))"
-            throw "release notlari kodlamasi bozuk (ilk Turkce karakter C4 B0 degil)"
           }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
