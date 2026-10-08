@@ -371,6 +371,126 @@ namespace tweaks
             return false;
         }
 
+        // --------------------------------------------------------- Oyun profilleri
+        //
+        // Valorant / CS2 / Fortnite profilleri. Üçünün de kendine ait tek
+        // yazma yolu yok; hepsi aşağıdaki IFEO ve oyun görevi anahtarlarını
+        // paylaşıyor. Okuma tarafı bu yüzden temsilî değere bakar: bir anahtarı
+        // "açık" saymak için yeterli sayıda bağımsız değerin hepsinin yerinde
+        // olması gerekir, aksi hâlde anahtar kısmen yazılmış bir sistemde
+        // "kapalı" görünür ve kullanıcı bozuk ayarı görmez.
+        const wchar_t* kIfeo    = L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options";
+        const wchar_t* kLayers  = L"Software\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\Layers";
+
+        bool RegIfeoHigh(HKEY root, const wchar_t* exe)
+        {
+            wchar_t path[256];
+            swprintf_s(path, L"%s\\%s\\PerfOptions", kIfeo, exe);
+            return RegGet(root, path, L"CpuPriorityClass", 2) == 1 &&
+                   RegGet(root, path, L"IoPriority", 2) == 1 &&
+                   RegGet(root, path, L"PagePriority", 5) == 6;
+        }
+
+        bool RegIfeoLow(HKEY root, const wchar_t* exe)
+        {
+            wchar_t path[256];
+            swprintf_s(path, L"%s\\%s\\PerfOptions", kIfeo, exe);
+            return RegGet(root, path, L"CpuPriorityClass", 2) == 4 &&
+                   RegGet(root, path, L"IoPriority", 2) == 3;
+        }
+
+        bool RegLayersFullscreenOff(HKEY root, const wchar_t* exe)
+        {
+            wchar_t path[256];
+            swprintf_s(path, L"%s\\%s", kLayers, exe);
+            HKEY k;
+            if (RegOpenKeyExW(root, path, 0, KEY_READ, &k) != ERROR_SUCCESS) return false;
+            // Değer adı boş bir REG_SZ'dir; adı olmayan kayıtları okumak da
+            // mümkündür, ama okuma başarısızlığını "kapalı" saymıyoruz.
+            DWORD type = 0, sz = 0;
+            LONG r = RegQueryValueExW(k, L"~ DISABLEDXMAXIMIZEDWINDOWEDMODE HIGHDPIAWARE",
+                                      nullptr, &type, nullptr, &sz);
+            RegCloseKey(k);
+            return r == ERROR_SUCCESS && type == REG_SZ && sz > 0;
+        }
+
+        // Üç oyun da aynı "oyun görevi" yazısını paylaşıyor.
+        bool GamesTaskHigh()
+        {
+            return RegGet(HKLM, kGamesTask, L"Priority", 2) == 6 &&
+                   RegGet(HKLM, kGamesTask, L"GPU Priority", 0) == 8;
+        }
+
+        bool MouseRaw()
+        {
+            return RegGet(HKCU, L"Control Panel\\Mouse", L"MouseSpeed", 1) == 0 &&
+                   RegGetStrIs(HKCU, L"Control Panel\\Mouse", L"MouseThreshold1", L"0");
+        }
+
+        bool GameModeOn()
+        {
+            return RegGet(HKCU, L"Software\\Microsoft\\GameBar", L"AutoGameModeEnabled", 0) == 1;
+        }
+
+        bool DvrOff()
+        {
+            return RegGet(HKCU, L"System\\GameConfigStore", L"GameDVR_Enabled", 1) == 0 &&
+                   RegGet(HKCU, L"Software\\Microsoft\\Windows\\CurrentVersion\\GameDVR",
+                           L"AppCaptureEnabled", 1) == 0;
+        }
+
+        bool ReadValorant(int i)
+        {
+            switch (i)
+            {
+            case 0: return RegIfeoHigh(HKLM, L"VALORANT-Win64-Shipping.exe");
+            case 1: return RegIfeoLow(HKLM, L"RiotClientServices.exe") &&
+                           RegIfeoLow(HKLM, L"RiotClientUx.exe");
+            case 2: return RegIfeoLow(HKLM, L"vgc.exe") &&
+                           RegIfeoLow(HKLM, L"vgtray.exe");
+            case 3: return RegLayersFullscreenOff(HKCU, L"VALORANT-Win64-Shipping.exe");
+            case 4: return GamesTaskHigh();
+            case 5: return RegGetStrIs(HKCU, kDesktop, L"LowLevelHooksTimeout", L"1000");
+            case 6: return RegGet(HKLM, kSysProfile, L"NetworkThrottlingIndex", 10) == 0xFFFFFFFF;
+            case 7: return RegGet(HKLM, kSysProfile, L"SystemResponsiveness", 20) == 0;
+            }
+            return false;
+        }
+
+        bool ReadCS2(int i)
+        {
+            switch (i)
+            {
+            case 0: return RegIfeoHigh(HKLM, L"cs2.exe");
+            case 1: return RegIfeoLow(HKLM, L"steam.exe");
+            case 2: return RegIfeoLow(HKLM, L"steamwebhelper.exe");
+            case 3: return RegGetStrIs(HKCU, L"Software\\Valve\\Steam", L"NoLazyLoading", L"1");
+            case 4: return GamesTaskHigh();
+            case 5: return GameModeOn();
+            case 6: return DvrOff();
+            case 7: return MouseRaw();
+            }
+            return false;
+        }
+
+        bool ReadFortnite(int i)
+        {
+            switch (i)
+            {
+            case 0: return RegIfeoHigh(HKLM, L"FortniteClient-Win64-Shipping.exe");
+            case 1: return RegIfeoLow(HKLM, L"EpicGamesLauncher.exe") &&
+                           RegIfeoLow(HKLM, L"EpicPortalLauncher.exe");
+            case 2: return RegIfeoLow(HKLM, L"EpicWebHelper.exe") &&
+                           RegIfeoLow(HKLM, L"EOS.exe");
+            case 3: return RegLayersFullscreenOff(HKCU, L"FortniteClient-Win64-Shipping.exe");
+            case 4: return GamesTaskHigh();
+            case 5: return GameModeOn();
+            case 6: return MouseRaw();
+            case 7: return RegGet(HKLM, kSysProfile, L"SystemResponsiveness", 20) == 0;
+            }
+            return false;
+        }
+
         #undef HKCU
         #undef HKLM
     }
@@ -386,6 +506,9 @@ namespace tweaks
         case 4: return ReadGames(idx);
         case 5: return ReadFiveM(idx);
         case 6: return ReadDelay(idx);
+        case 7: return ReadValorant(idx);
+        case 8: return ReadCS2(idx);
+        case 9: return ReadFortnite(idx);
         }
         return false;
     }
@@ -398,11 +521,14 @@ namespace tweaks
         case 1: return ApplyGame(idx, enable);
         case 2: return ApplyPriv(idx, enable);
         case 3: return ApplyVis(idx, enable);
-        // Oyunlar, FiveM ve gecikme kategorileri gömülü .reg gövdeleri olarak
-        // gelir ve reg.exe üzerinden içe aktarılır.
+        // Oyunlar, FiveM, gecikme ve oyun profilleri gömülü .reg gövdeleri
+        // olarak gelir ve reg.exe üzerinden içe aktarılır.
         case 4:
         case 5:
         case 6:
+        case 7:
+        case 8:
+        case 9:
         {
             const char* body = regpack::Body(cat, idx, enable);
             return body && regpack::Import(body);
@@ -411,7 +537,7 @@ namespace tweaks
         return false;
     }
 
-    bool IsRegPack(int cat) { return cat >= 4 && cat <= 6; }
+    bool IsRegPack(int cat) { return cat >= 4 && cat <= 9; }
 
     bool IsShared(int cat, int idx)
     {
@@ -426,14 +552,29 @@ namespace tweaks
         //   Affinity, Background Only, Clock Rate
         //                         -> Games[2], FiveM[0]
         //
-        // Oyunlar ve FiveM kategorilerinin tamamı aynı "Games" görev anahtarına
-        // yazıyor; paylaşım buradan geliyor. Liste elle tutuluyor ve bu yüzden
-        // yeni bir ayar eklendiğinde gözden geçirilmeli. make_tweak_table.ps1
-        // hangi değerlerin paylaşıldığını hesaplayıp tabloya yazıyor.
+        // Oyunlar, FiveM ve oyun profilleri (Valorant/CS2/Fortnite) aynı "Games"
+        // görev anahtarına yazıyor; ayrıca profil kategorileri arasında da ortak
+        // değerler var:
+        //   Games görevi (Priority, GPU Priority, Scheduling Category, SFIO)
+        //        -> Games[0], FiveM[0], Valorant[4], CS2[4], Fortnite[4]
+        //   SystemResponsiveness
+        //        -> Perf[5], Game[5], FiveM[1], Valorant[7], Fortnite[7]
+        //   NetworkThrottlingIndex -> FiveM[2], Valorant[6]
+        //   LowLevelHooksTimeout   -> FiveM[5], Valorant[5]
+        //   GameDVR / FSE          -> Game[1], Games[1], CS2[6]
+        //   Oyun Modu               -> Game[0], Game[7], CS2[5], Fortnite[5]
+        //   Ham fare                -> Game[4], CS2[7], Fortnite[6]
+        //
+        // Liste elle tutuluyor ve bu yüzden yeni bir ayar eklendiğinde gözden
+        // geçirilmeli. make_tweak_table.ps1 hangi değerlerin paylaşıldığını
+        // hesaplayıp tabloya yazıyor.
         if (cat == 0 && (idx == 5 || idx == 7)) return true;
-        if (cat == 1 && (idx == 1 || idx == 5)) return true;
+        if (cat == 1 && (idx == 0 || idx == 1 || idx == 4 || idx == 5 || idx == 7)) return true;
         if (cat == 4 && (idx == 0 || idx == 1 || idx == 2 || idx == 5)) return true;
         if (cat == 5 && (idx == 0 || idx == 1)) return true;
+        if (cat == 7 && (idx == 4 || idx == 5 || idx == 6 || idx == 7)) return true;
+        if (cat == 8 && (idx == 4 || idx == 5 || idx == 6 || idx == 7)) return true;
+        if (cat == 9 && (idx == 4 || idx == 5 || idx == 6 || idx == 7)) return true;
         return false;
     }
 

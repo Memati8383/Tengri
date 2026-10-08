@@ -181,7 +181,7 @@ namespace app
         bool g_scanDone  = false;
         bool g_cleanDone = false;
 
-        constexpr int kTweakCats = 7;
+        constexpr int kTweakCats = 10;
         // Etiketler satır indeksinden lang::TweakNameKey/TweakDescKey ile gelir; yani kategori
         // yalnızca kendi 8 satırının varsayılan durumunu tutmak zorunda.
         std::vector<Tweak> g_tweaks[kTweakCats] = {
@@ -210,6 +210,18 @@ namespace app
                 { false }, { false }, { false }, { false },
             },
             {   // Gecikme
+                { false }, { false }, { false }, { false },
+                { false }, { false }, { false }, { false },
+            },
+            {   // Valorant
+                { false }, { false }, { false }, { false },
+                { false }, { false }, { false }, { false },
+            },
+            {   // CS2
+                { false }, { false }, { false }, { false },
+                { false }, { false }, { false }, { false },
+            },
+            {   // Fortnite
                 { false }, { false }, { false }, { false },
                 { false }, { false }, { false }, { false },
             },
@@ -1785,7 +1797,8 @@ void NotifyDelegating(const elevate::Pending& p);
 
         void PageTweaks(float cw)
         {
-            const char* const cats[] = { L(Performance), L(Gaming), L(Privacy), L(Visual), L(Games), L(FiveM), L(Delay) };
+            const char* const cats[] = { L(Performance), L(Gaming), L(Privacy), L(Visual), L(Games), L(FiveM), L(Delay),
+                                         L(Valorant), L(CS2), L(Fortnite) };
             const double now = ImGui::GetTime();
 
             const ImVec2 p = ImGui::GetCursorScreenPos();

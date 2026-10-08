@@ -18,9 +18,10 @@ namespace elevate
         // çağrılmış olabilir, bu yüzden modül yolundan okunur.
         std::wstring g_exePath;
 
-        // Komut satırı uzunluğu sınırlı. Bekleyen iş 56 anahtar + 3 seçim, onaltılık
-        // kodlamayla 56 baytın katı; 8 kategori x 8 satır = 64 bayt + 3 bayt başlık.
-        // 512 karakter rahatça yeter, üstüne kısa bir bayrak da sığar.
+        // Komut satırı uzunluğu sınırlı. Bekleyen iş Pending::kMaxCats kategori +
+        // 3 seçim, onaltılık kodlamayla bayt başına 2 karakter; 16 kategori x
+        // (1 + 1) bayt = 32 bayt, yani 64 karakter. 512 karakter rahatça yeter,
+        // üstüne kısa bir bayrak da sığar.
         constexpr int kMaxLoad = 512;
 
         void AppendHex(std::wstring& s, unsigned v)
@@ -89,9 +90,9 @@ namespace elevate
         }
 
         unsigned n = 0;
-        for (int c = 0; c < 8; ++c) if (p.anyChange[c]) ++n;
+        for (int c = 0; c < Pending::kMaxCats; ++c) if (p.anyChange[c]) ++n;
         AppendHex(body, n);
-        for (int c = 0; c < 8; ++c)
+        for (int c = 0; c < Pending::kMaxCats; ++c)
         {
             if (!p.anyChange[c]) continue;
             AppendHex(body, (unsigned)c);
@@ -161,7 +162,7 @@ namespace elevate
             if (p + 1 >= bytes.size()) return false;
             const unsigned c = bytes[p++];
             const unsigned mask = bytes[p++];
-            if (c >= 8) return false;
+            if (c >= (unsigned)Pending::kMaxCats) return false;
             out.anyChange[c] = true;
             for (int i = 0; i < 8; ++i) if (mask & (1u << i)) out.categories[c][i] = true;
         }
@@ -189,7 +190,7 @@ namespace elevate
             return backup::Restore(root + L"\\" + ad);
         }
 
-        for (int c = 0; c < 8; ++c)
+        for (int c = 0; c < Pending::kMaxCats; ++c)
         {
             if (!p.anyChange[c]) continue;
             any = true;
@@ -208,7 +209,7 @@ namespace elevate
         }
 
         // Paylaşımlı registry değerleri: açık olan kardeş son yeniden yazılır.
-        for (int c = 0; c < 8; ++c)
+        for (int c = 0; c < Pending::kMaxCats; ++c)
             for (int i = 0; i < 8; ++i)
                 if (p.categories[c][i] && tweaks::IsShared(c, i))
                     tweaks::Apply(c, i, true);

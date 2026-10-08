@@ -27,7 +27,7 @@ zorunda — rozetler süs değil kontrol noktası.
 </div>
 
 <p align="center">
-  <b>9 ekran</b> · <b>56 registry anahtarı</b> · <b>10 temizlik kategorisi</b> ·
+  <b>9 ekran</b> · <b>80 registry anahtarı</b> · <b>10 temizlik kategorisi</b> ·
   <b>14 RAM profili</b> · <b>2 dil</b> · <b>0 telemetri</b> · <b>2 ağ çıkışı, hepsi listede</b>
 </p>
 
@@ -65,7 +65,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 |---|---|
 | İşletim sistemi | Windows 10 ve Windows 11 (x64) |
 | Mimari | 64-bit |
-| Disk | 1.7 MB - v1.4.0 yerel derlemesi 1.758.720 bayt (v1.3.0 CI derlemesi 1.739.264 bayt; araç seti yamasına göre birkaç KB oynar) |
+<| Disk | 1.7 MB — 1.5.0 yerel derlemesi 1.779.712 bayt; 1.3.0 CI derlemesi 1.739.264 bayt (araç seti yamasına göre birkaç KB oynar) |
 | Ek bağımlılık | Yok — .NET, Python veya çalışma zamanı gerekmez |
 | Yönetici | Yalnızca ayar uygularken gerekir; açılışta gerekmez |
 
@@ -246,7 +246,7 @@ okurken **hiç sorulmaz**. Ayrıntı: [Yükseltme](#yükseltme).
 |---|---|
 | **Gösterge Paneli** | Canlı sistem metrikleri, CPU geçmişi grafiği, sağlık puanı, tek tıkla optimizasyon, sistem ve abonelik özeti |
 | **Temizleyici** | 10 kategoride asenkron tarama ve silme, kategori seçimi, tarama/temizleme durumu |
-| **İnce Ayarlar** | 7 kategori, 56 anahtar; her anahtar başlangıçta registry'den okunur |
+| **İnce Ayarlar** | 10 kategori, 80 anahtar; her anahtar başlangıçta registry'den okunur |
 | **Ağ** | Gerçek ICMP gecikme ölçümü, DNS geçişi, bağlantı ayrıntıları, 6 ağ anahtarı |
 | **Sistem Bilgisi** | Donanım, yazılım ve güvenlik ayrıntıları |
 | **Ayarlar** | Görsel efektler, davranış, dil, hesap, bildirimler |
@@ -295,7 +295,7 @@ okurken **hiç sorulmaz**. Ayrıntı: [Yükseltme](#yükseltme).
 
 ---
 
-### İnce Ayarlar — 7 kategori, 56 anahtar
+### İnce Ayarlar — 10 kategori, 80 anahtar
 
 Her anahtar başlangıçta registry'den **gerçek** durumunu okur, böylece arayüz kaydedilmiş
 bir ayar dosyası değil, gerçekte uygulanan şeyi gösterir.
@@ -386,6 +386,48 @@ dayatılır.
 | Düşük seviye kanca zaman aşımı | 5000 ms yerine 1000 ms |
 | Servis sonlandırma zaman aşımı | Servisleri daha hızlı kapatır |
 | Pencere sürüklemesini kapat | Daha hafif pencere hareketi |
+
+#### Valorant
+
+| Anahtar | Ne yapar |
+|---|---|
+| Valorant süreç önceliği | Oyun sürecine CPU/IO/sayfa önceliği verir |
+| Riot istemcisini arka plana | Lobi ve istemci süreçleri oyunu bekler |
+| Vanguard'ı arka plana | `vgc`/`vgtray` kritik yoldan çıkar |
+| Tam ekran optimizasyonu kapalı | Kenarlıklı pencerede DWM geçişini kaldırır |
+| Oyun görevi zamanlaması | GPU 8 / CPU 6 / yüksek zamanlama |
+| Düşük seviye kanca zaman aşımı | 5000 ms yerine 1000 ms |
+| Ağ kısıtlamasını kapat | Paket/ms başına 10 paketlik sınırı kaldırır |
+| SistemResponsiveness 0 | CPU'nun %100'ünü ön plan işlerine verir |
+
+#### CS2
+
+| Anahtar | Ne yapar |
+|---|---|
+| CS2 süreç önceliği | `cs2.exe`'yi zamanlayıcının üstüne çıkarır |
+| Steam'ı arka plana | Steam menüleri CPU için yarışmaz |
+| Steam web yardımcısını arka plana | İçerik sayfaları G/Ç için yarışmaz |
+| Steam geç yüklemeyi kapat | Kütüphaneyi başlangıçta tam yükler |
+| Oyun görevi zamanlaması | GPU 8 / CPU 6 / yüksek zamanlama |
+| Oyun Modu | Windows oyunu senin yerine zamanlar |
+| Game DVR'ı kapat | Kaplama ve DVR kaydını kaldırır |
+| Ham fare | İşaretçi hızlandırması kapalı |
+
+> Source 2 kendi iş parçacıklarını yönetir; eski CS:GO başlatma seçenekleri artık
+> işe yaramıyor. Profil yalnızca Windows tarafını değiştirir.
+
+#### Fortnite
+
+| Anahtar | Ne yapar |
+|---|---|
+| Fortnite süreç önceliği | Oyun sürecine CPU/IO/sayfa önceliği verir |
+| Epic launcher'ı arka plana | İndirmeler oyuna yünsün |
+| Epic servislerini arka plana | EOS ve web yardımcısı oyuna yünsün |
+| Tam ekran optimizasyonu kapalı | Kenarlıklı pencerede DWM geçişini kaldırır |
+| Oyun görevi zamanlaması | GPU 8 / CPU 6 / yüksek zamanlama |
+| Oyun Modu | Windows oyunu senin yerine zamanlar |
+| Ham fare | İşaretçi hızlandırması kapalı |
+| SistemResponsiveness 0 | CPU'nun %100'ünü ön plan işlerine verir |
 
 #### Gecikme
 
@@ -698,7 +740,8 @@ kurulumu ise **sana** sorar — kendiliğinden inen veya kendiliğinden kurulan 
 
 ## Nasıl çalışıyor
 
-Oyunlar, FiveM ve Gecikme kategorileri `src/core/regpack.cpp` içine **doğrudan gömülü
+Oyunlar, FiveM, Gecikme, Valorant, CS2 ve Fortnite kategorileri `src/core/regpack.cpp`
+içine **doğrudan gömülü
 `.reg` gövdeleri** olarak gelir. Hiçbir şey indirilmez, harici klasör gerekmez. Çalışma
 anında:
 
@@ -864,6 +907,42 @@ bağlantı açar, ağ katmanının üstünde kalan her şey (karşılaştırma, 
 kilidi, özeti hesabı, takas planı) sahte girdilerle denenir. Gerçek indirme + doğrulama
 + takas yolu, yayınlanmış `TENGRI.exe` üzerinde elle uçtan uca yürütüldü.
 
+### Oyun profilleri: gidiş-dönüş sondası
+
+`test_pure` registry'ye yazmaz, o yüzden `.reg` gövdelerinin gerçekten işe yarayıp
+yaramadığını ölçemez. Bu boşluğu `tools/probe_game_tweaks.cpp` doldurur. Her ayar için
+beş adım yapar:
+
+1. Geliş bölümünü oku — hangi değerler nerede duruyordu?
+2. `regpack::Body(cat, i, true)` ile ayarla
+3. **Her değeri `RegQueryValueExW` ile gerçekten sorgula.** `reg.exe` başarılı olsa bile
+   yanlış anahtara yazılmış bir gövde sessizce geçer; bu yüzden sorgu ayrı bir adımdır.
+4. `regpack::Body(cat, i, false)` ile geri al
+5. **Geri almayı doğrula** — her değer ya silinmiş ya da belgelenmiş varsayılana dönmüş
+   olmalı; hiçbir şey yapmayan bir gövde de başarısız sayılır
+6. Geliş bölümünü **aynen geri yük**; kullanıcının özel ayarları sonda ezilmez
+
+```bat
+:: derle (komut build.bat içindeki yorumda), sonra YÖNETİCİ olarak:
+build\probe_game_tweaks.exe --all       :: kategoriler 4..9, 336 denetim
+build\probe_game_tweaks.exe             :: yalnız oyun profilleri (7..9)
+build\probe_game_tweaks.exe --cat 8     :: tek kategori
+build\probe_game_tweaks.exe --keep      :: geri alma YAPMA (dikkatli)
+```
+
+**Oyunun kurulu olması gerekmez.** IFEO (`Image File Execution Options`) anahtarları
+exe'yi adıyla tanır; `cs2.exe` diskte yoksa Windows anahtarı yine okur, yalnızca hiçbir
+süreçle eşleştirmez. Bu yüzden Valorant/Fortnite/CS2 kurulu olmadan yazma-doğrulama-
+silme zinciri baştan sona denenebilir.
+
+Bu sonda bulunan ve düzeltilen hatalar:
+
+| Hata | Sonuç |
+|---|---|
+| `CryptGenRandom(0, ...)` — NULL "varsayılan sağlayıcı" **değildir**, `ERROR_INVALID_PARAMETER` (87) döner | `Import` geçici dosyayı hiç yazmadan `false` dönüyordu; **bütün regpack kategorileri hiçbir zaman registry'ye ulaşmıyordu** |
+| `CREATE_NEW` + `FILE_FLAG_OPEN_REPARSE_POINT` geçersiz kombinasyon (yine 87) | Aynı sonuç: dosya açılmıyor, içe aktarma hiç denenmiyor |
+| Gecikme[6] geri alma gövdesi `IRPStackSize` değerini atlıyordu | Ayar kapatılınca `0x20` geride kalıyordu |
+
 ---
 
 ## Sürümleme ve kimlik
@@ -903,7 +982,7 @@ src/gui/logo_data.cpp        Logonun gömülü baytları — make_logo_data.ps1 
 src/gui/brand_icons.cpp      Hakkında sayfası bağlantı ikonları (üçgenlenmiş, üretilmiş)
 src/gui/font_data.cpp        Alt kümelenmiş Inter'ın gömülü baytları — make_font_data.ps1 üretir
 src/core/cleaner.cpp         Dosya taraması ve silme, shader alt-maskesi
-src/core/tweaks.cpp          7 tweak kategorisinin registry okuma/yazma işlemleri
+src/core/tweaks.cpp          10 tweak kategorisinin registry okuma/yazma işlemleri
 src/core/regpack.cpp         Gömülü .reg gövdeleri + reg.exe ile içe aktarma
 src/core/ram.cpp             SvcHostSplitThresholdInKB profilleri
 src/core/network.cpp         DNS geçişi, adaptör bilgisi, ağ anahtarları, ICMP ölçümü

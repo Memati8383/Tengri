@@ -26,8 +26,11 @@ namespace elevate
     struct Pending
     {
         // categories[c] içindeki satırlar için istenen durum (true = açık).
-        bool                 categories[8][8] = {};
-        bool                 anyChange[8]    = {};   // kategori başına en az bir değişiklik
+        // Boyutlar lang.hpp'teki kTweakCatCount ile eşleşmeli; komut satırı
+        // kodlaması da aynı sınırı taşıyor.
+        static constexpr int kMaxCats = 16;
+        bool                 categories[kMaxCats][8] = {};
+        bool                 anyChange[kMaxCats]    = {};   // kategori başına en az bir değişiklik
         int                  ramPreset = -1;         // >= 0 ise RAM profili uygula
         int                  dnsProvider = -1;       // >= 0 ise DNS ayarla
         int                  startupToggle = -1;     // 0 = kapat, 1 = aç, -1 = dokunma

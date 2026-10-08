@@ -22,7 +22,7 @@ namespace S
 {
     // Tabloların boyutları, aşağıdaki blok başlangıçları bunlara bağlı olduğu
     // için enum'dan önce tanımlanır. Metin dizileriyle birebir tutarlı olmalıdır.
-    constexpr int kTweakCatCount = 7;   // tweak kategorileri (Performans .. Gecikme)
+    constexpr int kTweakCatCount = 10;  // tweak kategorileri (Performans .. Fortnite)
     constexpr int kTweakRows     = 8;   // kategori başına anahtar sayısı
     constexpr int kNetRows       = 6;   // ağ tweak sayısı
 
@@ -54,6 +54,7 @@ namespace S
         ShaderCacheDesc, DeliveryOptDesc,
 
         Performance, Gaming, Privacy, Visual, Games, FiveM, Delay,
+        Valorant, CS2, Fortnite,
         Reset, DefaultsRestored, TweaksApplied,
         NeedAdmin, StartupEnabled, TrayUnavailable,
 

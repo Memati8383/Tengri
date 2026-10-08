@@ -121,6 +121,16 @@ rem arayuz kutuphanesi ve ekran gerektirmez, saniyeler icinde kosar.
 rem
 rem Test kaynaklari registry YAZAN kodu icerir (tweaks.cpp, regpack.cpp) ama testler
 rem o yollari cagirmaz; yalnizca govde metinlerini okur. advapi32 yine de baglanir.
+rem
+rem NOT: tools\probe_game_tweaks.cpp ayri bir gidis-donus sondasidir ve BILINCLI
+rem olarak bu dosyanin parcasi degildir. Gercek sistem registry'sine yazar (HKLM),
+rem yonetici yetkisi ister ve test_pure.exe'in "registry yazmaz" sozunu ihlal eder.
+rem Elle derlemek icin:
+rem   cl /std:c++17 /O2 /MT /EHsc /utf-8 /DUNICODE /D_UNICODE /DTENGRI_HAS_TWEAK_KEYS ^
+rem      /I src /I build\obj tools\probe_game_tweaks.cpp src\core\regpack.cpp ^
+rem      src\core\tweaks.cpp src\core\backup.cpp src\core\elevate.cpp src\core\ram.cpp ^
+rem      src\core\network.cpp src\core\startup.cpp /link advapi32.lib shell32.lib iphlpapi.lib
+rem Sonra:  probe_game_tweaks.exe --all      (yonetici olarak; 4..9)
 if not exist build\tobj mkdir build\tobj
 echo [*] Building tests ...
 cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /W4 ^

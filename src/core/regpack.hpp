@@ -11,7 +11,8 @@ namespace regpack
     // içe aktarma maliyetinde olur.
     bool ImportMany(const char* const* bodies, int count);
 
-    // 4 (Oyunlar), 5 (FiveM) ve 6 (Gecikme) kategorilerinin gömülü gövdeleri.
+    // 4 (Oyunlar), 5 (FiveM), 6 (Gecikme), 7 (Valorant), 8 (CS2) ve 9 (Fortnite)
+    // kategorilerinin gömülü gövdeleri.
     // enable = true ise açma, false ise geri alma gövdesini döndürür.
     const char* Body(int category, int index, bool enable);
 

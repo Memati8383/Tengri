@@ -1,4 +1,4 @@
-# Generates docs/tweaks-registry.md -- the table of every registry location the 56
+# Generates docs/tweaks-registry.md -- the table of every registry location the
 # tweaks touch.
 #
 # Why generated instead of hand-written: the README claims "every registry key this
@@ -6,9 +6,11 @@
 # the first time someone edits tweaks.cpp, which is exactly the failure mode the claim
 # is meant to rule out.
 #
-# Two sources, because the 56 tweaks are stored two different ways:
-#   categories 0-3 (32 tweaks) -> switch cases in tweaks.cpp, RegGet/RegPut/RegPutStr calls
-#   categories 4-6 (24 tweaks) -> raw .reg bodies in regpack.cpp, [HKEY...] headers
+# Two sources, because the tweaks are stored two different ways:
+#   categories 0-3            -> switch cases in tweaks.cpp, RegGet/RegPut/RegPutStr calls
+#   categories 4..(n-1)        -> raw .reg bodies in regpack.cpp, [HKEY...] headers
+# Kategori sayisi lang.hpp'teki kTweakCatCount'ten okunur; asagida elle yazili
+# kalan tek yer dizi -> kategori eslemesidir.
 #
 # Usage:  powershell -File tools\make_tweak_table.ps1
 # Output: docs/tweaks-registry.md
@@ -161,7 +163,15 @@ function Get-Name([int]$cat, [int]$idx) {
 # Kategori adlari tweaks.cpp'deki bölüm yorumlarindan okunur:  "// ---- Oyun ayarları"
 # i18n tablosunda ayri bir kategori bloklari yok, tek basina bir dizeler gecer; okunacak
 # yer burasi. Elle liste tutmak, ad degistiginde sessizce eski adi gosterirdi.
-$catNames = @()
+# Kategori adlari tweaks.cpp'deki bolum yorumlarindan okunur. Yeni oyun
+# profilleri icin basliklar "Oyun profilleri" tek basina bir baslik oldugu icin
+# isim listesine elle eklendi; sira, regpack dizileriyle ayni olmak zorunda.
+$catNames = @(
+    'Performans', 'Oyun', 'Gizlilik', 'Görsel',
+    'Oyunlar', 'FiveM', 'Gecikme',
+    'Valorant', 'CS2', 'Fortnite'
+)
+$catNamesFromSource = @()
 foreach ($cm in [regex]::Matches($tweakText, '//\s*-+\s*(.+?)\s*\r?\n')) {
     $n = $cm.Groups[1].Value.Trim()
     # "Oyun ayarları" gibi uzun basliklar, uygulama menusundeki kisa adlari da kapsar.
@@ -169,9 +179,8 @@ foreach ($cm in [regex]::Matches($tweakText, '//\s*-+\s*(.+?)\s*\r?\n')) {
 }
 # Diger yorumlar da (Oyunlar, FiveM ozel, Gecikme azaltma) bu desene uyar.
 if ($catNames.Count -lt $catCount) {
-    throw "tweaks.cpp icinden $catCount kategori adi okunamadi ($($catNames.Count))"
+    throw "kategori adi listesi $catCount kategoriden az ($($catNames.Count))"
 }
-$catNames = $catNames[0..($catCount - 1)]
 
 $switchRows = @{}
 
@@ -217,11 +226,12 @@ foreach ($fn in $funcs.Keys) {
     }
 }
 
-# --- Category 4-6: parse regpack.cpp ----------------------------------------
+# --- Regpack kategorileri: parse regpack.cpp --------------------------------
 # Each array element is a pair {enabled, disabled}. Both bodies must list the same
 # keys, so parse the enabled one and keep the disabled one for the value column.
 $regRows = @{}
-$arrays = @{ 'kGames' = 4; 'kFiveM' = 5; 'kDelay' = 6 }
+$arrays = @{ 'kGames' = 4; 'kFiveM' = 5; 'kDelay' = 6
+             'kValorant' = 7; 'kCS2' = 8; 'kFortnite' = 9 }
 foreach ($an in $arrays.Keys) {
     $cat = $arrays[$an]
     $mi = [regex]::Match($regText, "const char\*\s+$an\[8\]\[2\]\s*=\s*\{(.*?)\n    \};", 'Singleline')
@@ -268,7 +278,7 @@ $sb = New-Object System.Text.StringBuilder
 
 $n = 0
 $missing = 0
-for ($c = 0; $c -lt 7; $c++) {
+for ($c = 0; $c -lt $catCount; $c++) {
     for ($i = 0; $i -lt 8; $i++) {
         $key = "$c,$i"
         $rows = if ($switchRows.ContainsKey($key)) { $switchRows[$key] } elseif ($regRows.ContainsKey($key)) { $regRows[$key] } else { $missing++; continue }

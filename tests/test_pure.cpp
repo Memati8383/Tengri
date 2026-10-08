@@ -44,7 +44,7 @@ static void Test_LangTables()
     // etiketleri yanlış metni göstermeye başlar; sınır kontrolü yakalamadan önce
     // ekranda yanlış şey görünür.
     const int tweakCount = S::kTweakCatCount * S::kTweakRows;
-    CheckEq(tweakCount, 56, "toplam tweak sayisi (7 kategori x 8 satir)");
+    CheckEq(tweakCount, 80, "toplam tweak sayisi (10 kategori x 8 satir)");
 
     Check(S::TweakNames > 0, "TweakNames sifirdan buyuk");
     CheckEq(S::TweakDescs - S::TweakNames, tweakCount, "TweakDescs kaymasi");
@@ -115,13 +115,16 @@ static void Test_TweakContracts()
 {
     std::printf("tweak sozlesmeleri\n");
 
-    // 0-3 doğrudan registry yazan kategoriler; 4-6 .reg paketleri.
+    // 0-3 doğrudan registry yazan kategoriler; 4-9 .reg paketleri.
     Check(!tweaks::IsRegPack(0), "kategori 0 regpack degil");
     Check(!tweaks::IsRegPack(3), "kategori 3 regpack degil");
     Check(tweaks::IsRegPack(4), "kategori 4 regpack");
     Check(tweaks::IsRegPack(5), "kategori 5 regpack");
     Check(tweaks::IsRegPack(6), "kategori 6 regpack");
-    Check(!tweaks::IsRegPack(7), "kategori 7 (yok) regpack degil");
+    Check(tweaks::IsRegPack(7), "kategori 7 (Valorant) regpack");
+    Check(tweaks::IsRegPack(8), "kategori 8 (CS2) regpack");
+    Check(tweaks::IsRegPack(9), "kategori 9 (Fortnite) regpack");
+    Check(!tweaks::IsRegPack(10), "kategori 10 (yok) regpack degil");
 
     // IsShared belgelenmiş paylaşımlı değerleri işaretlemeli:
     //   SystemResponsiveness -> Perf[5], Game[5], FiveM[1]
@@ -140,6 +143,18 @@ static void Test_TweakContracts()
     Check(tweaks::IsShared(4, 0), "Games[0] paylasimli (FiveM[0] ile)");
     Check(tweaks::IsShared(4, 2), "Games[2] paylasimli (FiveM[0] ile)");
     Check(tweaks::IsShared(5, 0), "FiveM[0] paylasimli (Games[0] ve Games[2] ile)");
+    // Oyun profilleri de ayni Games gorev anahtarini ve fare/GameBar degerlerini
+    // paylasir; kapatilan bir profil digerinin yazisini sessizce ezmemeli.
+    Check(tweaks::IsShared(7, 4), "Valorant[4] paylasimli (Games[0]/FiveM[0] ile)");
+    Check(tweaks::IsShared(7, 7), "Valorant[7] paylasimli (SystemResponsiveness)");
+    Check(tweaks::IsShared(8, 4), "CS2[4] paylasimli (Games[0]/FiveM[0] ile)");
+    Check(tweaks::IsShared(8, 6), "CS2[6] paylasimli (GameDVR)");
+    Check(tweaks::IsShared(9, 4), "Fortnite[4] paylasimli (Games[0]/FiveM[0] ile)");
+    Check(tweaks::IsShared(9, 7), "Fortnite[7] paylasimli (SystemResponsiveness)");
+    // Profil kategorilerinin kendi IFEO anahtarlari paylasilmaz.
+    Check(!tweaks::IsShared(7, 0), "Valorant[0] paylasimli degil (kendi IFEO anahtari)");
+    Check(!tweaks::IsShared(8, 0), "CS2[0] paylasimli degil (kendi IFEO anahtari)");
+    Check(!tweaks::IsShared(9, 0), "Fortnite[0] paylasimli degil (kendi IFEO anahtari)");
 
     // Paylaşımlı olmayan bir anahtar işaretlenmemeli (her şey paylaşımlı olsayd
     // bu işaretlemenin bir anlamı kalmazdı).
@@ -158,7 +173,7 @@ static void Test_RegPackBodies()
 
     const char* baslik = "Windows Registry Editor Version 5.00";
 
-    for (int cat = 4; cat <= 6; ++cat)
+    for (int cat = 4; cat <= 9; ++cat)
     {
         for (int i = 0; i < 8; ++i)
         {
@@ -189,6 +204,20 @@ static void Test_RegPackBodies()
     Check(regpack::Body(4, -1, true) == nullptr, "Body(4,-1) -> null");
     Check(regpack::Body(4, 8, true) == nullptr, "Body(4,8) -> null");
     Check(regpack::Body(3, 0, true) == nullptr, "Body(3,0) -> null (regpack degil)");
+    Check(regpack::Body(10, 0, true) == nullptr, "Body(10,0) -> null (kategori yok)");
+
+    // Kapalı gövde gerçekten bir yazma yapmamalı: her gövdede en az bir
+    // "=dword" ya da "=\" değeri bulunmalı. IFEO geri alma gövdeleri değerleri
+    // silme işaretiyle ("=-") yazdığı için sayıma girer.
+    for (int cat = 4; cat <= 9; ++cat)
+        for (int i = 0; i < 8; ++i)
+        {
+            const char* b = regpack::Body(cat, i, false);
+            if (!b) { Check(false, "regpack::Body(kapalı) null dondu"); continue; }
+            const bool yazmaVar = std::strstr(b, "=dword") || std::strstr(b, "=\"") ||
+                                  std::strstr(b, "=-");
+            Check(yazmaVar, "kapali govde yazma iceriyor");
+        }
 }
 
 // Yetki yükseltme komut satırı gidiş-dönüşü. Bekleyen iş, kullanıcı UAC onayı verdiğinde

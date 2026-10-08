@@ -45,6 +45,7 @@ namespace lang
             "DirectX and driver shaders", "Peer-to-peer update cache",
 
             "Performance", "Gaming", "Privacy", "Visual", "Games", "FiveM", "Delay",
+            "Valorant", "CS2", "Fortnite",
             "Reset", "Defaults restored", "Tweaks applied",
             "need admin", "Will start with Windows",
             "The shell refused a tray icon; minimize keeps its normal behaviour",
@@ -156,7 +157,7 @@ namespace lang
             "The close button hides the window; the app keeps running in the tray",
             "Show window", "Go to page", "Exit",
 
-            // ---- TweakNames: 7 kategori x 8 satır ----
+            // ---- TweakNames: 10 kategori x 8 satır ----
             // Performans
             "Ultimate power plan", "Disable background apps", "Optimize visual effects",
             "Disable SysMain", "Disable hibernation", "System responsiveness",
@@ -185,6 +186,19 @@ namespace lang
             "Global timer resolution", "DPC watchdog offset", "Exception chain validation",
             "Disable interrupt steering", "Win32 priority separation", "Reliability timestamp 0",
             "LanmanServer delay fix", "Mouse input delay fix",
+
+            // Valorant
+            "Valorant process priority", "Riot client to background", "Vanguard to background",
+            "Disable fullscreen optimizations", "Game task scheduling", "Low level hooks timeout",
+            "Network throttling off", "System responsiveness 0",
+            // CS2
+            "CS2 process priority", "Steam client to background", "Steam web helper to background",
+            "Disable Steam lazy loading", "Game task scheduling", "Game Mode",
+            "Disable Game DVR", "Raw mouse input",
+            // Fortnite
+            "Fortnite process priority", "Epic launcher to background", "Epic services to background",
+            "Disable fullscreen optimizations", "Game task scheduling", "Game Mode",
+            "Raw mouse input", "System responsiveness 0",
 
             // ---- TweakDescs: aynı düzen ----
             "Unlock the hidden power scheme", "Stop UWP apps running idle",
@@ -221,6 +235,21 @@ namespace lang
             "Skip SEHOP chain checks", "Keep interrupts on their core",
             "0x28 - short, fixed quantums", "Stop reliability sampling writes",
             "No sharing-violation wait", "AAP threshold + feature settings",
+
+            "CPU, IO and page priority 1/1/6", "Give the lobby client idle priority",
+            "vgc and vgtray off the critical path", "Removes the borderless DWM swap",
+            "GPU 8 / CPU 6 / high scheduling", "1000 ms instead of 5000 ms",
+            "Remove the 10 packet/ms cap", "Give 100% of CPU to foreground",
+
+            "Raise cs2.exe above the scheduler", "Steam menus stop competing for CPU",
+            "Web helper pages stop competing for I/O", "Load the full library at startup",
+            "GPU 8 / CPU 6 / high scheduling", "Windows schedules the game for you",
+            "Remove overlay and DVR capture", "Turn off pointer acceleration",
+
+            "CPU, IO and page priority 1/1/6", "Launcher downloads yield to the game",
+            "EOS and web helper yield to the game", "Removes the borderless DWM swap",
+            "GPU 8 / CPU 6 / high scheduling", "Windows schedules the game for you",
+            "Turn off pointer acceleration", "Give 100% of CPU to foreground",
 
             // ---- NetNames / NetDescs: 6 satır ----
             "TCP auto-tuning", "Disable Nagle's algorithm", "Network throttling index",
@@ -290,6 +319,7 @@ namespace lang
             "E\xC5\x9Fler aras\xC4\xB1 g\xC3\xBC" "n" "celleme \xC3\xB6nbelle\xC4\x9Fi",
 
             "Performans", "Oyun", "Gizlilik", "G\xC3\xB6rsel", "Oyunlar", "FiveM", "Gecikme",
+            "Valorant", "CS2", "Fortnite",
             "S\xC4\xB1" "f\xC4\xB1rla",
             "Varsay\xC4\xB1lanlar geri y\xC3\xBC" "klendi",
             "\xC4\xB0n" "ce ayarlar uyguland\xC4\xB1",
@@ -418,7 +448,7 @@ namespace lang
             "Kapat düğmesi pencereyi gizler; uygulama tepside çalışmayı sürdürür",
             "Pencereyi aç", "Sayfaya git", "Çık",
 
-            // ---- TweakNames: 7 kategori x 8 satır ----
+            // ---- TweakNames: 10 kategori x 8 satır ----
             // Performans
             "Maksimum güç performans planı", "Arka plan uygulamaları kapat",
             "G\xC3\xB6rsel efektleri optimize et", "SysMain'i kapat", "Hibernation'\xC4\xB1 kapat",
@@ -452,6 +482,21 @@ namespace lang
             "\xC3\x96zel durum zinciri do\xC4\x9Frulamas\xC4\xB1", "Kesme y\xC3\xB6nlendirmesini kapat",
             "Win32 \xC3\xB6ncelik ayr\xC4\xB1m\xC4\xB1", "G\xC3\xBCvenilirlik zaman damgas\xC4\xB1 0",
             "LanmanServer gecikme d\xC3\xBCzeltmesi", "Fare giri\xC5\x9Fi gecikme d\xC3\xBCzeltmesi",
+            // Valorant
+            "Valorant s\xC3\xBCre\xC3\xA7 \xC3\xB6nceli\xC4\x9F" "i", "Riot istemcisini arka plana",
+            "Vanguard'\xC4\xB1 arka plana", "Tam ekran optimizasyonlar\xC4\xB1n\xC4\xB1 kapat",
+            "Oyun g\xC3\xB6revi zamanlamas\xC4\xB1", "D\xC3\xBC\xC5\x9F\xC3\xBCk kanca zaman a\xC5\x9F\xC4\xB1m\xC4\xB1",
+            "A\xC4\x9F k\xC4\xB1s\xC4\xB1tlamay\xC4\xB1 kapat", "Sistem duyarl\xC4\xB1l\xC4\xB1\u011F\xC4\xB1 0",
+            // CS2
+            "CS2 s\xC3\xBCre\xC3\xA7 \xC3\xB6nceli\xC4\x9F" "i", "Steam istemcisini arka plana",
+            "Steam web yard\xC4\xB1mc\xC4\xB1s\xC4\xB1n\xC4\xB1 arka plana", "Steam ge\xC3\xA7 y\xC3\xBCkleme kapat",
+            "Oyun g\xC3\xB6revi zamanlamas\xC4\xB1", "Oyun Modu",
+            "Game DVR'\xC4\xB1 kapat", "Ham fare giri\xC5\x9Fi",
+            // Fortnite
+            "Fortnite s\xC3\xBCre\xC3\xA7 \xC3\xB6nceli\xC4\x9F" "i", "Epic launcher'\xC4\xB1 arka plana",
+            "Epic servislerini arka plana", "Tam ekran optimizasyonlar\xC4\xB1n\xC4\xB1 kapat",
+            "Oyun g\xC3\xB6revi zamanlamas\xC4\xB1", "Oyun Modu",
+            "Ham fare giri\xC5\x9Fi", "Sistem duyarl\xC4\xB1l\xC4\xB1\u011F\xC4\xB1 0",
 
             // ---- TweakDescs: aynı düzen ----
             "Gizli g\xC3\xBC\xC3\xA7 performans plan\xC4\xB1n\xC4\xB1 a\xC3\xA7", "Bo\xC5\x9Fta \xC3\xA7" "al\xC4\xB1\xC5\x9F" "an UWP uygulamalar\xC4\xB1n\xC4\xB1 durdur",
@@ -488,6 +533,21 @@ namespace lang
             "SEHOP zincir kontrollerini atla", "Kesmeleri kendi \xC3\xA7" "ekirde\xC4\x9Finde tut",
             "0x28 - k\xC4\xB1sa, sabit kuantumlar", "G\xC3\xBCvenilirlik \xC3\xB6rnekleme yaz\xC4\xB1m\xC4\xB1n\xC4\xB1 durdur",
             "Payla\xC5\x9F\xC4\xB1m ihlali beklemesi yok", "AAP e\xC5\x9Fi\xC4\x9Fi + \xC3\xB6zellik ayarlar\xC4\xB1",
+
+            "CPU, G/\xC3\x87 ve sayfa \xC3\xB6nceli\xC4\x9F" "i 1/1/6", "Lob istemcisine bo\xC5\x9Fta \xC3\xB6nceli\xC4\x9F" "i",
+            "vgc ve vgtray kritik yoldan \xC3\xA7\xC4\xB1kar", "Kenarl\xC4\xB1kl\xC4\xB1 DWM de\xC4\x9F\xC4\xB1\xC5\x9Fini kald\xC4\xB1r",
+            "GPU 8 / CPU 6 / y\xC3\xBCksek zamanlama", "5000 ms yerine 1000 ms",
+            "10 paket/ms ba\xC4\x9F cap\xC4\xB1n\xC4\xB1 kald\xC4\xB1r", "CPU'nun %100'\xC3\xBCn\xC3\xBC \xC3\xB6n plan i\xC5\x9Flerine",
+
+            "cs2.exe'yi zamanlay\xC4\xB1" "c\xC4\xB1 \xC3\xBCst\xC3\xBCne \xC3\xA7\xC4\xB1kar", "Steam men\xC3\xBCleri CPU i\xC3\xA7in yar\xC4\xB1\xC5\x9Fmas\xC4\xB1n\xC4\xB1 b\xC3\xB6r",
+            "Web yard\xC4\xB1mc\xC4\xB1 sayfalar\xC4\xB1 G/\xC3\x87 i\xC3\xA7in yar\xC4\xB1\xC5\x9Fmas\xC4\xB1n\xC4\xB1 b\xC3\xB6r", "K\xC3\xBCt\xC3\xBCphaneyi a\xC3\xA7\xC4\xB1l\xC4\xB1\u015Fta tam y\xC3\xBCkle",
+            "GPU 8 / CPU 6 / y\xC3\xBCksek zamanlama", "Oyunu Windows zamanlas\xC4\xB1n",
+            "Kaplama ve DVR kayd\xC4\xB1n\xC4\xB1 kald\xC4\xB1r", "\xC4\xB0\xC5\x9F" "aret h\xC4\xB1zland\xC4\xB1rmas\xC4\xB1n\xC4\xB1 kapat",
+
+            "CPU, G/\xC3\x87 ve sayfa \xC3\xB6nceli\xC4\x9F" "i 1/1/6", "Launcher indirmeleri oyuna y\xC3\xBCnsin",
+            "EOS ve web yard\xC4\xB1mc\xC4\xB1 oyuna y\xC3\xBCnsin", "Kenarl\xC4\xB1kl\xC4\xB1 DWM de\xC4\x9F\xC4\xB1\xC5\x9Fini kald\xC4\xB1r",
+            "GPU 8 / CPU 6 / y\xC3\xBCksek zamanlama", "Oyunu Windows zamanlas\xC4\xB1n",
+            "\xC4\xB0\xC5\x9F" "aret h\xC4\xB1zland\xC4\xB1rmas\xC4\xB1n\xC4\xB1 kapat", "CPU'nun %100'\xC3\xBCn\xC3\xBC \xC3\xB6n plan i\xC5\x9Flerine",
 
             // ---- NetNames / NetDescs: 6 satır ----
             "TCP otomatik ayarlama", "Nagle algoritmas\xC4\xB1n\xC4\xB1 kapat", "A\xC4\x9F k\xC4\xB1s\xC4\xB1tlama dizini",
