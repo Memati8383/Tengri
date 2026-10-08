@@ -130,19 +130,70 @@ jobs:
           if (Test-Path "docs\release-notes\$tag.md") {
             $notes = Get-Content "docs\release-notes\$tag.md" -Raw
           }
-          gh release create $tag "build\TENGRI.exe" `
-            --title "TENGRI $tag" `
-            --notes "$notes"
+          # Sürüm YENIDEN yayınlanıyorsa (ör. aynı etiket düzeltilmiş bir
+          # derlemeyle tekrar gönderildiğinde) `gh release create` "a release with
+          # the same tag name already exists" ile BAŞARISIZ olur ve --clobber
+          # kullanılmadığı için exe hiç yüklenmez; buna karşılık latest.json
+          # --clobber ile sessizce GÜNCELLENİR. Ortaya şu durum çıkar:
+          # bildirim yeni exe'nin hash'ini söyler ama yerdeki exe eskidir.
+          # Kullanıcının güncellemesi indirme sırasında "Sağlama değeri uyuşmuyor"
+          # ile düşer ve nedeni bulmak saatler alır.
+          #
+          # Bu yüzden iki dosyaya da aynı yol uygulanır: sürüm varsa üstüne yaz,
+          # yoksa oluştur. --clobber her iki komutta da "yoksa ekle, varsa
+          # değiştir" demektir, ama create'in hata vermemesi için önce varlık
+          # sorgulanır.
+          gh release view $tag > $null 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "surum zaten var; varliklar ustune yaziliyor: $tag"
+            gh release edit $tag --title "TENGRI $tag" --notes "$notes"
+            gh release upload $tag "build\TENGRI.exe" --clobber
+          }
+          else {
+            gh release create $tag "build\TENGRI.exe" `
+              --title "TENGRI $tag" `
+              --notes "$notes"
+          }
 
           # Güncelleme bildirimi de sürüme asetlenir; böylece uygulamanın okuduğu
           # hash, o sürümün gerçekten yayınlanmış dosyasından üretilmiş olur.
+          # Sıralama önemli: exe ÖNCE yüklenmeli, bildirim SONRA. Tersi
+          # yapılırsa yayın anında bildirim, henüz yüklenmemiş exe'nin hash'ini
+          # taşır.
           gh release upload $tag "build\latest.json" --clobber
 
+          # Hash tutarlılığı doğrulaması: bildirimdeki özet, YAYINLANAN dosyanın
+          # gerçek özetiyle aynı olmalı. Bu iki sayı ayrıldığında uygulama
+          # indirmeyi reddeder ve hata mesajı nedeni söylemez; tutarsızlığı
+          # burada yakalamak, kullanıcıdan gelen "güncellemiyor" şikâyetinden
+          # çok daha ucuz.
+          $gercek = (Get-FileHash -Algorithm SHA256 "build\TENGRI.exe").Hash.ToLowerInvariant()
+          $bildir = (Get-Content build\latest.json -Raw | ConvertFrom-Json)
+          if ($bildir.sha256 -ne $gercek) {
+            Write-Host "bildirim sha256 : $($bildir.sha256)"
+            Write-Host "yayinlanan exe  : $gercek"
+            throw "latest.json, yayinlanan exe ile eslesmiyor"
+          }
+          if ($bildir.size -ne (Get-Item "build\TENGRI.exe").Length) {
+            throw "latest.json boyutu, yayinlanan exe ile eslesmiyor"
+          }
+          Write-Host "hash dogrulandi: $gercek"
+
           # Eksik asset sessizce geçmesin: iki dosya da listede görünmeden adım bitmez.
+          # Yalnız VARLIK kontrolü yetmez: yeniden yayında eski exe yerinde kalıp
+          # yeni görünür. Bu yüzden yayınlanan dosyanın özeti de yereldekiyle
+          # karşılaştırılır.
           $assets = (gh release view $tag --json assets --jq '.assets[].name') -join ','
           Write-Host "yayinlanan assetler: $assets"
           foreach ($ad in @('TENGRI.exe', 'latest.json')) {
             if ($assets -notlike "*$ad*") { throw "surumde $ad yok" }
           }
+
+          $yayinlananBoyut = (gh release view $tag --json assets --jq '.assets[] | select(.name == "TENGRI.exe") | .size')
+          $yerelBoyut = (Get-Item "build\TENGRI.exe").Length
+          if ("$yayinlananBoyut" -ne "$yerelBoyut") {
+            throw "yayindaki exe boyutu $yayinlananBoyut, derlenen $yerelBoyut. Eski varlik kaldi mi?"
+          }
+          Write-Host "yayindaki exe boyutu dogrulandi: $yerelBoyut"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
