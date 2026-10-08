@@ -128,7 +128,15 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $notes = "Sürüm $tag"
           if (Test-Path "docs\release-notes\$tag.md") {
-            $notes = Get-Content "docs\release-notes\$tag.md" -Raw
+            # -Encoding utf8 ŞARt. Get-Content bunu vermezse dosyayı kod sayfasıyla
+            # (CI'da cp1254) okur; "İ" gibi iki baytlı Türkçe harfler bozulur,
+            # sonra --notes bunları UTF-8'e çevirince ÇİFT KODLAMA olur:
+            #   doğru : C4 B0        (İ)
+            #   bozuk : E2 84 98 E2 80 98
+            # Yayın sayfasındaki notlar kutuya yerleşir ama tüm Türkçe harfler
+            # yanlış görünür. Aynı dosyanın bildirim tarafındaki okuması zaten
+            # -Encoding utf8 kullanıyordu; iki yolun ayrışması hatayı gizliyordu.
+            $notes = Get-Content "docs\release-notes\$tag.md" -Raw -Encoding utf8
           }
           # Sürüm YENIDEN yayınlanıyorsa (ör. aynı etiket düzeltilmiş bir
           # derlemeyle tekrar gönderildiğinde) `gh release create` "a release with
