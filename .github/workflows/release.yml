@@ -227,9 +227,19 @@ jobs:
           # GitHub gövdeyi CRLF saklar, bayt bayt karşılaştırmak "0A 0A" ->
           # "0D 0A 0D 0A" yüzünden hizalamayı kaydırır ve doğru metni yanlışlıkla
           # bozuk sayar.
-          $yayinlanan = gh release view $tag --json body --jq '.body' 2>$null | Out-String
+          # Gövde gh API'den JSON olarak alinir ve PARSE edilir.
+          #
+          # Neden `gh release view --json body --jq '.body' | Out-String` DEGIL:
+          # o yol metni PowerShell hattindan gecirir ve satir sonlari/kesme
+          # donusumleri icerik degistirir. Olcum hatasi bir kez "hala bozuk"
+          # dedirip dogru metni yanlislikla sucladi. JSON'dan okunup
+          # ConvertFrom-Json ile ayristirilan govde bayt bayt korunur.
+          $relJson = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" 2>$null | ConvertFrom-Json
+          if (-not $relJson -or -not $relJson.body) { throw "surum govdesi okunamadi" }
+          $yayinlanan = [string]$relJson.body
+
           $beklenenBayt = [System.IO.File]::ReadAllBytes((Resolve-Path $notesFile))
-          $yayinBayt = [System.Text.UTF8Encoding]::new($false).GetBytes($yayinlanan.TrimEnd("`r","`n"))
+          $yayinBayt = [System.Text.UTF8Encoding]::new($false).GetBytes($yayinlanan)
 
           function Normalize([byte[]]$b) {
             $s = [System.Text.Encoding]::UTF8.GetString($b)
