@@ -619,6 +619,16 @@ namespace update
             return u;
         }
 
+        // Tek bir bileşeni oluşturmayı dener; zaten varsa başarı sayılır.
+        // CreateDirectoryW ÖZYİNELEMELİ DEĞİLDİR: üst klasör yoksa
+        // ERROR_PATH_NOT_FOUND döner. Klasör hiç oluşmadıysa false.
+        bool EnsureDir(const std::wstring& dir)
+        {
+            if (::CreateDirectoryW(dir.c_str(), nullptr)) return true;
+            const DWORD e = ::GetLastError();
+            return e == ERROR_ALREADY_EXISTS;
+        }
+
         std::wstring StageRoot()
         {
             wchar_t tmp[MAX_PATH] = {};
@@ -626,8 +636,17 @@ namespace update
             // Uygulama klasörü değil: indirilen dosya doğrulanmadan yere
             // konmamalı, ayrıca Program Files altında yazma yetki ister. Geçici
             // klasör her yazılabilir ve kullanıcı yolu bulabilir.
-            const std::wstring root = std::wstring(tmp) + brand::kAppDataFolder + L"\\Update";
-            ::CreateDirectoryW(root.c_str(), nullptr);
+            const std::wstring parent = std::wstring(tmp) + brand::kAppDataFolder;
+            const std::wstring root   = parent + L"\\Update";
+
+            // İKİ SEVİYE OLUŞTURULUYOR. Tek çağrıda "%TEMP%\TENGRI\Update"
+            // denemek, %TEMP%\TENGRI yoksa ERROR_PATH_NOT_FOUND ile sessizce
+            // başarısız oluyordu; dönüş değeri denetlenmediği için de StageRoot
+            // yine geçerli görünen bir yol döndürüyor, sonraki CreateFileW
+            // başarısız olup kullanıcıya "Dosya hatası" diyordu. Bu, güncelleme
+            // akışının TEMEL klasörü ilk kez kurulduğunda her zaman böyle
+            // kırılıyordu: yani hiçbir kullanıcı güncelleme indiremiyordu.
+            if (!EnsureDir(parent) || !EnsureDir(root)) return {};
             return root;
         }
 
