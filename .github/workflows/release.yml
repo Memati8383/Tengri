@@ -127,21 +127,17 @@ jobs:
         run: |
           $tag = $env:GITHUB_REF_NAME
 
-          # Türkçe notlar gh'ye bozulmadan GECMELI. Iki ayri engel var; ikisi de
-          # olmadan notlar yayin sayfasinda cift kodlamayla cikar.
+          # Türkçe notlar gh'ye bozulmadan GECMELI. Ölçümle bulundu:
+          #   --notes "TENGRI İ"        (tek satır)  -> DOĞRU  (C4 B0)
+          #   --notes "## TENGRİ ..."   (çok satır) -> BOZUK
+          # Tek satırda sorun görünmüyor; hata ancak GERÇEK notlar (yüzlerce
+          # satır) yayınlandığında ortaya çıkıyor. Bu yüzden doğrulama da tek
+          # satırla değil, gerçek not dosyasıyla yapılmalı.
           #
-          # 1) Get-Content -Encoding utf8 olmadan okumak. Dosya kod sayfasiyla
-          #    (CI'da cp1254) okunur, iki baytli harfler bozulur.
-          # 2) gh argumani KONSOL KOD SAYFASINDAN okuyor. --notes ve --notes-file
-          #    farki yok: ikisi de ayni sekilde bozuyor. Bu yuzden notu once
-          #    dogru okuyup sonra gh'ye BORUDAN gecirmek de cozum degil.
-          #    Olcum: `--notes "TENGRI test"` -> geri gelen baytlar
-          #    C4 B0 yerine E2 84 98 E2 80 98.
-          #
-          # Cozum: konsol cikis kodlamasi UTF-8'e alinir. gh argumani bu kod
-          # sayfasindan okudugu icin metin bu ayardan SONRA bozulur; once
-          # ayarlanirsa baytlar aynen geciyor. --notes-file tek basina yetmez,
-          # o da ayni yoldan geciyor.
+          # --notes-file notu BAYT BAYT okur ve çok satırlı dosyada doğru
+          # çıktı. (Önceki yorumda "--notes-file de bozuyor" denmişti; bu ölçüm
+          # hatasıydı — testte Out-String satır sonlarını dönüştürüyordu ve
+          # ben onu bozulma sandım.)
           [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
           $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
@@ -154,7 +150,6 @@ jobs:
               [System.Text.UTF8Encoding]::new($false)
             )
           }
-          $notes = Get-Content $notesFile -Raw -Encoding utf8
           # Sürüm YENIDEN yayınlanıyorsa (ör. aynı etiket düzeltilmiş bir
           # derlemeyle tekrar gönderildiğinde) `gh release create` "a release with
           # the same tag name already exists" ile BAŞARISIZ olur ve --clobber
@@ -171,13 +166,13 @@ jobs:
           gh release view $tag > $null 2>&1
           if ($LASTEXITCODE -eq 0) {
             Write-Host "surum zaten var; varliklar ustune yaziliyor: $tag"
-            gh release edit $tag --title "TENGRI $tag" --notes "$notes"
+            gh release edit $tag --title "TENGRI $tag" --notes-file $notesFile
             gh release upload $tag "build\TENGRI.exe" --clobber
           }
           else {
             gh release create $tag "build\TENGRI.exe" `
               --title "TENGRI $tag" `
-              --notes "$notes"
+              --notes-file $notesFile
           }
 
           # Güncelleme bildirimi de sürüme asetlenir; böylece uygulamanın okuduğu
@@ -229,21 +224,58 @@ jobs:
           # Neden ayri bir adim: kodlama hatasi notlarin icinde gizli kalir,
           # kimse yayin sayfasina bakmaz; sonucu ancak bayt duzeyinde gormek
           # yakalar. "Notlar uzgun gorunuyor" bir denetim degildir.
-          $probe = "TENGRI $([char]0x0130)"
-          gh release edit $tag --notes $probe 2>$null
-          $body = gh release view $tag --json body --jq '.body' 2>$null | Out-String
-          $body = $body.Trim()
-          $beklenen = "TENGRI $([char]0x0130)"
-          if ($body -eq $beklenen) {
-            Write-Host "not kodlamasi dogrulandi (Turkce karakter korundu)"
+          # Yayınlanan notlar bayt bayt doğru mu? GERÇEK not dosyasıyla
+          # karşılaştırılır, tek satırlık bir denemeyle DEĞİL.
+          #
+          # Neden gerçek dosya: ölçümde --notes TEK SATIRDA doğru, ÇOK SATIRDA
+          # bozuk çıktı. Kısa bir probe her zaman geçer ve hatayı gizler —
+          # v1.5.0'ın ilk düzeltmesinde tam olarak böyle yanlış pozifif verdi.
+          #
+          # Karşılaştırma bayt üzerinden yapılır: metin karşılaştırması PowerShell
+          # hattındaki satır sonu dönüşümleri yüzünden aynı metni farklı sayabilir
+          # (bu da bir ölçüm hatasının ikinci kaynağıydı).
+          $yayinlanan = gh release view $tag --json body --jq '.body' 2>$null | Out-String
+          $beklenenBayt = [System.IO.File]::ReadAllBytes((Resolve-Path $notesFile))
+          # Yayınlanan gövde gh tarafından UTF-8 olarak döner; aynı kodlamaya çevir.
+          $yayinBayt = [System.Text.UTF8Encoding]::new($false).GetBytes($yayinlanan.TrimEnd("`r","`n"))
+
+          # Uzunluk farkı satır sonu normalleştirmesinden gelir; içerik kontrolü
+          # ilk Türkçe harfin baytları üzerinden yapılır, o zaman normalleştirme
+          # önemsizdir.
+          $ilkTurkce = -1
+          for ($i = 0; $i -lt $beklenenBayt.Length - 1; $i++) {
+            if ($beklenenBayt[$i] -eq 0xC4 -and $beklenenBayt[$i+1] -eq 0xB0) { $ilkTurkce = $i; break }
+          }
+          if ($ilkTurkce -lt 0) { $ilkTurkce = 0 }
+
+          # Karşılaştırma satır sonlarından ARINDIRILMIŞ metin üzerinden yapılır.
+          # GitHub gövdeyi CRLF olarak saklar; bayt bayt karşılaştırmak
+          # "0A 0A" -> "0D 0A 0D 0A" yüzünden hizalama kaydırır ve doğru metni
+          # yanlışlıkla "bozuk" sayar. İkinci ölçüm hatası da buydu.
+          function Normalize([byte[]]$b) {
+            $s = [System.Text.Encoding]::UTF8.GetString($b)
+            return ($s -replace "`r`n", "`n").TrimEnd("`n")
+          }
+          $normBeklenen = Normalize $beklenenBayt
+          $normYayinlanan = Normalize $yayinBayt
+
+          if ($normYayinlanan -eq $normBeklenen) {
+            Write-Host "not kodlamasi dogrulandi (tum metin bayt bayt ayni, satir sonu hariç)"
           }
           else {
-            Write-Host "UYARI: not kodlamasi bozuk gorunuyor."
-            Write-Host "  beklenen: $beklenen"
-            Write-Host "  gelen   : $body"
-            throw "release notlari kodlamasi bozuk; konsol kodlamasi ayarlanmamis olabilir"
+            # Nerede ayrıldı? Kısa bir bağlam yazdır.
+            $n = [Math]::Min($normBeklenen.Length, $normYayinlanan.Length)
+            $ilk = 0
+            while ($ilk -lt $n -and $normBeklenen[$ilk] -eq $normYayinlanan[$ilk]) { $ilk++ }
+            Write-Host "ilk fark indeksi: $ilk"
+            Write-Host ("beklenen ...: " + $normBeklenen.Substring([Math]::Max(0,$ilk-10), 30))
+            Write-Host ("gelen    ...: " + $normYayinlanan.Substring([Math]::Max(0,$ilk-10), 30))
+            throw "release notlari kodlamasi bozuk"
           }
-          # Gerçek notlar geri yazılır.
-          gh release edit $tag --title "TENGRI $tag" --notes "$notes"
+          else {
+            Write-Host "beklenen baytlar: $([BitConverter]::ToString($beklenenBayt[$ilkTurkce..($ilkTurkce+9)]))"
+            Write-Host "gelen    baytlar: $([BitConverter]::ToString($yayinBayt[$ilkTurkce..($ilkTurkce+9)]))"
+            throw "release notlari kodlamasi bozuk (ilk Turkce karakter C4 B0 degil)"
+          }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
