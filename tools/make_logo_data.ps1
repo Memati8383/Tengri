@@ -1,4 +1,4 @@
-# Embeds res\tengri-logo.png into a C++ source file (src\gui\logo_data.cpp).
+﻿# Embeds res\tengri-logo.png into a C++ source file (src\gui\logo_data.cpp).
 #
 # Why the bytes are embedded instead of carried as an RT_RCDATA resource: the
 # resource is demonstrably present in the built exe, yet FindResourceW from inside

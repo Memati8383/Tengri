@@ -1,4 +1,4 @@
-. .\tools\shoot.ps1
+﻿. .\tools\shoot.ps1
 
 $p = Start-App
 Start-Sleep -Seconds 5

@@ -37,6 +37,12 @@ jobs:
       - name: Derle ve test et
         run: cmd /c build.bat
 
+      # BOM'suz bir .ps1 üreticisi bir kez çift kodlanmış Türkçe üretti; üretim
+      # hattındaki her dosya bu kapıdan geçmeli, yoksa bozuk metin release'e girer.
+      - name: Metin kodlaması denetimi
+        shell: pwsh
+        run: ./tools/check_text_encoding.ps1
+
       # Üretilen registry tablosu kaynak kodla tutarlı olmalı. Üretici yanlış bir
       # ayarı sessizce atlarsa tablo eksik kalır ama derleme yine de yeşildir;
       # burada yeniden üretip fark olup olmadığına bakılıyor.

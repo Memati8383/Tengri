@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 # NOT: Onceki denemede bir yardimci fonksiyon kullanildi ve icindeki Write-Output,
 # fonksiyonun donus degerine karisti; sonuc dosyanin 1. satirina yazildi. Bu yuzden

@@ -1,4 +1,4 @@
-# Drives the TENGRI window with synthetic mouse input and captures the screen.
+﻿# Drives the TENGRI window with synthetic mouse input and captures the screen.
 #
 # Used to produce the screenshots in docs/screenshots. Input goes to the window with
 # SetCursorPos + mouse_event rather than PostMessage, because ImGui reads the real cursor

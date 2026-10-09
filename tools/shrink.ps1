@@ -1,4 +1,4 @@
-param([string]$InPath, [string]$OutName, [int]$Width = 1200)
+﻿param([string]$InPath, [string]$OutName, [int]$Width = 1200)
 Add-Type -AssemblyName System.Drawing
 $src = [System.Drawing.Bitmap]::FromFile((Resolve-Path $InPath).Path)
 $newH = [int]($src.Height * ($Width / [double]$src.Width))

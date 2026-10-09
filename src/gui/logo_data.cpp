@@ -1,7 +1,7 @@
 #include "logo_data.hpp"
 
-// tools\make_logo_data.ps1 tarafÄ±ndan Ã¼retilir; elle dÃ¼zenlenmemelidir.
-// Kaynak: res\tengri-logo.png - 256 x 256 - beyaz Ã§izim, saydam zemin - 27477 bayt PNG
+// tools\make_logo_data.ps1 tarafından üretilir; elle düzenlenmemelidir.
+// Kaynak: res\tengri-logo.png - 256 x 256 - beyaz çizim, saydam zemin - 27477 bayt PNG
 
 namespace logodata
 {

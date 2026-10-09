@@ -1,9 +1,9 @@
 #include "font_data.hpp"
 
-// tools\make_font_data.ps1 tarafÄ±ndan Ã¼retilir; elle dÃ¼zenlenmemelidir.
+// tools\make_font_data.ps1 tarafından üretilir; elle düzenlenmemelidir.
 //
 // Inter (SIL Open Font License 1.1) - bkz res\fonts\Inter-OFL.txt
-// YalnÄ±zca Latin + Turkce + noktalama alt kumesi gÃ¶mÃ¼lÃ¼r.
+// Yalnızca Latin + Turkce + noktalama alt kumesi gömülür.
 
 namespace fontdata
 {

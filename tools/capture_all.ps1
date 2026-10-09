@@ -1,4 +1,4 @@
-# Regenerates every screenshot in docs\screenshots.
+﻿# Regenerates every screenshot in docs\screenshots.
 #
 # One pass, in one run: the pages are captured from a single app instance so the
 # font, the palette and the layout in all of them provably match. Running the

@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Continue'
+﻿$ErrorActionPreference = 'Continue'
 $md = [System.IO.File]::ReadAllText("$env:TEMP\pr.md", [System.Text.Encoding]::UTF8)
 
 $urls = [regex]::Matches($md, 'https://[^\s"''<>)]+') | ForEach-Object { $_.Value.TrimEnd('.',',',';') } | Sort-Object -Unique

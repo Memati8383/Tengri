@@ -1,4 +1,4 @@
-# Embeds the Inter font subsets in res\fonts into a C++ source file
+﻿# Embeds the Inter font subsets in res\fonts into a C++ source file
 # (src\gui\font_data.cpp).
 #
 # Why the bytes are embedded rather than loaded from disk: the app ships as a

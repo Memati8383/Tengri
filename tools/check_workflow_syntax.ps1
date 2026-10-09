@@ -1,4 +1,4 @@
-# release.yml'daki PowerShell bloklarinin SOZDIZIMINI dogrular.
+﻿# release.yml'daki PowerShell bloklarinin SOZDIZIMINI dogrular.
 #
 # Neden ayri bir adim: GitHub Actions, run: blogu icindeki bir sozdizimi hatasini
 # adimin BASINDA gostermez; blogu yorumlariyla birlikte tek bir komut olarak

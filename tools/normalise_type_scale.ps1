@@ -1,4 +1,4 @@
-# Normalises every literal font size in the ui::Text / TextSize / Label family
+﻿# Normalises every literal font size in the ui::Text / TextSize / Label family
 # onto the type scale declared in src\gui\theme.hpp.
 #
 # One-time migration helper. It is deliberately narrow: it only rewrites a

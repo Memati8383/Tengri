@@ -1,4 +1,4 @@
-# Generates res\tengri.ico from an existing PNG artwork (res\tengri-logo.png)
+﻿# Generates res\tengri.ico from an existing PNG artwork (res\tengri-logo.png)
 # instead of the procedural diamond mark make_icon.ps1 draws.
 #
 # The entry encoding is identical to make_icon.ps1 on purpose: classic 32bpp

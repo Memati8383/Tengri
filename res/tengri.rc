@@ -1,7 +1,8 @@
 ﻿// Bu dosya UTF-8 BOM ile saklanmalıdır. rc.exe, /utf8 bayrağı olmayan tek bir
 // derleyici çağrısında kaynak dosyayı sistem ANSI kod sayfasında okur; BOM
-// olmadan "TENGRİ" içeren bir dize kaynakta "TENGRI" gibi görünür hatta "TÃ¯"
-// gibi bozuk çıkar. BOM, rc.exe'e "bu UTF-8" dedirir.
+// olmadan "TENGRİ" içeren bir dize kaynakta "TENGRI" gibi görünür; kod sayfası
+// tutmuyorsa harf iki baytlık bozuk bir iz olarak çıkar. BOM, rc.exe'e
+// "bu UTF-8" dedirir.
 //
 // Aynı kural build\obj\version.h için de geçerli; onu üreten make_version.ps1
 // BOM ile yazar. Editör BOM'u sessizce atabilir: kaydedip şu komutla doğrula.

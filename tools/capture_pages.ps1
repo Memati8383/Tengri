@@ -1,4 +1,4 @@
-. .\tools\shoot.ps1
+﻿. .\tools\shoot.ps1
 $p = Get-Win
 Write-Output ("start: {0}" -f $p.MainWindowTitle)
 

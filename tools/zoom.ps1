@@ -1,4 +1,4 @@
-param([string]$InPath, [string]$OutName, [int]$X, [int]$Y, [int]$W, [int]$H, [int]$Zoom = 8)
+﻿param([string]$InPath, [string]$OutName, [int]$X, [int]$Y, [int]$W, [int]$H, [int]$Zoom = 8)
 Add-Type -AssemblyName System.Drawing
 $src = [System.Drawing.Bitmap]::FromFile((Resolve-Path $InPath).Path)
 $crop = $src.Clone((New-Object System.Drawing.Rectangle $X, $Y, $W, $H), $src.PixelFormat)

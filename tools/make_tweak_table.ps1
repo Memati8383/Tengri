@@ -1,4 +1,4 @@
-# Generates docs/tweaks-registry.md -- the table of every registry location the
+﻿# Generates docs/tweaks-registry.md -- the table of every registry location the
 # tweaks touch.
 #
 # Why generated instead of hand-written: the README claims "every registry key this

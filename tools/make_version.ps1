@@ -1,4 +1,4 @@
-# Generates the version header that res\tengri.rc includes.
+﻿# Generates the version header that res\tengri.rc includes.
 #
 # The version lives in exactly one place -- src\brand.hpp -- because a second copy in
 # the .rc file is a second chance to forget. It was forgotten once: a tag was cut for
@@ -75,6 +75,7 @@ $content += "`r`n"
 # BOM is required, not cosmetic. rc.exe is invoked without /utf8, so it reads this
 # header in the system ANSI code page unless a BOM tells it otherwise; without one
 # a publisher name carrying the dotted Turkish capital renders as "TENGRI" or, if
-# the code page disagrees, as "TÃ¯". Same rule as res\tengri.rc.
+# the code page disagrees, as a garbled double-byte sequence. Same rule as
+# res\tengri.rc.
 [System.IO.File]::WriteAllText($outPath, $content, (New-Object System.Text.UTF8Encoding $true))
 Write-Output ("    surum basligi yazildi: {0}  ({1})" -f $outPath, $ver)

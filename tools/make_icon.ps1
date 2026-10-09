@@ -1,4 +1,4 @@
-# Generates res\tengri.ico from the same diamond mark the app draws at runtime
+﻿# Generates res\tengri.ico from the same diamond mark the app draws at runtime
 # (DrawLogo): an outer rotated square with a filled inner diamond.
 #
 # Entries are written as classic 32bpp BMP/DIB with an AND mask rather than as PNG.

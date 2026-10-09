@@ -1,4 +1,4 @@
-# Regenerates the Inter subsets in res\fonts from the upstream release.
+﻿# Regenerates the Inter subsets in res\fonts from the upstream release.
 #
 # Run this ONCE, when upgrading Inter or adding a language. It is deliberately not
 # part of build.bat: it needs Python + fontTools, while building needs only
