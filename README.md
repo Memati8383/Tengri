@@ -7,8 +7,8 @@
   <img alt="Dear ImGui + DirectX 11" src="https://img.shields.io/badge/Dear_ImGui_1.92%2B-DirectX_11-0078d7?style=flat-square" />
   <img alt="Çalışma zamanı yok" src="https://img.shields.io/badge/%C3%A7al%C4%B1%C5%9Fma%20zaman%C4%B1-yok-7a4ea3?style=flat-square" />
   <img alt="1.7 MB tek dosya" src="https://img.shields.io/badge/tek%20dosya-1.7%20MB-2e8b57?style=flat-square" />
-  <img alt="56 registry anahtarı" src="https://img.shields.io/badge/registry%20anahtar%C4%B1-56-b06a2c?style=flat-square" />
-  <img alt="387 denetim, 0 hata" src="https://img.shields.io/badge/denetim-387%20%2F%200%20hata-4b8b4b?style=flat-square" />
+  <img alt="80 registry anahtarı" src="https://img.shields.io/badge/registry%20anahtar%C4%B1-80-b06a2c?style=flat-square" />
+  <img alt="496 denetim, 0 hata" src="https://img.shields.io/badge/denetim-496%20%2F%200%20hata-4b8b4b?style=flat-square" />
   <a href="https://github.com/Memati8383/Tengri/releases"><img alt="En yeni sürüm" src="https://img.shields.io/github/v/release/Memati8383/Tengri?style=flat-square&label=s%C3%BCr%C3%BCm" /></a>
 </p>
 
@@ -28,10 +28,10 @@ zorunda — rozetler süs değil kontrol noktası.
 
 <p align="center">
   <b>9 ekran</b> · <b>80 registry anahtarı</b> · <b>10 temizlik kategorisi</b> ·
-  <b>14 RAM profili</b> · <b>2 dil</b> · <b>0 telemetri</b> · <b>2 ağ çıkışı, hepsi listede</b>
+  <b>14 RAM profili</b> · <b>2 dil</b> · <b>0 telemetri</b> · <b>3 ağ çıkışı, hepsi listede</b>
 </p>
 
-Yazdığı her registry anahtarı kaynakta görünür: 56 anahtarın dokunduğu her yol
+Yazdığı her registry anahtarı kaynakta görünür: 80 anahtarın dokunduğu her yol
 [docs/tweaks-registry.md](docs/tweaks-registry.md) içinde liste halinde. Bu tablo kaynaktan üretilir,
 elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 
@@ -46,7 +46,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 - [Ekran görüntüleri](#ekran-görüntüleri)
 - [Çalıştırmadan önce](#çalıştırmadan-önce)
 - [Özellikler](#özellikler) — 9 ekran, tek tek
-- [Testler](#testler) — 5 paket, 387 denetim
+- [Testler](#testler) — 5 paket, 496 denetim
 - [Nasıl çalışıyor](#nasıl-çalışıyor)
 - [Ağ kullanımı](#ağ-kullanımı) — dışarı giden üç isteğin tam listesi
 - [Yükseltme](#yükseltme)
@@ -65,7 +65,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 |---|---|
 | İşletim sistemi | Windows 10 ve Windows 11 (x64) |
 | Mimari | 64-bit |
-<| Disk | 1.7 MB — 1.5.0 yerel derlemesi 1.779.712 bayt; 1.3.0 CI derlemesi 1.739.264 bayt (araç seti yamasına göre birkaç KB oynar) |
+| Disk | 1.7 MB — 1.6.0 yerel derlemesi 1.784.832 bayt; 1.3.0 CI derlemesi 1.739.264 bayt (araç seti yamasına göre birkaç KB oynar) |
 | Ek bağımlılık | Yok — .NET, Python veya çalışma zamanı gerekmez |
 | Yönetici | Yalnızca ayar uygularken gerekir; açılışta gerekmez |
 
@@ -80,8 +80,9 @@ Bu birkaç şeyi **yapmaz**, ve yapmadığını açıkça söylemek bu aracın b
 - **Antivirüsü, güvenliği veya Windows güncellemesini değiştirmez.** Tek bir antivirüs
   ya da güvenlik özelliğini kapatmaz, hiçbir dosyayı karantinaya almaz.
 - **Telemetri göndermez.** Lisans ekranı bir demodur; sunucuya hiçbir istek yapılmaz.
-  Makine parmak izi hesaplanır ama hiçbir yere gönderilmez. Dışarı giden tek istek
-  sürüm denetimidir ve o da hiçbir şey taşımaz — bkz. [Ağ kullanımı](#ağ-kullanımı).
+  Makine parmak izi hesaplanır ama hiçbir yere gönderilmez. Dışarı giden üç istek var:
+  sürüm bildirimi, sürüm dosyasını indirme ve Ağ ekranındaki gecikme ölçümü. Üçü de
+  kullanıcı verisi taşımaz, tam liste [Ağ kullanımı](#ağ-kullanımı) içinde.
 - **Kendiliğinden güncellenmez.** İndirme sen "İndir" demeden başlamaz, kurulum ayrıca
   "Kur ve yeniden başlat" ister. Uygulama kapalıyken hiçbir şey inmez, hiçbir şey
   yazılmaz. Denetimin kendisi de Ayarlar → Güncellemeler altından tamamen kapatılabilir.
@@ -222,6 +223,12 @@ Hizmetler:
 > aynı DPI ile üretildi. Betiği çalıştırırsan görseller bu dizine yeniden düşer.
 > Görseller gerçek bir makinede alındı: Başlatma ekranı o sistemde kurulu
 > programları, Hizmetler ekranı gerçek hizmet durumlarını gösterir.
+>
+> **İki görsel bayat:** `06-settings.png` ve `07-about.png` 1.6.0'daki Ayarlar ve
+> Hakkında yeniden düzenlemesinden **önce** alındı. İkisi de şu anki yerleşimi
+> göstermiyor — Hakkında sayfasındaki uyarı bloğu kaldırıldı, yerine meta şeridi ve
+> tıklanabilir yetenek ızgarası geldi. Yerel derlemede betiği çalıştırırsan
+> onlar da güncellenir.
 
 ---
 
@@ -250,7 +257,7 @@ okurken **hiç sorulmaz**. Ayrıntı: [Yükseltme](#yükseltme).
 | **Ağ** | Gerçek ICMP gecikme ölçümü, DNS geçişi, bağlantı ayrıntıları, 6 ağ anahtarı |
 | **Sistem Bilgisi** | Donanım, yazılım ve güvenlik ayrıntıları |
 | **Ayarlar** | Görsel efektler, davranış, dil, hesap, bildirimler |
-| **Hakkında** | Sürüm, lisans, uyarılar, sosyal ve kaynak kod bağlantıları |
+| **Hakkında** | Marka bloğu, sürüm/lisans/plan/güncelleme şeridi, altı ekrana sıçrayan yetenek listesi, sosyal ve kaynak kod bağlantıları |
 | **Başlatma** | Otomatik başlayan programlar; değeri silmeden devre dışı bırakma |
 | **Hizmetler** | Beyaz listedeki Windows arka plan hizmetleri için başlangıç türü ve oyun profili |
 
@@ -610,7 +617,7 @@ sayı; 4 GB üstü kartlarda taşıyor ve 16 GB'lık bir kartı 4 GB gösteriyor
 | Parçacık ayarları | Parçacık sayısı (kaydırıcı), parçacık hızı (çarpan) |
 | Güncellemeler | Otomatik denetim anahtarı, son denetim durumu, **Şimdi denetle / İndir / Kur ve yeniden başlat / Vazgeç** — ayrıntı aşağıda |
 | Genel | Lisansı hatırla, uygulama içi bildirimler, Windows bildirimleri, sadece hatalar, başlangıçta çalıştır, tepsi simgesine küçült, kapatınca arka planda çalışmaya devam et |
-| Dil | English / Türkçe — seçim kalıcı olarak saklanır |
+| Dil | Genel kartının en üstünde bir bölüm olarak, English / Türkçe — seçim kalıcı olarak saklanır |
 | Hesap | Maskelenmiş lisans anahtarı, plan, bitiş, demo lisans bildirimi, çıkış yap |
 
 | Davranış | Ayrıntı |
@@ -731,10 +738,11 @@ kurulumu ise **sana** sorar — kendiliğinden inen veya kendiliğinden kurulan 
 
 | Öğe | İçerik |
 |---|---|
-| Kimlik | Ürün adı, sürüm (çalışan exe'nin sürüm kaynağından okunur), lisans |
-| Bağlantılar | Instagram, GitHub ve kaynak kod — gerçek marka siluetli ikonlarla, `ShellExecuteW` ile açılır |
-| Uyarılar | Demo lisans açıklaması ve yönetici yetkisi gerekçesi |
+| Marka bloğu | Logo, ürün adı ve tagline — tek sanat kaynağı `res/tengri-logo.png` |
+| Meta şeridi | Sürüm (çalışan exe'nin sürüm kaynağından okunur), lisans, plan, güncelleme durumu |
 | Güncelleme rozeti | "Güncelleme mevcut" / "Güncel" / "Denetleniyor" — bkz. [Güncellemeler](#güncellemeler) |
+| Yetenek ızgarası | Altı satır: Temizleyici, İnce Ayarlar, Ağ, Hizmetler, Başlatma, Sistem Bilgisi — tıklayınca o ekrana geçer, sekme adları ve açıklamaları çeviriden gelir |
+| Bağlantılar | Instagram, GitHub ve kaynak kod — GitHub silüeti gömülü AA maskesinden doku olarak çizilir, `ShellExecuteW` ile açılır |
 
 ---
 
@@ -863,18 +871,22 @@ sürümü denetler).
 | 6 | `cl` ile `build\TENGRI.exe` |
 | 7 | **Beş test paketini derler ve çalıştırır** — biri bile takılırsa betik `exit /b 1` ile durur |
 
-CI'da ayrıca etiketle exe içindeki `VERSIONINFO` sürümünün aynı olduğunu ve
-`docs\tweaks-registry.md`'nin üretilmiş hâliyle güncel olduğunu denetleyen iki adım var.
+CI'da derlemeden sonra üç denetim adımı daha var: `tools\check_text_encoding.ps1`
+depodaki her metin dosyasının geçerli UTF-8 olduğunu ve "iki kez kodlanmış UTF-8" izi
+taşımadığını denetler (`.ps1` dosyalarında BOM aranır — Windows PowerShell 5.1 bom'suz
+UTF-8'i ANSI okur ve üretilen kaynak yorumları bozuk hâliyle depoya girer),
+`docs\tweaks-registry.md` aynı betikle yeniden üretilip yerdeki hâliyle karşılaştırılır,
+ve etiket ile exe içindeki `VERSIONINFO` sürümünün aynı olduğu doğrulanır.
 
 ---
 
 ## Testler
 
-`build.bat` derlemenin sonunda beş paket çalıştırır. Toplam **387 denetim**, 0 hata:
+`build.bat` derlemenin sonunda beş paket çalıştırır. Toplam **496 denetim**, 0 hata:
 
 | Paket | Denetim | Kapsam | Gerçek sisteme dokunur mu |
 |---|---|---|---|
-| `test_pure.cpp` | 122 | i18n tabloları (boyut **+ sıra**), RAM ön ayarları, tweak sözleşmeleri, `.reg` paket gövdeleri ve açma/kapama simetrisi, yetki yükseltme komut kodlama/çözme gidiş-dönüşü | Hayır — saf mantık |
+| `test_pure.cpp` | 231 | i18n tabloları (boyut **+ sıra**), RAM ön ayarları, tweak sözleşmeleri, `.reg` paket gövdeleri ve açma/kapama simetrisi, yetki yükseltme komut kodlama/çözme gidiş-dönüşü | Hayır — saf mantık |
 | `test_modules.cpp` | 44 | Geri yükleme noktası sonuç metinleri, hizmet beyaz listesi güvenlik kapısı, hizmet ve başlangıç sorguları, shader taraması | Hayır — beşi de salt-okunur |
 | `test_license.cpp` | 22 | `license::Mask` çırpısı ve grup konumları, `sys::Hwid` determinizması ve biçimi, "beni hatırla" kalıcılığı | Hayır — izole APPDATA |
 | `test_write_paths.cpp` | 29 | Shader ve geçici dosya temizleyicilerinin tarama/temizleme tersinirliği, yedek kök dizini + listeleme/en-yeni sıralaması, içe aktarmayı reddetme yolları | Hayır — izole ortam |
@@ -882,7 +894,7 @@ CI'da ayrıca etiketle exe içindeki `VERSIONINFO` sürümünün aynı olduğunu
 
 **i18n'de boyut denetimi yetmez.** `test_pure`, blok tablolarının birbirine göre
 *kaymasını* da denetler (`TweakDescs - TweakNames`, `NetNames - TweakDescs`, toplam tweak
-sayısı = 56). `static_assert` yalnız uzunluğu gördüğü için 1.2.0'daki kaymayı
+sayısı = 80). `static_assert` yalnız uzunluğu gördüğü için 1.2.0'daki kaymayı
 yakalamamıştı. Aşağıdaki [i18n tabloları](#i18n-tabloları) bölümünde o tuzak anlatılıyor.
 
 **Paketlerin hiçbiri gerçek registry'ye, gerçek `%APPDATA%`'ye, gerçek hizmetlere veya
@@ -976,10 +988,10 @@ src/tray.cpp                 Kabuk tray ikonu, TaskbarCreated kurtarması, balon
 src/gui/theme.cpp            Renkler, fontlar, DPI ölçekleme (tipografi ölçeği theme.hpp'de)
 src/gui/fx.cpp               Parçacıklar, yıldız geçişi, üst ışık, ışık süpürme
 src/gui/widgets.cpp          Buton, anahtar, onay kutusu, giriş, kaydırıcı, segment, grafik, bildirim
-src/gui/icons.cpp            Vektör ikonlar
-src/gui/logo.cpp             Tek PNG'den yüklenen marka logosu (D3D11 dokusu)
+src/gui/icons.cpp            Vektör ikonlar — GitHub silüeti istisna: küçük boyutta doku olarak çizilir
+src/gui/logo.cpp             Marka görsellerini D3D11 dokusuna çevirir: uygulama logosu + GitHub silueti
 src/gui/logo_data.cpp        Logonun gömülü baytları — make_logo_data.ps1 üretir
-src/gui/brand_icons.cpp      Hakkında sayfası bağlantı ikonları (üçgenlenmiş, üretilmiş)
+src/gui/brand_icons.cpp      GitHub silüeti — üretilmiş üçgen yedeği ve gömülü yumuşatılmış alfa maskesi
 src/gui/font_data.cpp        Alt kümelenmiş Inter'ın gömülü baytları — make_font_data.ps1 üretir
 src/core/cleaner.cpp         Dosya taraması ve silme, shader alt-maskesi
 src/core/tweaks.cpp          10 tweak kategorisinin registry okuma/yazma işlemleri
@@ -1001,20 +1013,23 @@ src/core/update.cpp          Sürüm denetimi: WinHTTP, latest.json, SHA-256 kap
 res/tengri.rc                İkon, manifest, VERSIONINFO
 res/app.manifest             Yürütme düzeyi, DPI farkındalığı, işletim sistemi uyumluluğu
 res/tengri-logo.png          Tek sanat kaynağı — ikon, logo ve tepsi hep buradan
+res/github-mark.png          GitHub silüetinin 32 px alfa maskesi — make_brand_icons.ps1 üretir
 tools/make_version.ps1       brand.hpp'den sürüm başlığı üretir (VERSIONINFO kaynağı)
 tools/make_tweak_table.ps1   tweaks.cpp + regpack.cpp'den registry tablosu ve anahtar başlığı üretir
 tools/make_icon_from_png.ps1 PNG kaynaktan çok boyutlu .ico üretir — build.bat bunu kullanır
 tools/make_icon.ps1          Eski yol: elmas markayı koddan çizen .ico (yedek, build.bat bunu çağırmaz)
-tools/make_brand_icons.ps1   Hakkında sayfası bağlantı ikonlarını üçgenler ve brand_icons.cpp üretir
+tools/make_brand_icons.ps1   GitHub silüetini üçgenler; aynı konturdan 32 px alfa maskesi üretir ve ikisini brand_icons.cpp'ye gömer
 tools/make_font_subset.ps1   Inter arşivinden çizilen glifleri alt kümeler
 tools/make_font_data.ps1     Alt kümeyi gömülü C++ kaynağına çevirir
 tools/make_logo_data.ps1     Logo PNG'sini gömülü C++ kaynağına çevirir
+tools/check_text_encoding.ps1  Her metin dosyasını UTF-8 saflığına karşı denetler — CI kapısı
+tools/check_workflow_syntax.ps1  İş akışı dosyasını ayrıştırılıp ayrıştırılamadığına karşı yoklar
 tools/capture_all.ps1        docs/screenshots altındaki bütün görselleri tek oturumda üretir
 tools/shoot.ps1              Ekran görüntüsü alma yardımcısı (capture_all bunu kullanır)
 tools/shrink.ps1, zoom.ps1   Görsel küçültme / bölgesel yakınlaştırma (gözle kontrol)
 tools/normalise_type_scale.ps1  Sabit font boyotlarını theme.hpp ölçeğine taşıyan tek seferlik göç betiği
 tools/_health.ps1, _probe.ps1   Geliştirme sırasındaki tek seferlik teşhis betikleri
-tests/test_pure.cpp          Registry'ye dokunmayan saf mantık — 122 denetim
+tests/test_pure.cpp          Registry'ye dokunmayan saf mantık — 231 denetim
 tests/test_modules.cpp       restore/startup/services/shader yüzeyleri, salt-okunur - 44 denetim
 tests/test_license.cpp       HWID, Mask ve kalıcılık (izole APPDATA) — 22 denetim
 tests/test_write_paths.cpp   Yazma yolları, tamamen izole ortam değişkenlerinde — 29 denetim
@@ -1024,7 +1039,7 @@ CMakeLists.txt               Alternatif derleme (test hedefleri yok; testler bui
 publish.bat                  Yerel yayınlama yardımcısı
 third_party/imgui            Dear ImGui (submodule)
 .github/workflows/           Etiket itildiğinde sürümü temiz kurulumda derleyip yayınlar
-docs/tweaks-registry.md      56 anahtarın dokunduğu registry yolları (üretilmiş)
+docs/tweaks-registry.md      80 anahtarın dokunduğu registry yolları (üretilmiş)
 docs/TEST-YUKSELTME.md       Elle test listesi: yükseltme devri ve yedekleme/geri alma
 docs/screenshots/            Arayüz görselleri (capture_all.ps1 üretir)
 docs/release-notes/          Sürüm notları (sürüm başına bir dosya)
@@ -1079,7 +1094,8 @@ kadar olan dize literallerinden. Bir dahaki sefere kayma üretilemez, yalnızca 
 
 - Bazı ayarların etkili olması için yeniden başlatma gerekir.
 - Lisans ekranı bir **demodur**: her anahtar kabul edilir, sunucuya karşı hiçbir doğrulama
-  yapılmaz. Hem Hakkında sayfası hem de Hesap kartı bunu söyler.
+  yapılmaz. Ayarlar → Hesap kartı bunu açıkça söylüyor; Hakkında sayfasında plan
+  hücresi de aynı demo durumunu gösterir.
 - Makine parmak izi, bilgisayar adı, sistem birim seri numarası ve bir **ürüne özgü tuz**
   üzerinden FNV-1a özeti olarak hesaplanır. Yalnızca ekranda maskelenmiş halini görürsün;
   hiçbir isteğe eklenmez. Uygulamanın ağa çıkmasının tamamı
