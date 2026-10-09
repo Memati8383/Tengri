@@ -8,7 +8,7 @@
   <img alt="Çalışma zamanı yok" src="https://img.shields.io/badge/%C3%A7al%C4%B1%C5%9Fma%20zaman%C4%B1-yok-7a4ea3?style=flat-square" />
   <img alt="1.7 MB tek dosya" src="https://img.shields.io/badge/tek%20dosya-1.7%20MB-2e8b57?style=flat-square" />
   <img alt="80 registry anahtarı" src="https://img.shields.io/badge/registry%20anahtar%C4%B1-80-b06a2c?style=flat-square" />
-  <img alt="496 denetim, 0 hata" src="https://img.shields.io/badge/denetim-496%20%2F%200%20hata-4b8b4b?style=flat-square" />
+  <img alt="521 denetim, 0 hata" src="https://img.shields.io/badge/denetim-521%20%2F%200%20hata-4b8b4b?style=flat-square" />
   <a href="https://github.com/Memati8383/Tengri/releases"><img alt="En yeni sürüm" src="https://img.shields.io/github/v/release/Memati8383/Tengri?style=flat-square&label=s%C3%BCr%C3%BCm" /></a>
 </p>
 
@@ -46,7 +46,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 - [Ekran görüntüleri](#ekran-görüntüleri)
 - [Çalıştırmadan önce](#çalıştırmadan-önce)
 - [Özellikler](#özellikler) — 9 ekran, tek tek
-- [Testler](#testler) — 5 paket, 496 denetim
+- [Testler](#testler) — 5 paket, 521 denetim
 - [Nasıl çalışıyor](#nasıl-çalışıyor)
 - [Ağ kullanımı](#ağ-kullanımı) — dışarı giden üç isteğin tam listesi
 - [Yükseltme](#yükseltme)
@@ -221,8 +221,12 @@ Hizmetler:
 
 > On görselin tamamı (giriş dâhil) `tools\capture_all.ps1` ile **tek oturumda**, aynı
 > tema ve aynı DPI ile üretildi. Betiği çalıştırırsan görseller bu dizine yeniden düşer.
-> Görseller gerçek bir makinede alındı: Başlatma ekranı o sistemde kurulu
-> programları, Hizmetler ekranı gerçek hizmet durumlarını gösterir.
+> Görseller gerçek bir makinede alındı, ama **makineyi tanıtan alanlar uydurma**:
+> betik `TENGRI_SHOT=1` ile açıldığı için HWID, bilgisayar/oturum adı, işlemci/ekran
+> kartı/ana kart/BIOS, RAM hızı, ağ adaptörünün adı, yerel IP, Başlatma listesi ve
+> lisans maskesi sabit örnek değerlerle çiziliyor. Canlı ölçüm kalan yerler — CPU
+> yüzdesi, kullanılan bellek, boş disk, sağlık puanı, gecikme grafiği, hizmet durumları
+> — yakalama anındaki gerçek değerler.
 >
 > Görseller 1.6.0 derlemesinden alındı: Ayarlar ekranında Dil artık Genel kartının
 > bölümü, Hakkında ekranı marka bloğu + meta şeridi + tıklanabilir yetenek ızgarası
@@ -880,11 +884,11 @@ ve etiket ile exe içindeki `VERSIONINFO` sürümünün aynı olduğu doğrulan�
 
 ## Testler
 
-`build.bat` derlemenin sonunda beş paket çalıştırır. Toplam **496 denetim**, 0 hata:
+`build.bat` derlemenin sonunda beş paket çalıştırır. Toplam **521 denetim**, 0 hata:
 
 | Paket | Denetim | Kapsam | Gerçek sisteme dokunur mu |
 |---|---|---|---|
-| `test_pure.cpp` | 231 | i18n tabloları (boyut **+ sıra**), RAM ön ayarları, tweak sözleşmeleri, `.reg` paket gövdeleri ve açma/kapama simetrisi, yetki yükseltme komut kodlama/çözme gidiş-dönüşü | Hayır — saf mantık |
+| `test_pure.cpp` | 256 | i18n tabloları (boyut **+ sıra**), RAM ön ayarları, tweak sözleşmeleri, `.reg` paket gövdeleri ve açma/kapama simetrisi, yetki yükseltme komut kodlama/çözme gidiş-dönüşü, `TENGRI_SHOT` örnek veri kipi | Hayır — saf mantık |
 | `test_modules.cpp` | 44 | Geri yükleme noktası sonuç metinleri, hizmet beyaz listesi güvenlik kapısı, hizmet ve başlangıç sorguları, shader taraması | Hayır — beşi de salt-okunur |
 | `test_license.cpp` | 22 | `license::Mask` çırpısı ve grup konumları, `sys::Hwid` determinizması ve biçimi, "beni hatırla" kalıcılığı | Hayır — izole APPDATA |
 | `test_write_paths.cpp` | 29 | Shader ve geçici dosya temizleyicilerinin tarama/temizleme tersinirliği, yedek kök dizini + listeleme/en-yeni sıralaması, içe aktarmayı reddetme yolları | Hayır — izole ortam |
@@ -999,6 +1003,7 @@ src/core/network.cpp         DNS geçişi, adaptör bilgisi, ağ anahtarları, I
 src/core/sysinfo.cpp         CPU / RAM / disk / çalışma süresi / HWID
 src/core/sysinfo_detail.cpp  Secure Boot, sanallaştırma, BIOS modu, kurulum tarihi
 src/core/sysinfo_wmi.cpp     WMI sorguları (RAM hızı/yuvaları, TPM)
+src/core/sample_data.hpp     TENGRI_SHOT=1: tanıtıcı alanları sabit örnekle değiştirir; örnek etiketlerin gerçek registry'ye yazması engelli (başlık-dosyası)
 src/core/lang.cpp            İngilizce / Türkçe metin tabloları
 src/core/license.cpp         Demo lisans ekranı, HWID ve Mask
 src/core/elevate.cpp         Yetki yükseltme: runas ile yeniden başlatma, komut satırı kodlama
@@ -1022,12 +1027,12 @@ tools/make_font_data.ps1     Alt kümeyi gömülü C++ kaynağına çevirir
 tools/make_logo_data.ps1     Logo PNG'sini gömülü C++ kaynağına çevirir
 tools/check_text_encoding.ps1  Her metin dosyasını UTF-8 saflığına karşı denetler — CI kapısı
 tools/check_workflow_syntax.ps1  İş akışı dosyasını ayrıştırılıp ayrıştırılamadığına karşı yoklar
-tools/capture_all.ps1        docs/screenshots altındaki bütün görselleri tek oturumda üretir
+tools/capture_all.ps1        docs/screenshots altındaki bütün görselleri tek oturumda üretir (TENGRI_SHOT=1 ile)
 tools/shoot.ps1              Ekran görüntüsü alma yardımcısı (capture_all bunu kullanır)
 tools/shrink.ps1, zoom.ps1   Görsel küçültme / bölgesel yakınlaştırma (gözle kontrol)
 tools/normalise_type_scale.ps1  Sabit font boyotlarını theme.hpp ölçeğine taşıyan tek seferlik göç betiği
 tools/_health.ps1, _probe.ps1   Geliştirme sırasındaki tek seferlik teşhis betikleri
-tests/test_pure.cpp          Registry'ye dokunmayan saf mantık — 231 denetim
+tests/test_pure.cpp          Registry'ye dokunmayan saf mantık — 256 denetim
 tests/test_modules.cpp       restore/startup/services/shader yüzeyleri, salt-okunur - 44 denetim
 tests/test_license.cpp       HWID, Mask ve kalıcılık (izole APPDATA) — 22 denetim
 tests/test_write_paths.cpp   Yazma yolları, tamamen izole ortam değişkenlerinde — 29 denetim

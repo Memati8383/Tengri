@@ -262,3 +262,68 @@ function Start-App {
     Start-Sleep -Milliseconds 800
     return $p
 }
+
+# --- yakalamanin gercekten dogru sayfayi gosterdigini denetleyen yardimcilar ----
+#
+# Betik bir zamanlar dokuz sayfanin tamamina ayni goruntuyu yazdi: kilidi acan
+# tiklama hedefini bulamamisti ve hicbir sey bundan suphelenmedi. Dosya vardi,
+# boyutu saglamdi, icerik yanlisti. Asagidaki iz karsilastirmasi o sessiz hatayi
+# yayindan once yakalar.
+
+# Pencereyi bellege yakalar. Cagiran Dispose etmek zorunda.
+function Grab-Bitmap {
+    $p = Get-Win
+    $null = Focus-App
+    $w = New-Object Driver+RECT
+    [void][Driver]::GetWindowRect($p.MainWindowHandle, [ref]$w)
+    $bmp = New-Object System.Drawing.Bitmap ($w.Right - $w.Left), ($w.Bottom - $w.Top)
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.CopyFromScreen($w.Left, $w.Top, 0, 0, $bmp.Size)
+    $g.Dispose()
+    return $bmp
+}
+
+# Içeriğin kaba izi: 16 x 10 gri örnek. Aynı iz iki sayfada tekrar ediyorsa
+# tıklama hedefini bulamamıştır.
+#
+# (Bir ara giriş ekranı ayrımı menü satırındaki parlak piksel sayısıyla
+# yapılıyordu ve yanlış çıktı: parlaklık seçili satıra göre değişiyor, bazı
+# gerçek sayfalarda sayı eşiğin altına düşüyordu.)
+function Get-BitmapSignature([System.Drawing.Bitmap]$Bmp) {
+    $sig = @()
+    for ($gy = 0; $gy -lt 10; $gy++) {
+        for ($gx = 0; $gx -lt 16; $gx++) {
+            $x = [Math]::Min(240 + $gx * 44, $Bmp.Width - 2)
+            $y = [Math]::Min(96 + $gy * 54,  $Bmp.Height - 2)
+            $c = $Bmp.GetPixel($x, $y)
+            $sig += [int](0.299 * $c.R + 0.587 * $c.G + 0.114 * $c.B)
+        }
+    }
+    return ,$sig
+}
+
+function Get-ImageSignature([string]$Path) {
+    $bmp = New-Object System.Drawing.Bitmap $Path
+    $sig = Get-BitmapSignature $bmp
+    $bmp.Dispose()
+    return ,$sig
+}
+
+# Karedeki izi daha once kaydedilmis bir izle karsilastirir. 0-2 ayni kare,
+# gercek bir sayfa degisikligi olcuilen 40+ demek.
+function Test-SameAsSignature([int[]]$Reference) {
+    $bmp = Grab-Bitmap
+    $sig = Get-BitmapSignature $bmp
+    $bmp.Dispose()
+    return ((Compare-Signature $Reference $sig) -lt 6)
+}
+
+# Farklı örnek sayısı. Animasyonlu arka plan yüzünden iki aynı sayfa bile
+# birebir aynı çıkmaz; eşik bu yüzden yüksek değil ama sıfır da değil.
+function Compare-Signature($a, $b) {
+    $d = 0
+    for ($i = 0; $i -lt $a.Count; $i++) {
+        if ([Math]::Abs($a[$i] - $b[$i]) -gt 12) { $d++ }
+    }
+    return $d
+}

@@ -29,6 +29,12 @@ if (-not (Test-Path "build\TENGRI.exe")) {
 }
 Copy-Item "build\TENGRI.exe" "build\TENGRI_shot.exe" -Force
 
+# Makine bilgisi ekranlarinda gercek degerler yerine sabit ornekler cizilir:
+# HWID, bilgisayar/oturum adi, islemci/ekran karti/ana kart/BIOS, RAM hizi,
+# ag cardinin adi, yerel IP, baslatma listesi ve lisans maskesi. Start-Process
+# ortam degiskenini cocuk surece aktardigi icin tek satir yeter.
+$env:TENGRI_SHOT = "1"
+
 . .\tools\shoot.ps1
 
 $p = Start-App
@@ -36,11 +42,30 @@ Start-Sleep -Seconds 7
 
 # --- 00: login ---------------------------------------------------------------
 Save-Shot "$OutDir\00-login.png"
+# Giriş ekranının içeriğinin kaba izi diskteki dosyadan alınır: sonraki denetim
+# canlı kareyi bu izle karşılaştırıyor. Eşiğin parlak piksel sayısıyla kurulması
+# yanlış çıktı — o sayı menüde hangi satırın seçili olduğuna göre değişiyor.
+$loginSig = Get-ImageSignature "$OutDir\00-login.png"
 
 # Lisans ekraninda "Lisansı etkinleştir" düğmesi. Demo kipinde her anahtar kabul
 # edildiği için içeriğe tıklamak yeterli; düğmenin ortası arayüzün ortasıdır.
 Click-At 490 439
 Start-Sleep -Seconds 16
+
+# Tıklama her zaman işlemiyor: 2026-10-09'da dokuz sayfanın tamamı giriş ekranı
+# yakalandı ve betikten tek bir şikâyet yükselmedi — dosyalar vardı, boyutları
+# sağlamdı, içerik yanlıştı. Geçilemezse tıklama yinelenir, o da olmazsa sesli
+# başarısız olur.
+$deneme = 0
+while (Test-SameAsSignature $loginSig) {
+    if ($deneme -ge 3) {
+        throw "giris ekrani $deneme denemede gecilemedi; tiklama hedefi ya da pencere yerlesimi degismis olabilir"
+    }
+    $deneme++
+    Write-Output ("  giris ekrani hala acik - tiklama yineleniyor ({0}/3)" -f $deneme)
+    Click-At 490 439
+    Start-Sleep -Seconds 14
+}
 
 # --- sidebar satirlari -------------------------------------------------------
 # Nav listesi y=128'den baslar, her oge 44px. Y degerleri capture_about.ps1 ile
@@ -69,5 +94,25 @@ foreach ($page in $pages) {
     Save-Shot "$OutDir\$($page.File).png"
     Write-Output ("  {0}" -f $page.File)
 }
+
+# --- kaydedilen dosyalar gerçekten farklı sayfalar mı --------------------------
+# Yanlış pencereyi yakalamak tek sessiz hata biçimi değil: bir de aynı sayfanın
+# üst üste yazılması var. Denetim, ekranın kendisinden değil diskteki dosyalardan
+# yapılıyor; yani yayına giden şeyin ta kendisi ölçülüyor.
+$sig = @{}
+foreach ($f in (Get-ChildItem "$OutDir\*.png" | Sort-Object Name)) {
+    $sig[$f.Name] = Get-ImageSignature $f.FullName
+}
+$adlar = @($sig.Keys | Sort-Object)
+$enKucuk = 999
+for ($i = 1; $i -lt $adlar.Count; $i++) {
+    $d = Compare-Signature $sig[$adlar[$i - 1]] $sig[$adlar[$i]]
+    if ($d -lt $enKucuk) { $enKucuk = $d }
+    if ($d -lt 6) {
+        throw ("{0} ile {1} aynı sayfayı gösteriyor (fark {2} örnek); tiklama hedefini bulamamis olabilir" -f `
+                $adlar[$i - 1], $adlar[$i], $d)
+    }
+}
+Write-Output ("dogrulandi: {0} goruntu, ardizik en kucuk fark {1} ornek" -f $adlar.Count, $enKucuk)
 
 Write-Output "done"
