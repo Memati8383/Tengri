@@ -65,7 +65,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 |---|---|
 | İşletim sistemi | Windows 10 ve Windows 11 (x64) |
 | Mimari | 64-bit |
-| Disk | 1.7 MB — 1.6.0 yerel derlemesi 1.784.832 bayt; 1.3.0 CI derlemesi 1.739.264 bayt (araç seti yamasına göre birkaç KB oynar) |
+| Disk | 1.7 MB — 1.6.0 yerel derlemesi 1.784.832 bayt; aynı sürümün CI derlemesi 1.773.056 bayt (araç seti yamasına göre birkaç KB oynar) |
 | Ek bağımlılık | Yok — .NET, Python veya çalışma zamanı gerekmez |
 | Yönetici | Yalnızca ayar uygularken gerekir; açılışta gerekmez |
 
