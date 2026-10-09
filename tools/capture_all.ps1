@@ -20,6 +20,15 @@ param(
   [int]$LatencySettleSec = 40
 )
 
+# build.bat only produces build\TENGRI.exe; the alternate name exists so the capture
+# never touches a running user session. Copying it here means one command does the
+# whole job, and the copy is refreshed on every run so the images always show the
+# current build instead of whatever was staged weeks ago.
+if (-not (Test-Path "build\TENGRI.exe")) {
+    throw "build\TENGRI.exe yok. Once build.bat calistir."
+}
+Copy-Item "build\TENGRI.exe" "build\TENGRI_shot.exe" -Force
+
 . .\tools\shoot.ps1
 
 $p = Start-App
