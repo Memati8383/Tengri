@@ -1,5 +1,6 @@
 #include "sysinfo.hpp"
 #include "brand.hpp"
+#include "sample_data.hpp"
 #include <windows.h>
 #include <dxgi.h>
 #include <cstdio>
@@ -68,6 +69,7 @@ namespace sys
 
     std::string UserName()
     {
+        if (sample::Active()) return sample::UserName();
         char buf[256];
         DWORD n = sizeof(buf);
         return GetUserNameA(buf, &n) ? std::string(buf) : std::string("User");
@@ -75,6 +77,7 @@ namespace sys
 
     std::string ComputerName()
     {
+        if (sample::Active()) return sample::ComputerName();
         char buf[MAX_COMPUTERNAME_LENGTH + 1];
         DWORD n = sizeof(buf);
         return GetComputerNameA(buf, &n) ? std::string(buf) : std::string("Unknown");
@@ -111,6 +114,7 @@ namespace sys
     std::string CpuName()
     {
         static std::string cached;
+        if (sample::Active()) return sample::CpuName();
         if (!cached.empty()) return cached;
         HKEY key;
         if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &key) != ERROR_SUCCESS)
@@ -131,6 +135,7 @@ namespace sys
     std::string GpuName()
     {
         static std::string cached;
+        if (sample::Active()) return sample::GpuName();
         if (!cached.empty()) return cached;
         IDXGIFactory* factory = nullptr;
         if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&factory)))
@@ -151,6 +156,7 @@ namespace sys
     std::string Hwid()
     {
         static std::string cached;
+        if (sample::Active()) return sample::Hwid();
         if (!cached.empty())
             return cached;
 

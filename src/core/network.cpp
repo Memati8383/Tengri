@@ -1,6 +1,6 @@
 #include "network.hpp"
 #include "brand.hpp"
-#include "network.hpp"
+#include "sample_data.hpp"
 #include <windows.h>
 // IcmpCreateFile ve IcmpSendEcho2 yalnızca icmpapi.h içinde tanımlıdır; windows.h onları
 // içeri almadığı için bu başlık ayrıca ekleniyor.
@@ -386,6 +386,7 @@ namespace network
 
     std::string AdapterName()
     {
+        if (sample::Active()) return sample::AdapterName();
         ULONG sz = sizeof(IP_ADAPTER_INFO) * 16;
         IP_ADAPTER_INFO* info = (IP_ADAPTER_INFO*)malloc(sz);
         if (!info) return "Unknown";
@@ -405,6 +406,7 @@ namespace network
 
     std::string LocalIP()
     {
+        if (sample::Active()) return sample::LocalIp();
         ULONG sz = sizeof(IP_ADAPTER_INFO) * 16;
         IP_ADAPTER_INFO* info = (IP_ADAPTER_INFO*)malloc(sz);
         if (!info) return "";
@@ -523,6 +525,7 @@ namespace network
 
     std::string GatewayIP()
     {
+        if (sample::Active()) return sample::GatewayIp();
         ULONG sz = sizeof(IP_ADAPTER_INFO) * 16;
         IP_ADAPTER_INFO* info = (IP_ADAPTER_INFO*)malloc(sz);
         if (!info) return "";

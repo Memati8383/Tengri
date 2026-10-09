@@ -13,8 +13,12 @@
 #include "../src/core/regpack.hpp"
 #include "../src/core/tweaks.hpp"
 #include "../src/core/elevate.hpp"
+#include "../src/core/network.hpp"
+#include "../src/core/startup.hpp"
+#include "../src/core/sample_data.hpp"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
@@ -486,6 +490,98 @@ static void Test_RegPackSymmetry()
     CheckEq(bicimHatasi, 0, "tum govdeler ayristirilabildi");
 }
 
+// ---------------------------------------------------------------------------
+// Ekran goruntusu kipi (TENGRI_SHOT)
+//
+// docs/screenshots altindaki gorsellerde makine bilgisi gorunuyor. Kip acikken
+// o alanlar sabit orneklerle ciziliyor. Testler gercek API'leri hic cagirmiyor:
+// yalnizca ornek verinin bicimi ve kacin bir kez belirlenmesi denetleniyor.
+
+static bool HwidBicimi(const char* s)
+{
+    // Ornek, gercek HWID ile ayni bicimde olmali: dort grup, dort onaltilik hane.
+    // Bicim farkliysa ekran goruntusundaki satir gercek davranisi yanlis
+    // anlatirdi.
+    const char* p = s;
+    for (int g = 0; g < 4; ++g)
+    {
+        if (g && *p++ != '-') return false;
+        for (int i = 0; i < 4; ++i)
+        {
+            const char c = *p++;
+            const bool hex = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F');
+            if (!hex) return false;
+        }
+    }
+    return *p == '\0';
+}
+
+// license::Mask'in urettiği bicim: XXXX-••••-••••-XXX. Ornek dize bu bicimde
+// degilse Ayarlar ekranindaki satir gercek maskeyi tanimaz hale gelir.
+static bool LisansMaskesiBicimi(const char* s)
+{
+    const std::string bullet = "\xE2\x80\xA2";
+    std::string m(s);
+
+    int ad = 0;
+    for (size_t pos = 0; (pos = m.find(bullet, pos)) != std::string::npos; pos += bullet.size()) ++ad;
+    if (ad != 8) return false;
+
+    // Grup ayiraclari: 4, sonra 12 bayt (4 mermi), ayirac, 12 bayt, ayirac.
+    if (m.size() != 4 + 1 + 12 + 1 + 12 + 1 + 3) return false;
+    if (m[4] != '-' || m[17] != '-' || m[30] != '-') return false;
+    return true;
+}
+
+static void Test_SampleMode()
+{
+    _putenv_s("TENGRI_SHOT", "");
+    sample::InitFromEnv();
+    Check(!sample::Active(), "TENGRI_SHOT yokken kip kapali");
+
+    _putenv_s("TENGRI_SHOT", "0");
+    sample::InitFromEnv();
+    Check(!sample::Active(), "TENGRI_SHOT=0 kipi acmıyor");
+
+    _putenv_s("TENGRI_SHOT", "2");
+    sample::InitFromEnv();
+    Check(!sample::Active(), "beklenmeyen deger kipi acmıyor");
+
+    _putenv_s("TENGRI_SHOT", "1");
+    sample::InitFromEnv();
+    Check(sample::Active(), "TENGRI_SHOT=1 kipi acar");
+
+    Check(HwidBicimi(sample::Hwid()), "ornek HWID gercek bicimde");
+    Check(LisansMaskesiBicimi(sample::LicenseMask()), "ornek lisans maskesi license::Mask biciminde");
+
+    // Ag getterlari ornek degeri dondururmu — kip acikken gercek adaptore
+    // hic bakilmamali.
+    Check(network::LocalIP()     == sample::LocalIp(),     "yerel IP ornege cevrildi");
+    Check(network::GatewayIP()   == sample::GatewayIp(),   "ag gecidi ornege cevrildi");
+    Check(network::AdapterName() == sample::AdapterName(), "adaptor adi ornege cevrildi");
+
+    const auto v = sample::StartupEntries();
+    CheckEq((int)v.size(), 3, "uc ornek baslatma girdisi");
+    for (const startup::Entry& e : v)
+    {
+        Check(!e.name.empty() && !e.command.empty() && !e.resolvedPath.empty() &&
+              !e.publisher.empty(), "ornek girdinin alanlari dolu");
+        Check((int)e.scope < (int)startup::Scope::Count, "ornek kapsam tablodaki bir kapsam");
+        Check(!e.isTengri, "ornek girdi TENGRI'nin kendi kaydi gibi durmuyor");
+        // Genisletilmemis degisken yolu cizilirdi: "%APPDATA%\..." gercek
+        // kullanici adini ele vermez ama arayuzde de bir anlam tasimiyor.
+        Check(e.command.find(L'%') == std::wstring::npos, "ornek kumanda satiri degisken tasimiyor");
+    }
+    // Uc sekmenin de dolu gorunmesi icin farkli kapsamlar: biri kapali durumdaki
+    // makine girdisi, digeri kullanici girdileri.
+    Check(v[0].scope != v[2].scope, "ornek girdiler kullanici ve makine kapsamlarina dagitik");
+    Check(!v[2].enabled, "makine ornegi kapali durumda: arayuzde acilabilir satir ciziliyor");
+
+    _putenv_s("TENGRI_SHOT", "");
+    sample::InitFromEnv();
+    Check(!sample::Active(), "kip kapatilabiliyor");
+}
+
 int main()
 {
     std::printf("TENGRI saf mantik testleri\n\n");
@@ -496,6 +592,7 @@ int main()
     Test_RegPackBodies();
     Test_RegPackSymmetry();
     Test_ElevateCodec();
+    Test_SampleMode();
 
     std::printf("\n%d gecti, %d kaldi\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;

@@ -1,4 +1,5 @@
 #include "startup.hpp"
+#include "sample_data.hpp"
 
 #include <windows.h>
 #include <shlwapi.h>
@@ -528,6 +529,11 @@ namespace startup
         // kapsam eklenirken buradaki şart unutulabilir.
         if (!IsToggleable(e.scope)) return false;
 
+        // Yakalama kipinde liste örnek girdilerden oluşuyor: etiket uydurma,
+        // hedef ise gerçek registry değeri olurdu. Adı "Discord" olan örnek
+        // satırı kapatmak kullanıcının gerçek Discord'unu kapatırdı.
+        if (sample::Active()) return false;
+
         if (IsFolderScope(e.scope)) return SetEnabledFolder(e, enable);
 
         const ScopeDef& def = kScopes[static_cast<int>(e.scope)];
@@ -576,6 +582,10 @@ namespace startup
         // ve geri almanın tek yolu başka bir oturum açmaktır. Buna izin vermek
         // "temizlik" değil, kalıcı hasar verir.
         if (!IsToggleable(e.scope)) return false;
+
+        // SetEnabled'taki aynı gerekçe: örnek etiketin gerçek değeri silmesinin
+        // geri dönüşü yok.
+        if (sample::Active()) return false;
 
         if (IsFolderScope(e.scope))
         {

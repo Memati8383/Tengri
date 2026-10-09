@@ -1,5 +1,6 @@
 #include "sysinfo_wmi.hpp"
 #include "lang.hpp"
+#include "sample_data.hpp"
 #include <windows.h>
 #include <wbemidl.h>
 #include <comdef.h>
@@ -376,6 +377,10 @@ namespace syswmi
     const Result& Get()
     {
         std::lock_guard<std::mutex> lock(g_mutex);
+        // Sorgu bitip g_result gerçek değerlerle dolduğu için örnek değerler
+        // bir kez yazmak yetmezdi; her okumada yeniden uygulanır. Kilit
+        // altında: iş parçacığı da aynı kilitle yazıyor.
+        if (sample::Active()) sample::ApplyTo(g_result);
         return g_result;
     }
 }

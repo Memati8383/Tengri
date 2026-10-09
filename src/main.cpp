@@ -12,6 +12,7 @@
 #include "core/elevate.hpp"
 #include "core/notify.hpp"
 #include "core/update.hpp"
+#include "core/sample_data.hpp"
 #include <d3d11.h>
 #include <dwmapi.h>
 
@@ -272,6 +273,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     // Burada hiçbir arayüz oluşturmadan iş uygulanır ve süreç çıkar. Normal açılışta
     // bu bayrak yoktur ve akış normaldir.
     elevate::CacheExecutablePath();
+
+    // Ekran görüntüsü kipi burada, hiçbir bilgi okunmadan önce belirlenir:
+    // okunan değerler önbelleklendiği için sonradan değişseydi aynı oturumun
+    // yarısı gerçek, yarısı örnek veri çizerekti.
+    sample::InitFromEnv();
 
     // Bildirimden gelen başlatma komutu "cmd:N" biçimindedir. Yükseltilmiş
     // yeniden başlatma bayrağıyla karışmaması için ikisi ayrı ayrı okunur.

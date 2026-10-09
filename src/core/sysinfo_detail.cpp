@@ -1,4 +1,5 @@
 #include "sysinfo_detail.hpp"
+#include "sample_data.hpp"
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <dxgi.h>
@@ -13,6 +14,7 @@ namespace sysdetail
     {
         Info g_info;
         bool g_gathered = false;
+        bool g_sampled  = false;
 
         std::string RegStr(HKEY root, const wchar_t* path, const wchar_t* name)
         {
@@ -334,6 +336,9 @@ namespace sysdetail
     const Info& Get()
     {
         if (!g_gathered) Gather();
+        // Yakalama kipi: gerçek alanlar okundu, gösterilecek değerler yazıldı.
+        // Gather() bir daha doldurulmayacağı için bu tek seferlik yeter.
+        if (sample::Active() && !g_sampled) { sample::ApplyTo(g_info); g_sampled = true; }
         return g_info;
     }
 }

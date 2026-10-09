@@ -17,6 +17,7 @@
 #include "core/notify.hpp"
 #include "core/sysinfo_wmi.hpp"
 #include "core/startup.hpp"
+#include "core/sample_data.hpp"
 #include "core/services.hpp"
 #include "core/update.hpp"
 #include "tray.hpp"
@@ -2318,7 +2319,8 @@ void NotifyDelegating(const elevate::Pending& p);
             {
                 const float w = ImGui::GetContentRegionAvail().x;
                 const auto& li = license::Current();
-                const std::string masked = license::Mask(li.key);
+                const std::string masked = sample::Active() ? std::string(sample::LicenseMask())
+                                                            : license::Mask(li.key);
                 InfoRow(L(LicenseKey), masked.c_str(), w);
                 InfoRow(L(Plan), PlanText(li), w);
                 InfoRow(L(Expires), ExpiryText(li), w, false);
@@ -2588,6 +2590,9 @@ void NotifyDelegating(const elevate::Pending& p);
         void RefreshStartup()
         {
             g_startupEntries = startup::Enumerate();
+            // Liste makinede kurulu programları olduğu gibi gösteriyor; ekran
+            // görüntüsü yakalayan derlemede yerini örnek girdiler alıyor.
+            if (sample::Active()) g_startupEntries = sample::StartupEntries();
             g_startupLoaded  = true;
         }
 
