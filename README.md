@@ -219,16 +219,14 @@ Hizmetler:
 
 ![Hizmetler](docs/screenshots/09-services.png)
 
-> Dokuz görselin tamamı `tools\capture_all.ps1` ile **tek oturumda**, aynı tema ve
-> aynı DPI ile üretildi. Betiği çalıştırırsan görseller bu dizine yeniden düşer.
+> On görselin tamamı (giriş dâhil) `tools\capture_all.ps1` ile **tek oturumda**, aynı
+> tema ve aynı DPI ile üretildi. Betiği çalıştırırsan görseller bu dizine yeniden düşer.
 > Görseller gerçek bir makinede alındı: Başlatma ekranı o sistemde kurulu
 > programları, Hizmetler ekranı gerçek hizmet durumlarını gösterir.
 >
-> **İki görsel bayat:** `06-settings.png` ve `07-about.png` 1.6.0'daki Ayarlar ve
-> Hakkında yeniden düzenlemesinden **önce** alındı. İkisi de şu anki yerleşimi
-> göstermiyor — Hakkında sayfasındaki uyarı bloğu kaldırıldı, yerine meta şeridi ve
-> tıklanabilir yetenek ızgarası geldi. Yerel derlemede betiği çalıştırırsan
-> onlar da güncellenir.
+> Görseller 1.6.0 derlemesinden alındı: Ayarlar ekranında Dil artık Genel kartının
+> bölümü, Hakkında ekranı marka bloğu + meta şeridi + tıklanabilir yetenek ızgarası
+> olarak duruyor ve GitHub silüeti gömülü AA maskesinden çiziliyor.
 
 ---
 
