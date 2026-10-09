@@ -15,4 +15,9 @@ namespace brandicons
 
     extern const float         kGitHubPoints[];
     extern const unsigned short kGitHubTris[];
+
+    // Aynı işaretin kenar yumuşatmalı alpha maskesi (PNG, gömülü). Üçgenler yedek olarak
+    // duruyor: doku başlatılamazsa işaret yine basamaklı da olsa görünüyor.
+    extern const int kGitHubMarkPngSize;
+    extern const unsigned char kGitHubMarkPng[];
 }

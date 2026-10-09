@@ -1,4 +1,4 @@
-# Flattens an SVG path into triangles that icons.cpp can feed to ImDrawList.
+﻿# Flattens an SVG path into triangles that icons.cpp can feed to ImDrawList.
 #
 # ImDrawList can only fill convex polygons (AddConvexPolyFilled / PathFillConvex). The
 # real brand marks are concave silhouettes, so drawing them faithfully means triangulating
@@ -10,13 +10,18 @@
 #   powershell -File tools\make_brand_icons.ps1
 
 param(
-    [string]$OutPath = 'src/gui/brand_icons.cpp'
+    [string]$OutPath = 'src/gui/brand_icons.cpp',
+    [string]$MarkPngPath = 'res/github-mark.png',
+    [int]$MarkSize = 32
 )
 
 $csharp = @'
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Globalization;
+using System.IO;
 using System.Text;
 
 public static class PathTri
@@ -349,6 +354,81 @@ static string Fmt(double v)
 
     // ---- entry point --------------------------------------------------------
 
+    // Aynı konturu bir de kenar yumuşatmalı alpha maskesine çevirir. Üçgen listesi
+    // ImDrawList'in yumuşatması olmayan dolgusuyla çizildiğinde işaret 15px'te basamak
+    // basamak okunuyor; doku olarak çizildiğinde aynı geometri yumuşak duruyor.
+    //
+    // Maske arayüzde göründüğü boyuta yakın tutulur: dokuda mipmap olmadığı için büyük
+    // bir kaynak iki örneklemle küçültülünce yine basamaklaşıyor. Bu yüzden 8 kat
+    // çözünürlükte çizilip kutu ortalamasıyla indiriliyor.
+    public static byte[] Rasterize(string path, int size)
+    {
+        pending.Clear();
+        var contours = Parse(path);
+        var all = new List<List<Pt>>();
+        foreach (var c in contours) all.Add(c);
+        if (pending.Count > 0) all.Add(pending);
+
+        const int SS = 8;                       // fazladan çizilen kat
+        int big = size * SS;
+
+        using (Bitmap hi = new Bitmap(big, big, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+        {
+            using (Graphics g = Graphics.FromImage(hi))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Color.FromArgb(0, 255, 255, 255));
+
+                GraphicsPath gp = new GraphicsPath();
+                gp.FillMode = FillMode.Winding;   // SVG'nin varsayılan nonzero kuralı
+                foreach (var c in all)
+                {
+                    if (c.Count < 3) continue;
+                    PointF[] arr = new PointF[c.Count];
+                    for (int k = 0; k < c.Count; k++)
+                        arr[k] = new PointF((float)(c[k].X * big / 24.0), (float)(c[k].Y * big / 24.0));
+                    gp.AddPolygon(arr);
+                }
+                using (SolidBrush br = new SolidBrush(Color.FromArgb(255, 255, 255, 255)))
+                    g.FillPath(br, gp);
+                gp.Dispose();
+            }
+
+            using (Bitmap bmp = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+            {
+                for (int y = 0; y < size; y++)
+                {
+                    for (int x = 0; x < size; x++)
+                    {
+                        int sum = 0;
+                        for (int dy = 0; dy < SS; dy++)
+                            for (int dx = 0; dx < SS; dx++)
+                                sum += hi.GetPixel(x * SS + dx, y * SS + dy).A;
+                        bmp.SetPixel(x, y, Color.FromArgb(sum / (SS * SS), 255, 255, 255));
+                    }
+                }
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                    return ms.ToArray();
+                }
+            }
+        }
+    }
+
+    public static string Bytes(byte[] data, string indent)
+    {
+        var sb = new StringBuilder();
+        for (int k = 0; k < data.Length; k++)
+        {
+            if (k % 16 == 0) sb.Append(indent);
+            sb.Append("0x").Append(data[k].ToString("x2", CultureInfo.InvariantCulture)).Append(",");
+            if (k % 16 == 15) sb.Append('\n'); else sb.Append(' ');
+        }
+        if (data.Length % 16 != 0) sb.Append('\n');
+        return sb.ToString();
+    }
+
     public static string Run(string name, string path, string indent)
     {
         pending.Clear();
@@ -424,14 +504,33 @@ $github = 'M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.
 
 $body  = [PathTri]::Run('kGitHub', $github, '    ')
 
+# İşaretin kendisi kadar büyük bir maske gereksiz: arayüzde en geniş kullanımı ~24px.
+$markPng  = [PathTri]::Rasterize($github, $MarkSize)
+$markHex  = [PathTri]::Bytes($markPng, '    ')
+[System.IO.File]::WriteAllBytes((Join-Path (Get-Location) $MarkPngPath), $markPng)
+
+$body += @"
+
+    // Kenar yumuşatmalı alpha maskesi: 24x24 viewBox'ın tam karesi, beyaz üstüne
+    // saydamlık. icons::Draw bunu üçgenlerle aynı kutuya oturttuğu için iki yol
+    // birebir aynı geometriyi verir; fark yalnızca kenar yumuşatmasıdır.
+    const int kGitHubMarkPngSize = $($markPng.Length);
+
+    const unsigned char kGitHubMarkPng[] = {
+$markHex    };
+"@
+
 $out = @"
 // tools/make_brand_icons.ps1 tarafından üretildi; elle düzenlenmemelidir.
 //
-// Hakkında sayfasındaki marka işaretlerinin üçgen listeleri.
+// Hakkında sayfasındaki marka işaretlerinin üçgen listeleri ve kenar yumuşatmalı maskesi.
 //
 // Önceden üçgenlenmelerinin nedeni: ImDrawList yalnızca konveks poligon
 // (AddConvexPolyFilled) doldurabiliyor, işaretler ise konkav. Düzleştirmeyi derleme
 // zamanına bırakmak, çalışma anı maliyetini bir statik dizi üzerinde döngüye indiriyor.
+//
+// PNG maskesi aynı konturun başka bir sunumu: üçgenlerin kenar yumuşatması olmadığı için
+// işaret 15px'te basamaklaşıyor, doku olarak çizildiğinde okunur kalıyor.
 //
 // Koordinatlar viewBox merkezine göre -1..1 aralığına normalleştirilmiştir; bu tam olarak
 // icons::Draw'ın P() yardımcısının beklediği biçimdir.

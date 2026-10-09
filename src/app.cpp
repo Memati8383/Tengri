@@ -2227,36 +2227,57 @@ void NotifyDelegating(const elevate::Pending& p);
             const float gap  = px(14);
             const float colw = floorf((cw - gap) * 0.5f);
 
-            ImGui::BeginGroup();
-            ui::BeginCard("##visual", colw, L(VisualEffects), L(TuneBg));
-            {
-                const float w = ImGui::GetContentRegionAvail().x;
-                auto& s = fx::settings;
-                ui::ToggleCard(L(Particles), nullptr, &s.particles, w, false);
-                ui::ToggleCard(L(ConnectionLines), nullptr, &s.lines, w, false);
-                ui::ToggleCard(L(MouseInteraction), nullptr, &s.mouse, w, false);
-                ui::ToggleCard(L(TopLight), nullptr, &s.glow, w, false);
-                ui::ToggleCard(L(LightSweep), nullptr, &s.sweep, w, false);
-                ImGui::Dummy(ImVec2(0, px(2)));
-                ui::SliderInt(L(ParticleCount), &s.count, 20, 220, w);
-                ui::Slider(L(ParticleSpeed), &s.speed, 0.2f, 3.0f, "%.1fx", w);
-            }
-            ui::EndCard();
-            ImGui::EndGroup();
-
-            ImGui::SameLine(0, gap);
+            // Sütunlar konuya göre dağıtıldı: solda uygulamanın kendisi
+            // (güncelleme + davranış), sağda görünüm ve hesap. Dağıtımdan
+            // önce sol sütunda tek kart vardı; sağdaki dört kartın yanında
+            // alt yarısı boş kalıyordu.
 
             ImGui::BeginGroup();
 
-            // Güncelleme kartı sağ sütunun başında: kart, uygulamanın kendi
-            // geleceğiyle ilgili tek etkişimli yüzey ve varsayılan pencere
+            // Güncelleme kartı sütunun başında: kart, uygulamanın kendi
+            // geleceğiyle ilgili tek etkileşimli yüzey ve varsayılan pencere
             // boyutunda kaydırma gerektirmeden görünmeli.
             UpdateCard(colw);
 
             ui::BeginCard("##general", colw, L(General), L(AppBehaviour));
             {
                 const float w = ImGui::GetContentRegionAvail().x;
-                ui::ToggleCard(L(RememberLicense), nullptr, &g_remember, w, false);
+
+                // Dil kartın en üstünde: seçimi tüm arayüzü anında değiştirir,
+                // bu yüzden diğer anahtarlardan sonra gelmemeli. Ayrı bir kart
+                // değil - tek düğmelik kart sütunda kopuk bir blok oluşturuyordu.
+                ui::SectionLabel(L(Language));
+                static const char* const langs[] = { "English", "Türkçe" };
+                static int langIdx = (int)lang::Current();
+                if (ui::Segmented("##lang", langs, 2, &langIdx, w))
+                {
+                    lang::Set((lang::Id)langIdx);
+                    lang::Save();   // kaydedilmezse seçim yeniden açılışta İngilizceye döner
+                }
+                ImGui::Dummy(ImVec2(0, px(4)));
+
+                const bool prevStartup = g_startup;
+                ui::ToggleCard(L(LaunchStartup), nullptr, &g_startup, w, false);
+                if (g_startup != prevStartup)
+                    ApplyStartup(g_startup);
+
+                // Kapatma, küçültmeden ayrı tutuluyor: kullanıcı çarpıya bastığında
+                // uygulamanın gerçekten kapandığını sanıyor. Tepsi kapalıyken bu
+                // anahtar işlemiyor (RequestClose g_tray'e bakıyor), çünkü simgesiz
+                // bir arka plan kullanıcı için ulaşılamaz bir yer olurdu.
+                const bool prevTray = g_tray;
+                ui::ToggleCard(L(MinimizeToTray), nullptr, &g_tray, w, false);
+                ui::ToggleCard(L(CloseToTray), L(CloseToTrayDesc), &g_closeToTray, w, false);
+                if (g_tray != prevTray)
+                {
+                    tray::SetEnabled(g_tray);
+                    if (g_tray && !tray::IsAvailable())
+                    {
+                        g_tray = false;   // shell reddetti: açık gibi davranma
+                        ui::Notify(Toast::Warning, L(MinimizeToTray), L(TrayUnavailable));
+                    }
+                }
+
                 ui::ToggleCard(L(Notifications), nullptr, &ui::notificationsEnabled, w, false);
 
                 // Windows bildirimleri ve sessiz mod kendi anahtarlarıyla
@@ -2270,42 +2291,26 @@ void NotifyDelegating(const elevate::Pending& p);
                 if (notify::toastsEnabled != prevToasts || notify::quietMode != prevQuiet)
                     notify::Save();
 
-                const bool prevStartup = g_startup;
-                ui::ToggleCard(L(LaunchStartup), nullptr, &g_startup, w, false);
-                if (g_startup != prevStartup)
-                    ApplyStartup(g_startup);
-
-                const bool prevTray = g_tray;
-                ui::ToggleCard(L(MinimizeToTray), nullptr, &g_tray, w, false);
-                if (g_tray != prevTray)
-                {
-                    tray::SetEnabled(g_tray);
-                    if (g_tray && !tray::IsAvailable())
-                    {
-                        g_tray = false;   // shell reddetti: açık gibi davranma
-                        ui::Notify(Toast::Warning, L(MinimizeToTray), L(TrayUnavailable));
-                    }
-                }
-
-                // Kapatma, küçültmeden ayrı tutuluyor: kullanıcı çarpıya bastığında
-                // uygulamanın gerçekten kapandığını sanıyor. Tepsi kapalıyken bu
-                // anahtar işlemiyor (RequestClose g_tray'e bakıyor), çünkü simgesiz
-                // bir arka plan kullanıcı için ulaşılamaz bir yer olurdu.
-                ui::ToggleCard(L(CloseToTray), L(CloseToTrayDesc), &g_closeToTray, w, false);
+                ui::ToggleCard(L(RememberLicense), nullptr, &g_remember, w, false);
             }
             ui::EndCard();
+            ImGui::EndGroup();
 
-            // Dil kartı
-            ui::BeginCard("##langcard", colw, L(Language));
+            ImGui::SameLine(0, gap);
+
+            ImGui::BeginGroup();
+            ui::BeginCard("##visual", colw, L(VisualEffects), L(TuneBg));
             {
                 const float w = ImGui::GetContentRegionAvail().x;
-                static const char* const langs[] = { "English", "T\xC3\xBCrk\xC3\xA7\x65" };
-                static int langIdx = (int)lang::Current();
-                if (ui::Segmented("##lang", langs, 2, &langIdx, w))
-                {
-                    lang::Set((lang::Id)langIdx);
-                    lang::Save();   // kaydedilmezse seçim yeniden açılışta İngilizceye döner
-                }
+                auto& s = fx::settings;
+                ui::ToggleCard(L(Particles), nullptr, &s.particles, w, false);
+                ui::ToggleCard(L(ConnectionLines), nullptr, &s.lines, w, false);
+                ui::ToggleCard(L(MouseInteraction), nullptr, &s.mouse, w, false);
+                ui::ToggleCard(L(TopLight), nullptr, &s.glow, w, false);
+                ui::ToggleCard(L(LightSweep), nullptr, &s.sweep, w, false);
+                ImGui::Dummy(ImVec2(0, px(2)));
+                ui::SliderInt(L(ParticleCount), &s.count, 20, 220, w);
+                ui::Slider(L(ParticleSpeed), &s.speed, 0.2f, 3.0f, "%.1fx", w);
             }
             ui::EndCard();
 
@@ -2327,116 +2332,209 @@ void NotifyDelegating(const elevate::Pending& p);
                     SignOut();
 
                 char ver[96];
-                snprintf(ver, sizeof(ver), "%s %s \xC2\xB7 %s", brand::kNameA, DisplayVersion(), L(LicenseLine));
+                snprintf(ver, sizeof(ver), "%s %s · %s", brand::kNameA, DisplayVersion(), L(LicenseLine));
                 ui::Label(theme::fonts.regular,theme::size::Meta, theme::ink::Tertiary, ver);
             }
             ui::EndCard();
             ImGui::EndGroup();
         }
 
-        // ------------------------------------------------------------------ hakkında sayfası
+        // ======================= HAKKINDA: marka bloğu + içerik ===================
+        //
+        // Sayfa bir kaç kez kuruldu ve her seferinde aynı şeye döndü: etiket-solda
+        // değer-sağda satırlar. O düzen ayarlar ekranının dilidir; burada ürünün
+        // kendisinden söz edildiği için künye/form havası veriyor.
+        //
+        // Bu yüzden satır ızgarası tamamen kaldırıldı. Sayfa üç iş görüyor:
+        //   1. marka bloğu  - işaret ve iz sürülmüş ad, tek baskın öğe
+        //   2. meta şeridi  - sürüm, lisans, plan, güncelleme; çizgisiz, dört grup
+        //   3. yetenek ızgarası - uygulamanın sekmeleri, tıklayınca o sayfaya gider
+        // Altta tek satır bağlantılar, plakaya demirli.
 
-        // Bir bağlantı satırı: solda marka ikonu, sağda etiket ve kullanıcı adı.
-        //
-        // ui::Button yerine InvisibleButton üzerine kuruldu çünkü burada sabit bir sütunda
-        // iki satır metin ve bir ikon gerekiyor. Belirgin alternatif — ui::Button çağırıp
-        // yerleşimin imleç muhasebesiyle çatışacak şekilde imleci geri alıp üzerine çizmek —
-        // üst pencere büyüdüğünü sanıyor ve kendi "SetCursorPos used to extend window
-        // boundaries" kontrolünü tetikliyor.
-        //
-        // InvisibleButton hem yerleşim alanını ayırır hem de dikdörtgeni bildirir; böylece
-        // sonradan konum düzeltmeye gerek kalmaz.
-        void Line(ImDrawList* dl, const ImVec2& a, const ImVec2& b, ImU32 col, float th)
+        // Tek satıra sığmayan açıklama kesilir: ızgarada satırlar eşit yüksek
+        // kalsın diye ikinci satıra geçilmez.
+        std::string ClipLine(ImFont* font, float size, const char* text, float maxW)
         {
-            dl->AddLine(a, b, col, th);
+            const float fs   = px(size);
+            const float dots = font->CalcTextSizeA(fs, 1e9f, 0.0f, "...").x;
+            if (font->CalcTextSizeA(fs, 1e9f, 0.0f, text).x <= maxW) return text;
+
+            const char* stop = text + strlen(text);
+            const char* word = nullptr;
+            const char* cut  = stop;
+            for (const char* s = text; s < stop; )
+            {
+                const char* nx = s + 1;
+                while (nx < stop && (((unsigned char)*nx & 0xC0) == 0x80)) ++nx;
+                if (font->CalcTextSizeA(fs, 1e9f, 0.0f, text, nx).x + dots > maxW) { cut = s; break; }
+                if (*s == ' ') word = s;
+                s = nx;
+            }
+            std::string out = word ? std::string(text, word) : std::string(text, cut);
+            out += "...";
+            return out;
         }
 
-        void LinkButton(Icon icon, const char* label, const char* handle, const wchar_t* url, float w)
+        // Satırın tıklanabilir alanı: kendi yüzeyi çizilmez, satır yalnızca
+        // mürekkeple cevap verir. Hover çizime, tıklayınca *clicked eyleme gider.
+        bool RowHit(const char* id, float x, float y, float w, float h, bool* clicked)
         {
-            if (ImGui::InvisibleButton(label, ImVec2(w, px(54))))
-                OpenUrl(url);
-
-            const ImVec2 a = ImGui::GetItemRectMin();
-            const ImVec2 b = ImGui::GetItemRectMax();
-            const float hv = ImGui::IsItemHovered() ? 1.0f : 0.0f;
-            const float h  = b.y - a.y;
-            ImDrawList* dl = ImGui::GetWindowDrawList();
-
-            // ButtonStyle::Secondary ile aynı yüzey işlemesi kullanılır; böylece satırlar yapıştırılmış
-            // web bağlantıları gibi değil, uygulamanın bir parçası gibi okunur.
-            const float r = px(9);
-            dl->AddRectFilled(a, b, White(0.04f + 0.04f * hv), r);
-            dl->AddRect(a, b, White(0.10f + 0.14f * hv), r, 0, ImMax(1.0f, px(1)));
-
-            const float iconX = a.x + px(28);
-            const float midY  = a.y + h * 0.5f;
-            icons::Draw(dl, icon, ImVec2(iconX, midY), px(21), Gray(0.80f + 0.18f * hv));
-
-            const float textX = iconX + px(22);
-            ui::Text(dl, theme::fonts.medium,theme::size::Body,
-                     ImVec2(textX, midY - px(15)), Gray(0.80f + 0.18f * hv), label);
-            ui::Text(dl, theme::fonts.regular,theme::size::Meta,
-                     ImVec2(textX, midY + px(2)), Gray(0.40f + 0.15f * hv), handle);
-
-            // Sağa bakan chevron, her yerde "bu uygulamadan çıkıyor" işareti.
-            const float cx = b.x - px(24);
-            Line(dl, ImVec2(cx - px(4), midY - px(6)), ImVec2(cx + px(2), midY), Gray(0.35f + 0.2f * hv), ImMax(1.0f, px(1.4f)));
-            Line(dl, ImVec2(cx + px(2), midY), ImVec2(cx - px(4), midY + px(6)), Gray(0.35f + 0.2f * hv), ImMax(1.0f, px(1.4f)));
+            ImGui::SetCursorScreenPos(ImVec2(x, y));
+            ImGui::InvisibleButton(id, ImVec2(w, h));
+            const bool hov = ImGui::IsItemHovered();
+            *clicked = ImGui::IsItemClicked();
+            if (hov) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            return hov;
         }
 
         void PageAbout(float cw)
         {
-            // ---- kimlik ---------------------------------------------------------
-            ui::BeginCard("##about_id", cw, L(About));
+            const auto& F  = theme::fonts;
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+
+            const ImVec2 o = ImGui::GetCursorScreenPos();
+            const ImVec2 v = ImGui::GetContentRegionAvail();
+            const ImVec2 a = o;
+            const ImVec2 b(o.x + ImMax(cw, v.x), o.y + v.y);
+
+            ui::Card(dl, a, b, px(14));
+
+            const float padX = px(40), padT = px(34), padB = px(30);
+            const float x0 = a.x + padX, x1 = b.x - padX;
+
+            const license::Info& li = license::Current();
+            char ver[48];
+            snprintf(ver, sizeof(ver), "v%s", DisplayVersion());
+
+            // ---- 1. marka bloğu -------------------------------------------------
+            const float logoS = px(84);
+            DrawLogo(dl, ImVec2(x0 + logoS * 0.5f, a.y + padT + logoS * 0.5f), logoS);
+
+            const float  tx      = x0 + logoS + px(20);
+            const float  trackPx = px(theme::track::Wide);
+            const ImVec2 wm      = ui::SpacedSize(F.bold, theme::size::Display, brand::kNameA, trackPx);
+            ui::TextSpaced(dl, F.bold, theme::size::Display, ImVec2(tx, a.y + padT + px(2)),
+                           White(theme::ink::Primary), brand::kNameA, trackPx);
+            ui::Text(dl, F.regular, theme::size::Body, ImVec2(tx, a.y + padT + px(2) + wm.y + px(6)),
+                     Gray(theme::ink::Secondary), L(Tagline));
+
+            // ---- 2. meta şeridi -------------------------------------------------
+            struct MetaGroup { const char* label; std::string value; };
+            const MetaGroup metas[] = {
+                { L(Version),        ver },
+                { L(LicenseShort),   "MIT" },
+                { L(Plan),           PlanText(li) },
+                { L(UpdatesHeading), UpdateStateLine() },
+            };
+            const int nMeta = (int)(sizeof(metas) / sizeof(metas[0]));
+
+            const float my    = a.y + padT + logoS + px(24);
+            const float labY  = ui::TextSize(F.medium, theme::size::Micro, "X").y;
+            const float valY  = ui::TextSize(F.medium, theme::size::Title, "X").y;
+            const float gapX  = px(44);
+
+            float sumW = 0.0f;
+            for (int i = 0; i < nMeta; ++i)
+                sumW += ImMax(ui::SpacedSize(F.medium, theme::size::Micro, metas[i].label,
+                                             px(theme::track::Micro)).x,
+                              ui::TextSize(F.medium, theme::size::Title, metas[i].value.c_str()).x);
+            // Gruplar plakayı doldursun: yer varsa aralıklar açılır, yoksa
+            // okunur alt sınının altına düşmez.
+            float step = ImMax(gapX, ((x1 - x0) - sumW) / (float)(nMeta - 1));
+            step = ImMin(step, px(84));
+
+            float gx = x0;
+            for (int i = 0; i < nMeta; ++i)
             {
-                const float w = ImGui::GetContentRegionAvail().x;
-
-                char head[96];
-                snprintf(head, sizeof(head), "%s %s", brand::kNameA, DisplayVersion());
-
-                ImGui::Dummy(ImVec2(0, px(4)));
-                ImGui::TextUnformatted(brand::kNameA);
-                ImGui::Dummy(ImVec2(0, px(2)));
-                ImGui::TextDisabled("%s", L(Tagline));
-
-                ImGui::Dummy(ImVec2(0, px(10)));
-                ImGui::Separator();
-                ImGui::Dummy(ImVec2(0, px(4)));
-
-                // Sürüm satırının üstünde tek bakışta okunur; çizilmediğinde
-                // (denetim kapalı ya da başarısız) yer de bırakmaz.
-                UpdateBadge();
-
-                InfoRow(L(Version),     head, w);
-                InfoRow(L(LicenseShort), "MIT", w, false);
+                ui::TextSpaced(dl, F.medium, theme::size::Micro, ImVec2(gx, my),
+                               Gray(theme::ink::Disabled), metas[i].label, px(theme::track::Micro));
+                ui::Text(dl, F.medium, theme::size::Title, ImVec2(gx, my + labY + px(4)),
+                         Gray(theme::ink::Primary), metas[i].value.c_str());
+                gx += step;
             }
-            ui::EndCard();
 
-            ImGui::Dummy(ImVec2(0, px(14)));
+            float y = my + labY + px(4) + valY + px(20);
+            dl->AddRectFilled(ImVec2(x0, y), ImVec2(x1, y + 1.0f), White(0.06f));
+            const float gridTop = y + px(26);
 
-            // Bağlantılar her şeyden önce gelir: bu sayfanın tek etkileşimli parçası onlar ve diğer
-            // kartların altına yığılırsa varsayılan pencere boyutunda görünmez konuma düşerler.
-            ui::BeginCard("##about_links", cw, L(LinksHeading));
+            // Bağlantı satırı plakanın dibine demirlenir; ızgara kalan yüksekliğe
+            // dağılsın diye satır yeri çizimden önce bellidir.
+            const float linkRowH = px(22);
+            const float linksTop = b.y - padB - linkRowH;
+
+            // ---- 3. yetenek ızgarası --------------------------------------------
+            // Sekmelerin adı ve açıklaması zaten çevrili; burada yeniden yazılmıyor,
+            // aynı tablo gezinme olarak kullanılıyor.
+            static const int kCaps[] = { 1, 2, 3, 8, 7, 4 };
+            const int   nCaps = (int)(sizeof(kCaps) / sizeof(kCaps[0]));
+            const int   nRows = (nCaps + 1) / 2;
+            const float colGap = px(28);
+            const float colW   = ((x1 - x0) - colGap) * 0.5f;
+            const float rowH   = ImMax(px(46), (linksTop - px(20) - gridTop) / (float)nRows);
+
+            for (int i = 0; i < nCaps; ++i)
             {
-                const float lw = ImGui::GetContentRegionAvail().x;
-                LinkButton(Icon::Instagram, "Instagram",     brand::kInstagramHandle, brand::kInstagramUrlW, lw);
-                ImGui::Dummy(ImVec2(0, px(8)));
-                LinkButton(Icon::GitHub,   "GitHub",       brand::kGitHubHandle,    brand::kGitHubUrlW,    lw);
-                ImGui::Dummy(ImVec2(0, px(8)));
-                LinkButton(Icon::Code,     L(SourceCode), brand::kRepoSlug,        brand::kRepoUrlW,     lw);
+                const int  tab = kCaps[i];
+                const float cx = x0 + (i % 2) * (colW + colGap);
+                const float ry = gridTop + (i / 2) * rowH;
+
+                char id[24];
+                snprintf(id, sizeof(id), "##about_cap%d", i);
+                bool clicked = false;
+                const bool hov = RowHit(id, cx, ry, colW, rowH - px(8), &clicked);
+                if (clicked) GotoTab(tab);
+
+                // Satır içeriği kendi bloğunda dikeyde ortalanır: plaka büyüyünce
+                // aralık satırların altında birikmez.
+                const float ty  = ry + (rowH - px(40)) * 0.5f;
+                ImU32 ic = Gray(hov ? theme::ink::Primary : 0.62f);
+                icons::Draw(dl, kTabIcons[tab], ImVec2(cx + px(8), ty + px(9)), px(15), ic);
+                ui::Text(dl, F.medium, theme::size::Label, ImVec2(cx + px(28), ty),
+                         Gray(hov ? theme::ink::Primary : 0.88f), lang::Get(kTabNameKeys[tab]));
+                const std::string desc = ClipLine(F.regular, theme::size::Meta,
+                                                  lang::Get(kTabSubKeys[tab]), colW - px(28));
+                ui::Text(dl, F.regular, theme::size::Meta, ImVec2(cx + px(28), ty + px(19)),
+                         Gray(hov ? theme::ink::Secondary : theme::ink::Disabled), desc.c_str());
             }
-            ui::EndCard();
 
-            ImGui::Dummy(ImVec2(0, px(14)));
+            // ---- bağlantılar: tek satır, ikon + etiket + hedef -------------------
+            struct Link { Icon icon; const char* label; const char* handle; const wchar_t* url; };
+            const Link links[] = {
+                { Icon::GitHub,    "GitHub",      brand::kGitHubHandle,    brand::kGitHubUrlW    },
+                { Icon::Instagram, "Instagram",   brand::kInstagramHandle, brand::kInstagramUrlW },
+                { Icon::Code,      L(SourceCode), brand::kRepoSlug,        brand::kRepoUrlW      },
+            };
+            const int   nLinks = (int)(sizeof(links) / sizeof(links[0]));
+            const float iconW  = px(22);
+            float lw = 0.0f;
+            for (const Link& k : links)
+                lw += iconW + ui::TextSize(F.medium, theme::size::Body, k.label).x + px(9)
+                    + ui::TextSize(F.regular, theme::size::Caption, k.handle).x;
+            const float lgap = ImMax(px(24), ((x1 - x0) - lw) / (float)(nLinks - 1));
 
-            // ---- bildirimler ---------------------------------------------------
-            ui::BeginCard("##about_notices", cw, L(NoticesHeading));
+            float lx = x0;
+            for (int i = 0; i < nLinks; ++i)
             {
-                ImGui::TextWrapped("%s", L(DemoLicenseNote));
-                ImGui::Dummy(ImVec2(0, px(6)));
-                ImGui::TextWrapped("%s", L(ElevationNote));
+                bool clicked = false;
+                const ImVec2 hs = ui::TextSize(F.regular, theme::size::Caption, links[i].handle);
+                const ImVec2 ls = ui::TextSize(F.medium, theme::size::Body, links[i].label);
+                const float  wrow = iconW + ls.x + px(9) + hs.x;
+                char lid[24];
+                snprintf(lid, sizeof(lid), "##about_link%d", i);
+                const bool hov = RowHit(lid, lx, linksTop, wrow, linkRowH, &clicked);
+                if (clicked) OpenUrl(links[i].url);
+
+                icons::Draw(dl, links[i].icon, ImVec2(lx + px(8), linksTop + linkRowH * 0.5f),
+                            px(15), Gray(hov ? theme::ink::Primary : 0.62f));
+                ui::Text(dl, F.medium, theme::size::Body, ImVec2(lx + iconW, linksTop + px(4)),
+                         Gray(hov ? theme::ink::Primary : 0.86f), links[i].label);
+                ui::Text(dl, F.regular, theme::size::Caption, ImVec2(lx + iconW + ls.x + px(9), linksTop + px(6)),
+                         Gray(hov ? theme::ink::Secondary : theme::ink::Tertiary), links[i].handle);
+                lx += wrow + lgap;
             }
-            ui::EndCard();
+
+            ImGui::SetCursorScreenPos(a);
+            ImGui::Dummy(b - a);
         }
 
         // ---------------------------------------------------------- başlangıç yöneticisi

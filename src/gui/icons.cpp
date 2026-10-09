@@ -1,5 +1,6 @@
 #include "icons.hpp"
 #include "brand_icons.hpp"
+#include "logo.hpp"
 #include "imgui_internal.h"
 #include <cmath>
 
@@ -269,6 +270,15 @@ namespace icons
             // Gerçek siluet, tools/make_brand_icons.ps1 tarafından derleme zamanında
             // üçgenlenmiş hâlde. İlkel çizimlerle denendi önce, hepsi hayvan gibi okundu:
             // işaret 20px'te daire ve dikdörtgenlerle taklit edilemeyecek kadar organik.
+            //
+            // Aynı üretici işareti bir de kenar yumuşatmalı maske olarak dışarı verir.
+            // ImDrawList'in çokgen dolgusu yumuşatılmadığı için üçgenler 15px'te basamak
+            // basamak okunuyor; doku varsa o çizilir, yoksa üçgenler yedek olarak durur.
+            if (logo::MarkReady())
+            {
+                logo::DrawMark(dl, c, s, col);
+                break;
+            }
             const float*   pts = brandicons::kGitHubPoints;
             const unsigned short* tris = brandicons::kGitHubTris;
             const int nPts = brandicons::kGitHubPointCount;
