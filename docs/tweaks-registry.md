@@ -6,11 +6,11 @@ yeniden üretilir, böylece buradaki liste kodun yazdığı şeyden ayrılamaz.
 
 | # | Ayar | Kategori | Registry konumu |
 |---|------|----------|-----------------|
-| 1 | Maksimum güç performans planı | Performans | komut: powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c<br>komut: powercfg /setactive 381b4222-f694-41f0-9685-ff5bb260df2e |
+| 1 | Maksimum güç performans planı | Performans | komut: powercfg.exe /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c<br>komut: powercfg.exe /setactive 381b4222-f694-41f0-9685-ff5bb260df2e |
 | 2 | Arka plan uygulamaları kapat | Performans | HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications<br>deger: GlobalUserDisabled |
 | 3 | Görsel efektleri optimize et | Performans | HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects<br>deger: VisualFXSetting |
-| 4 | SysMain'i kapat | Performans | komut: sc config SysMain start= disabled<br>komut: sc stop SysMain<br>komut: sc config SysMain start= auto |
-| 5 | Hibernation'ı kapat | Performans | komut: powercfg /hibernate off<br>komut: powercfg /hibernate on |
+| 4 | SysMain'i kapat | Performans | komut: sc.exe config SysMain start= disabled<br>komut: sc.exe stop SysMain<br>komut: sc.exe config SysMain start= auto |
+| 5 | Hibernation'ı kapat | Performans | komut: powercfg.exe /hibernate off<br>komut: powercfg.exe /hibernate on |
 | 6 | Sistem duyarlılığı | Performans | HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile<br>deger: SystemResponsiveness |
 | 7 | Güç kısıtlaması kapat | Performans | HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling<br>deger: PowerThrottlingOff |
 | 8 | Bellek yönetimi | Performans | HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management<br>deger: DisablePagingExecutive |

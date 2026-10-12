@@ -216,10 +216,12 @@ foreach ($fn in $funcs.Keys) {
         foreach ($v in [regex]::Matches($txt, 'Reg(?:Put|Get)\w*\s*\([^,]+,\s*[^,]+,\s*L"([^"]*)"')) {
             $loc += '    deger: ' + $v.Groups[1].Value
         }
-        if ([regex]::IsMatch($txt, 'RunCmd\s*\(\s*L"([^"]*)"')) {
-            foreach ($v in [regex]::Matches($txt, 'RunCmd\s*\(\s*L"([^"]*)"')) {
-                $loc += '    komut: ' + $v.Groups[1].Value
-            }
+        # RunCmd araci System32'den tam yolla cagirdigi icin iki parametre alir:
+        # ad ve argumanlar. Tablo ikisini birlestirip gercek komut satirini
+        # gosterir; yalnizca adi yazmak (bir donem boyleydi) dokumanin tek
+        # katma degerini - "aslinda ne calisiyor" sorusunun cevabini - siler.
+        foreach ($v in [regex]::Matches($txt, 'RunCmd\s*\(\s*L"([^"]*)"\s*,\s*L"([^"]*)"')) {
+            $loc += '    komut: ' + $v.Groups[1].Value + ' ' + ($v.Groups[2].Value -replace '\\\\', '\')
         }
         if ($loc.Count -eq 0) { $loc += '    (yok)' }
         $switchRows["$cat,$idx"] = $loc
