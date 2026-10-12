@@ -1,6 +1,7 @@
 #include "network.hpp"
 #include "brand.hpp"
 #include "sample_data.hpp"
+#include "syspath.hpp"
 #include <windows.h>
 // IcmpCreateFile ve IcmpSendEcho2 yalnızca icmpapi.h içinde tanımlıdır; windows.h onları
 // içeri almadığı için bu başlık ayrıca ekleniyor.
@@ -22,15 +23,22 @@ namespace network
         constexpr const wchar_t* kRunKey   = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
         constexpr const wchar_t* kRunName = brand::kRunValueName;
 
-        bool RunCmd(const wchar_t* cmd)
+        // Araç adı System32'den tam yolla çözülür ve argümanlar ayrı verilir.
+        // Yalın "netsh"/"ipconfig" yazmak, CreateProcess aramaya uygulamanın
+        // kendi klasöründen başladığı için, o klasöre bırakılmış aynı adlı
+        // programı çalıştırmak olurdu. Sabit wchar_t arabellek de kaldırıldı:
+        // uzun bir bağlantı adı wcscpy_s'i çökertiyordu.
+        bool RunCmd(const wchar_t* tool, const std::wstring& args)
         {
+            const std::wstring cmd = syspath::CommandLine(tool, args);
+            if (cmd.empty()) return false;
+
             STARTUPINFOW si = { sizeof(si) };
             si.dwFlags = STARTF_USESHOWWINDOW;
             si.wShowWindow = SW_HIDE;
             PROCESS_INFORMATION pi = {};
-            wchar_t buf[512];
-            wcscpy_s(buf, cmd);
-            if (!CreateProcessW(nullptr, buf, nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+            std::wstring buf = cmd;
+            if (!CreateProcessW(nullptr, &buf[0], nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
                 return false;
 
             // Zaman aşımı bir çıkış kodu gibi yorumlanamaz: o durumda GetExitCodeProcess
@@ -107,10 +115,20 @@ namespace network
             HKEY k;
             if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, regPath.c_str(), 0, KEY_READ, &k) != ERROR_SUCCESS)
                 return L"Ethernet";
+
+            // Sonlandırma açıkça garanti ediliyor: registry'de NUL'suz bir REG_SZ
+            // bulunabiliyor, tamponu dolduran bir değer ise `name` sonlandırıcısız
+            // kalırdı ve geri dönen dize okuması taşardı. Tip de denetleniyor;
+            // REG_DWORD gibi bir değeri geniş dize gibi yorumlamak yanlış ad
+            // (ya da boşluk) üretirdi.
             wchar_t name[256] = {};
-            DWORD nsz = sizeof(name);
-            RegQueryValueExW(k, L"Name", nullptr, nullptr, (LPBYTE)name, &nsz);
+            DWORD nsz = sizeof(name) - sizeof(wchar_t);
+            DWORD type = 0;
+            const LONG r = RegQueryValueExW(k, L"Name", nullptr, &type, (LPBYTE)name, &nsz);
             RegCloseKey(k);
+            if (r != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ))
+                return L"Ethernet";
+            name[nsz / sizeof(wchar_t)] = L'\0';
             return name[0] ? name : L"Ethernet";
         }
 
@@ -139,7 +157,7 @@ namespace network
 
     bool FlushDns()
     {
-        return RunCmd(L"ipconfig /flushdns");
+        return RunCmd(L"ipconfig.exe", L"/flushdns");
     }
 
     bool SetRunAtStartup(const wchar_t* exe_path, bool enable)
@@ -203,10 +221,14 @@ namespace network
     {
         std::wstring adapter = FindAdapter();
         // netsh bağlantı adını bir belirteç olarak ayrıştırır: adın içinde tırnak bulunursa
-        // argüman erkenden kapanır ve kalan kısım ikinci bir seçenek gibi okunur.
+        // argüman erkenden kapanır ve kalan kısım ikinci bir seçenek gibi okunur. Sonda
+        // duran ters bölü de aynı tuzağı verir ("Et\" kapanan tırnağı kaçırır), o yüzden
+        // her iki karakter de düzleştiriliyor ve sondaki boşluklar atılıyor. Ad HKLM'den
+        // geliyor; buraya dolaylı yoldan yazılabilen bir değer için de kapı kapatılıyor.
         std::wstring safe;
         for (wchar_t c : adapter)
-            safe += (c == L'"') ? L'\'' : c;
+            safe += (c == L'"' || c == L'\\') ? L'\'' : c;
+        while (!safe.empty() && safe.back() == L' ') safe.pop_back();
         std::wstring q = L"\"" + safe + L"\"";
 
         if (provider == 0)
@@ -214,9 +236,9 @@ namespace network
             // Sıfırlama yalnızca birincil girdiyi değil listenin tamamını temizler; aksi hâlde
             // daha önce elle eklenen ikincil statik sunucu, DHCP'ye dönüşte sistemde
             // kalırdı.
-            const std::wstring reset = L"netsh interface ipv4 set dnsservers name=" + q + L" source=dhcp";
-            const bool ok = RunCmd(reset.c_str());
-            RunCmd(L"ipconfig /flushdns");
+            const std::wstring reset = L"interface ipv4 set dnsservers name=" + q + L" source=dhcp";
+            const bool ok = RunCmd(L"netsh.exe", reset);
+            RunCmd(L"ipconfig.exe", L"/flushdns");
             return ok;
         }
 
@@ -230,12 +252,12 @@ namespace network
         default: return false;
         }
 
-        std::wstring cmd1 = L"netsh interface ipv4 set dnsservers name=" + q + L" source=static address=" + primary +
+        std::wstring cmd1 = L"interface ipv4 set dnsservers name=" + q + L" source=static address=" + primary +
                             L" validate=no";
-        std::wstring cmd2 = L"netsh interface ipv4 add dnsservers name=" + q + L" address=" + secondary + L" index=2 validate=no";
-        const bool ok = RunCmd(cmd1.c_str());
-        RunCmd(cmd2.c_str());
-        RunCmd(L"ipconfig /flushdns");
+        std::wstring cmd2 = L"interface ipv4 add dnsservers name=" + q + L" address=" + secondary + L" index=2 validate=no";
+        const bool ok = RunCmd(L"netsh.exe", cmd1);
+        RunCmd(L"netsh.exe", cmd2);
+        RunCmd(L"ipconfig.exe", L"/flushdns");
         return ok;
     }
 
@@ -243,7 +265,7 @@ namespace network
         // bu yüzden durumu elle sabitlenmek yerine onu yazan komutun kendi çıktısından
         // okunur. `found`, "normal/disabled" ile "netsh kullanılamıyor" durumlarını
         // birbirinden ayırır.
-    bool QueryNetsh(const wchar_t* cmd, const wchar_t* needle, bool* found)
+    bool QueryNetsh(const std::wstring& args, const wchar_t* needle, bool* found)
     {
         *found = false;
 
@@ -252,16 +274,21 @@ namespace network
         if (!CreatePipe(&rd, &wr, &sa, 4096)) return false;
         SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
 
-        std::wstring full = std::wstring(cmd) + L" 2>&1";
+        // Kabuk yönlendirmesi (" 2>&1") burada gereksiz ve zararlıydı: süreç
+        // cmd.exe üzerinden değil doğrudan yaratılıyor, stderr zaten aynı boruya
+        // veriliyor. Kalan tek etkisi, netsh'in tanımadığı bir seçenek görüp
+        // kullanım metni basmasıydı.
+        const std::wstring cmd = syspath::CommandLine(L"netsh.exe", args);
+        if (cmd.empty()) return false;
+
         STARTUPINFOW si = { sizeof(si) };
         si.dwFlags = STARTF_USESTDHANDLES;
         si.hStdOutput = wr;
         si.hStdError  = wr;
         PROCESS_INFORMATION pi = {};
-        wchar_t buf[256];
-        wcscpy_s(buf, full.c_str());
+        std::wstring buf = cmd;
 
-        if (!CreateProcessW(nullptr, buf, nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+        if (!CreateProcessW(nullptr, &buf[0], nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
         {
             CloseHandle(rd); CloseHandle(wr);
             return false;
@@ -311,7 +338,7 @@ namespace network
         {
         case 0: { // TCP auto-tuning etkin sayılır, netsh bunu "normal" diye bildirir
             bool found = false;
-            const bool normal = QueryNetsh(L"netsh int tcp show global", L"Auto-Tuning Level", &found);
+            const bool normal = QueryNetsh(L"int tcp show global", L"Auto-Tuning Level", &found);
             // Yerelleştirilmiş bir Windows'ta bu etiket hiçbir zaman eşleşmez. Sağlıklı bir
             // adaptör için Windows varsayılanı "normal" olduğundan, anahtar elle yazılmış
             // bir false yerine o varsayılana düşer; yanlış değil, eksik bilgi gösterir.
@@ -329,7 +356,7 @@ namespace network
                           L"NonBestEffortLimit", 20) == 0;
         case 4: { // Büyük gönderme boşaltma (LSO), netsh tarafından genel bir durum olarak bildirilir
             bool found = false;
-            const bool on = QueryNetsh(L"netsh int tcp show global", L"Large Send Offload", &found);
+            const bool on = QueryNetsh(L"int tcp show global", L"Large Send Offload", &found);
             // LSO varsayılan olarak açıktır; bu anahtarın "açık" anlamı da tam olarak budur.
             return found ? on : true;
         }
@@ -352,8 +379,8 @@ namespace network
         switch (idx)
         {
         case 0:
-            return on ? RunCmd(L"netsh int tcp set global autotuninglevel=normal")
-                      : RunCmd(L"netsh int tcp set global autotuninglevel=disabled");
+            return on ? RunCmd(L"netsh.exe", L"int tcp set global autotuninglevel=normal")
+                      : RunCmd(L"netsh.exe", L"int tcp set global autotuninglevel=disabled");
         case 1:
             return RegPut(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
                           L"TcpNoDelay", on ? 1 : 0) &&
@@ -369,10 +396,10 @@ namespace network
         case 4: {
             // LSO, v4 ve v6 yığınlarına bölünmüş durumdadır; ikisinin de aynı anda değişmesi
             // gerekir, aksi hâlde anahtar yarı uygulanmış olarak okunurdu.
-            const bool v4 = on ? RunCmd(L"netsh int ipv4 set global taskoffload=disabled")
-                               : RunCmd(L"netsh int ipv4 set global taskoffload=enabled");
-            const bool v6 = on ? RunCmd(L"netsh int ipv6 set global taskoffload=disabled")
-                               : RunCmd(L"netsh int ipv6 set global taskoffload=enabled");
+            const bool v4 = on ? RunCmd(L"netsh.exe", L"int ipv4 set global taskoffload=disabled")
+                               : RunCmd(L"netsh.exe", L"int ipv4 set global taskoffload=enabled");
+            const bool v6 = on ? RunCmd(L"netsh.exe", L"int ipv6 set global taskoffload=disabled")
+                               : RunCmd(L"netsh.exe", L"int ipv6 set global taskoffload=enabled");
             return v4 && v6;
         }
         case 5: {

@@ -1,4 +1,5 @@
 #include "cleaner.hpp"
+#include "syspath.hpp"
 #include <windows.h>
 #include <shellapi.h>
 #include <shlobj.h>
@@ -144,15 +145,20 @@ namespace cleaner
         // ya da hizmetin zaten devre dışı olması gibi durumlarda sessizce
         // başarısız olabilir; bu yüzden yalnızca biz durdurduysak yeniden
         // başlatırız.
-        bool RunCmd(const wchar_t* cmd)
+        // net.exe System32'den tam yolla çağrılır: yalın ad vermek, arama
+        // sırası uygulamanın kendi klasöründen başladığı için, portable
+        // kurulumda o klasöre bırakılmış bir net.exe'i çalıştırmak olurdu.
+        bool RunCmd(const wchar_t* tool, const std::wstring& args)
         {
+            const std::wstring cmd = syspath::CommandLine(tool, args);
+            if (cmd.empty()) return false;
+
             STARTUPINFOW si = { sizeof(si) };
             si.dwFlags = STARTF_USESHOWWINDOW;
             si.wShowWindow = SW_HIDE;
             PROCESS_INFORMATION pi = {};
-            wchar_t buf[128];
-            wcscpy_s(buf, cmd);
-            if (!CreateProcessW(nullptr, buf, nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+            std::wstring buf = cmd;
+            if (!CreateProcessW(nullptr, &buf[0], nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
                 return false;
 
             // Zaman aşımında alt süreç sonlandırılır: aksi hâlde çıkış kodu hâlâ
@@ -296,11 +302,11 @@ namespace cleaner
         case 2:
             if (!env.win.empty())
             {
-                const bool wasBITS  = RunCmd(L"net stop BITS /y");
-                const bool wasWUA   = RunCmd(L"net stop wuauserv /y");
+                const bool wasBITS  = RunCmd(L"net.exe", L"stop BITS /y");
+                const bool wasWUA   = RunCmd(L"net.exe", L"stop wuauserv /y");
                 CleanDir(env.win + L"\\SoftwareDistribution\\Download");
-                if (wasWUA) RunCmd(L"net start wuauserv");
-                if (wasBITS) RunCmd(L"net start BITS");
+                if (wasWUA) RunCmd(L"net.exe", L"start wuauserv");
+                if (wasBITS) RunCmd(L"net.exe", L"start BITS");
             }
             break;
         case 3:

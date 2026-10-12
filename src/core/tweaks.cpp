@@ -1,5 +1,6 @@
 #include "tweaks.hpp"
 #include "regpack.hpp"
+#include "syspath.hpp"
 #include <windows.h>
 #include <string>
 
@@ -52,15 +53,21 @@ namespace tweaks
             return ok;
         }
 
-        bool RunCmd(const wchar_t* cmd)
+        // Araç System32'den tam yolla çağrılır, argümanlar ayrı verilir. Yalın
+        // "sc"/"powercfg" yazmak, CreateProcess aramaya uygulamanın kendi
+        // klasöründen başladığı için, portable kurulumda o klasöre bırakılmış
+        // aynı adlı programı yönetici yetkisiyle çalıştırmak olurdu.
+        bool RunCmd(const wchar_t* tool, const std::wstring& args)
         {
+            const std::wstring cmd = syspath::CommandLine(tool, args);
+            if (cmd.empty()) return false;
+
             STARTUPINFOW si = { sizeof(si) };
             si.dwFlags = STARTF_USESHOWWINDOW;
             si.wShowWindow = SW_HIDE;
             PROCESS_INFORMATION pi = {};
-            wchar_t buf[512];
-            wcscpy_s(buf, cmd);
-            if (!CreateProcessW(nullptr, buf, nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+            std::wstring buf = cmd;
+            if (!CreateProcessW(nullptr, &buf[0], nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
                 return false;
 
             // Zaman aşımı bir çıkış kodu sanılmamalı: süreç hâlâ ayakta olduğu için
@@ -127,15 +134,15 @@ namespace tweaks
         {
             switch (i)
             {
-            case 0: return on ? RunCmd(L"powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")
-                              : RunCmd(L"powercfg /setactive 381b4222-f694-41f0-9685-ff5bb260df2e");
+            case 0: return on ? RunCmd(L"powercfg.exe", L"/setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")
+                              : RunCmd(L"powercfg.exe", L"/setactive 381b4222-f694-41f0-9685-ff5bb260df2e");
             case 1: return RegPut(HKCU, L"Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications",
                                   L"GlobalUserDisabled", on ? 1 : 0);
             case 2: return RegPut(HKCU, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects",
                                   L"VisualFXSetting", on ? 2 : 0);
-            case 3: return on ? RunCmd(L"sc config SysMain start= disabled") && RunCmd(L"sc stop SysMain")
-                              : RunCmd(L"sc config SysMain start= auto");
-            case 4: return on ? RunCmd(L"powercfg /hibernate off") : RunCmd(L"powercfg /hibernate on");
+            case 3: return on ? RunCmd(L"sc.exe", L"config SysMain start= disabled") && RunCmd(L"sc.exe", L"stop SysMain")
+                              : RunCmd(L"sc.exe", L"config SysMain start= auto");
+            case 4: return on ? RunCmd(L"powercfg.exe", L"/hibernate off") : RunCmd(L"powercfg.exe", L"/hibernate on");
             case 5: return RegPut(HKLM, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
                                   L"SystemResponsiveness", on ? 0 : 20);
             case 6: return RegPut(HKLM, L"SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling",

@@ -148,10 +148,13 @@ namespace elevate
         for (unsigned i = 0; i < rlen; ++i)
         {
             if (p >= bytes.size()) return false;
-            // Yalnizca basit ASCII kabul edilir. Komut satirindan gelen veri
-            // kullanici girdisi sayilmaz; yine de sinir disi bir bayt reddedilir.
+            // Yalnizca zaman damgasi karakterleri: rakam ve tire. Komut
+            // satirindan gelen veri kullanici girdisi sayilmaz, ama bu baytlari
+            // oldugu gibi gecirmek yol ayiraci ve noktayi da (0x5C, 0x2E, 0x3A)
+            // kabul etmek demekti; yani yedek klasorunun disina cikilip herhangi
+            // bir klasordeki .reg dosyalari yonetici olarak ice aktarilabilirdi.
             const unsigned ch = bytes[p++];
-            if (ch < 0x20 || ch > 0x7E) return false;
+            if (ch != L'-' && !(ch >= L'0' && ch <= L'9')) return false;
             out.restoreFrom.push_back((char)ch);
         }
 
@@ -175,8 +178,10 @@ namespace elevate
         bool any = false;
 
         // Geri alma isteniyorsa ayarlar uygulanmaz; yedeklenen eski degerler geri
-        // ice aktarilir. Yolu burada kuruyoruz: komut satirinda yalnizca klasor adi
-        // tasindi, kullanici girdisi bu yola giremez.
+        // ice aktarilir. Yolu burada kuruyoruz: komut satirindan yalnizca klasor
+        // adi tasinir, ve DecodeCommandLine o ada yalnizca rakam ile tire
+        // (zaman damgasi bicimi) izin verir. Ayrica backup::Restore klasorun
+        // yedek koku altinda kaldigini dogrular.
         if (!p.restoreFrom.empty())
         {
             const std::wstring root = backup::RootDirectory();
@@ -185,7 +190,7 @@ namespace elevate
             // Klasor adi ASCII; darlaltma acikca yaziliyor.
             std::wstring ad;
             for (char ch : p.restoreFrom)
-                ad.push_back(ch < 128 ? (wchar_t)ch : L'?');
+                ad.push_back(((unsigned char)ch) < 128 ? (wchar_t)ch : L'?');
 
             return backup::Restore(root + L"\\" + ad);
         }

@@ -6,6 +6,7 @@
 
 #include "regpack.hpp"
 #include "brand.hpp"
+#include "syspath.hpp"
 #include <windows.h>
 #include <wincrypt.h>
 #include <string>
@@ -22,9 +23,17 @@ namespace regpack
         {
             // reg.exe gerçek bir çıkış kodu döndürür; regedit /s ise her zaman 0 döner ve hatalı
             // bir içe aktarmayı bile başarı gibi gösterir.
-            std::wstring cmd = L"reg.exe import \"";
-            cmd += path;
-            cmd += L"\"";
+            //
+            // Çalıştırılabilir tam yoldan çağrılır: yalın "reg.exe" yazmak, arama
+            // sırası uygulamanın kendi klasöründen başladığı için, o klasöre
+            // bırakılmış aynı adlı programı çalıştırmak olurdu.
+            std::wstring cmd = syspath::CommandLine(L"reg.exe",
+                                                    L"import \"" + std::wstring(path) + L"\"");
+            if (cmd.empty()) return false;
+
+            // Tırnak, komut satırında argümanı erken kapatır: yol tırnak
+            // içeriyorsa hiç denemeyiz.
+            if (std::wstring(path).find(L'"') != std::wstring::npos) return false;
 
             STARTUPINFOW si = { sizeof(si) };
             si.dwFlags     = STARTF_USESHOWWINDOW;

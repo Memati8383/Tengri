@@ -600,6 +600,11 @@ namespace update
         Fail          g_reason = Fail::None;
         std::wstring  g_stagePath;
         std::wstring  g_stale;
+        // İndirme sırasında doğrulanan SHA-256. Yerleştirme anında yeniden
+        // denetleniyor, çünkü sahne dosyasının yolu sabit ve klasör kullanıcının
+        // yazabildiği bir yer: aynı kullanıcıda koşan bir program, doğrulama ile
+        // kopyalama arasında dosyanın içeriğini değiştirebilir.
+        std::string   g_stageSha;
         // Arayüz her karede okuyor, denetim iş parçacığı yazıyor: atomik olmasının
         // sebebi bu. Kayıt değerinin tek başına yarım okunması değil, derleyicinin
         // önbelleğe alıp hiç tazelememesi daha kötü senaryoydu.
@@ -765,6 +770,7 @@ namespace update
             {
                 std::lock_guard<std::mutex> lk(g_mtx);
                 g_stagePath = ready ? path : std::wstring();
+                g_stageSha  = ready ? want.sha256 : std::string();
                 g_reason    = why;
             }
             g_dl.store(ready ? DlState::Ready : (why == Fail::None ? DlState::Idle : DlState::Failed),
@@ -1117,6 +1123,7 @@ namespace update
         g_total.store(0);
         std::lock_guard<std::mutex> lk(g_mtx);
         g_stagePath.clear();
+        g_stageSha.clear();
         g_reason = Fail::None;
         g_dl.store(DlState::Idle);
     }
@@ -1136,6 +1143,26 @@ namespace update
         const std::wstring staged = StagedFile();
         if (staged.empty() || plan.running.empty()) { SetReason(Fail::Io); return false; }
         if (g_dl.load() != DlState::Ready)          { SetReason(Fail::Io); return false; }
+
+        std::string expected;
+        {
+            std::lock_guard<std::mutex> lk(g_mtx);
+            expected = g_stageSha;
+        }
+        if (expected.empty()) { SetReason(Fail::Io); return false; }
+
+        // İndirme biterken bir deneme yapılmıştı; burada ikincisi var, çünkü
+        // aradaki sürede dosya kullanıcı-yazılabilir bir klasörde durağında
+        // bekliyor. İçerik değişmişse dosya silinir ve hiçbir şey yerleştirilmez.
+        {
+            std::string now;
+            if (!Sha256File(staged, &now) || Lower(now) != expected)
+            {
+                ::DeleteFileW(staged.c_str());
+                SetReason(Fail::HashMismatch);
+                return false;
+            }
+        }
 
         // 1) Çalışan exe kenara alınır. Windows, çalışan bir görüntüyü aynı
         //    birimde taşımaya izin verir; kilitli olan içeriğidir, adı değil.
@@ -1161,6 +1188,22 @@ namespace update
             ::MoveFileExW(plan.stale.c_str(), plan.running.c_str(), MOVEFILE_REPLACE_EXISTING);
             SetReason(e2 == ERROR_ACCESS_DENIED ? Fail::NotWritable : Fail::Io);
             return false;
+        }
+
+        // Kopyalanan dosya artık çalıştırılacak yerinde: son denetim orada
+        // yapılıyor. Beklenen özet değilse (yerleştirme ile kopyalama arasında
+        // içeriği değiştirilmişse) yeni kopya silinir, eski çalışan hâline
+        // dönülür ve hiçbir şey başlatılmaz.
+        {
+            std::string dest;
+            if (!Sha256File(plan.running, &dest) || Lower(dest) != expected)
+            {
+                ::DeleteFileW(plan.running.c_str());
+                ::MoveFileExW(plan.stale.c_str(), plan.running.c_str(), MOVEFILE_REPLACE_EXISTING);
+                ::DeleteFileW(staged.c_str());
+                SetReason(Fail::HashMismatch);
+                return false;
+            }
         }
 
         ::DeleteFileW(staged.c_str());

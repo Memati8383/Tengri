@@ -22,23 +22,16 @@ namespace startup
             bool         isOnce;
         };
 
-        // Dokuz kapsamın Windows'taki gerçek konumları. Sıra, Scope enum'uyla
+        // On kapsamın Windows'taki gerçek konumları. Sıra, Scope enum'uyla
         // birebir aynı; başka yerde elle eşleme yapmamak için indekslenir.
-        // (HKEY sabitleri reinterpret-cast içerdiği için constexpr olamaz.)
         //
         // Startup klasörleri ve Winlogon kök anahtarı KENDİLERİ DE girdi
         // değildir: Startup'ta her dosya, Winlogon'da ise Shell/Userinit gibi
         // belirli değerler ayrı girdilerdir. Kök dizinler burada yalnızca
         // taranacak yol olarak tutuluyor.
-        // On kapsamın Windows'taki gerçek konumları. Sıra, Scope enum'uyla
-        // birebir aynı; başka yerde elle eşleme yapmamak için indekslenir.
-        //
-        // Registry dışı iki kapsamın (Startup klasörleri) kök dizini burada
-        // saklanmaz: bu dizinler ortam değişkenine bağlı, yani çalışma zamanında
-        // çözülmesi gerekiyor. Onlar için ayrı bir çözümleyici var.
         //
         // (HKEY sabitleri reinterpret-cast içerdiği için constexpr olamaz.)
-        const ScopeDef kScopes[8] = {
+        const ScopeDef kScopes[10] = {
             { HKEY_CURRENT_USER,  L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",     false, false },
             { HKEY_CURRENT_USER,  L"Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", false, true  },
             { HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",     true,  false },
@@ -47,11 +40,25 @@ namespace startup
             { HKEY_CURRENT_USER,  L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run", false, false },
             { HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run", true,  false },
 
+            // Satır 6 ve 7 registry kapsamı DEĞİL: Startup klasörleri enum'da 6 ve
+            // 7'de duruyor, bu yüzden hiza burada korunuyor. Önceki hâlde bu iki
+            // satıra Winlogon yazılmıştı; sonucunda Winlogon değerleri
+            // Scope::StartupFolderUser/Common olarak taranıyordu — etiketleri
+            // "Startup (user)" görünüyor, IsWinlogonScope false olduğu için
+            // Shell/Userinit dışındaki onlarca değer listeleniyor ve kapatılması
+            // güvenli olmayan düğmeler açık geliyordu.
+            { nullptr, L"", false, false },
+            { nullptr, L"", false, false },
+
             // Winlogon'ın GPO'luk ve eski yolu da var; ikisi de Shell/Userinit
             // ele geçirmesinde kullanılır, bu yüzden kapsama alındı.
             { HKEY_CURRENT_USER,  L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", false, false },
             { HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", true,  false },
         };
+
+        // Tabloda taranacak registry satırları. Klasör kapsamları (6,7) registry
+        // satırı olmadığı için listede yok; onlar Enumerate'ta ayrıca dolaşılır.
+        const int kRegistryScopeIdx[8] = { 0, 1, 2, 3, 4, 5, 8, 9 };
 
         // Winlogon'da oturumun kendisi olan değerler. Bunlar "başlangıç öğesi"
         // değildir; ama değiştirilmiş olmaları bir saldırı işaretidir, bu yüzden
@@ -65,9 +72,7 @@ namespace startup
             return false;
         }
 
-        // Yedek anahtarı yalnız HKCU altında tutulur: HKLM'e yedek yazmak her
-        // seferinde UAC isterdi; aynı makinede birden fazla kullanıcı varsa her
-        // birinin kendi yedek listesi olması zaten mantıklı.
+        // Yedek anahtarının alt yolu.
         const wchar_t* ScopeBackupSubkey(Scope s)
         {
             switch (s)
@@ -85,6 +90,41 @@ namespace startup
         bool IsWinlogonScope(Scope s)
         {
             return s == Scope::WinlogonUser || s == Scope::WinlogonMachine;
+        }
+
+        // Yedeğin yazıldığı hive.
+        //
+        // Makine kapsamı yedekler HKLM'de durmak zorunda. Yedekleri HKCU'da
+        // tutmak, geri açma sırasında HKCU'dan (aynı kullanıcıda koşan HER
+        // programın yazabildiği yerden) okunan bir komutu HKLM\Run'a yazmak
+        // demekti: kullanıcıya ait bir zararlı kendi başlangıç girdisini
+        // TENGRI'nin yükseltilmiş çocuğuna yönetici olarak kurdurabilirdi.
+        //
+        // Kural artık tek yönlü: yedek hangi hive'daysa geri yazım oradan okunur,
+        // hive'lar arasında taşıma yapılmaz. Eski sürümlerden HKCU'da kalmış
+        // makine yedekleri bu yüzden geri açılamaz — onları okuyup HKLM'e
+        // taşımak, doğrulanamayan bir veriyi otomatik başlatma yoluna yönetici
+        // yetkisiyle yazmak olurdu. Kullanıcı girdiyi kapatıp açarak yedeği
+        // HKLM'e alır.
+        //
+        // Ek UAC maliyeti YOK: makine kapsamı bir girdiyi kapatmak da açmak da
+        // zaten HKLM yazdığı için yükseltilmiş süreç istiyor.
+        HKEY ScopeBackupRoot(Scope s)
+        {
+            return kScopes[static_cast<int>(s)].isMachine ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
+        }
+
+        // Registry değer adı olarak kabul edilebilir ad. Boş ad anahtarın
+        // VARSAYILAN değerine denk gelir; yedekleme tasarımında varsayılan
+        // değer yok, ve geri yazımda adın düşmesi komutu yanlış yere yazmak
+        // olurdu. Denetimli karakterler yedeğe yazılan ad ile canlıya yazılan
+        // adın aynı kalmasını garanti eder.
+        bool IsUsableValueName(const std::wstring& name)
+        {
+            if (name.empty() || name.size() > 255) return false;
+            for (wchar_t c : name)
+                if (c < 0x20 || c == L'"') return false;
+            return true;
         }
 
         bool IsFolderScope(Scope s)
@@ -455,10 +495,13 @@ namespace startup
         std::vector<Entry> out;
         out.reserve(32);
 
-        for (int s = 0; s < 8; ++s)
+        // Registry satırları, enum değerine göre taranır. Klasör kapsamları
+        // (6,7) tabloda boş satır; onlar aşağıda dosya sistemi üzerinden
+        // dolaşılıyor.
+        for (int i = 0; i < 8; ++i)
         {
-            const ScopeDef& def = kScopes[s];
-            const Scope scope = static_cast<Scope>(s);
+            const Scope     scope = static_cast<Scope>(kRegistryScopeIdx[i]);
+            const ScopeDef& def   = kScopes[kRegistryScopeIdx[i]];
 
             // Canlı girdiler.
             EnumerateKey(def.root, def.subkey, scope, /*liveMarker=*/true, out);
@@ -468,7 +511,7 @@ namespace startup
             // taşımaz.
             const wchar_t* backupSub = ScopeBackupSubkey(scope);
             if (*backupSub)
-                EnumerateKey(HKEY_CURRENT_USER, backupSub, scope, /*liveMarker=*/false, out);
+                EnumerateKey(ScopeBackupRoot(scope), backupSub, scope, /*liveMarker=*/false, out);
         }
 
         // Startup klasörleri. Ortak klasör önce taranır: ortak bir girdi
@@ -541,19 +584,24 @@ namespace startup
         // HKLM yazmak için elevate gerekir. Çağırana haber ver.
         if (def.isMachine && !IsCurrentProcessElevated()) return false;
 
-        const wchar_t* backupSub = ScopeBackupSubkey(e.scope);
+        const wchar_t* backupSub  = ScopeBackupSubkey(e.scope);
+        const HKEY     backupRoot = ScopeBackupRoot(e.scope);
+
+        // Ad süzgeci hem yedeğe yazım hem canlıya yazım için geçerli.
+        if (!IsUsableValueName(e.name)) return false;
 
         if (enable)
         {
-            // Yedek anahtardan canlıya taşı. Komut ya girdinin kendisinde ya da
-            // (eski bir yedek sürümünden gelebilir) yedek anahtarda saklıdır.
+            // Yedek anahtardan canlıya taşı. Yedek hangi hive'daysa oradan
+            // okunur: makine kapsamı bir girdinin komutu HKCU'dan alınıp
+            // HKLM'e YAZILMAZ (bkz. ScopeBackupRoot).
             std::wstring cmd = e.command;
             if (cmd.empty())
-                ReadValue(HKEY_CURRENT_USER, backupSub, e.name, cmd);
+                ReadValue(backupRoot, backupSub, e.name, cmd);
             if (cmd.empty()) return false;
 
             if (!WriteValue(def.root, def.subkey, e.name, cmd)) return false;
-            DeleteValue(HKEY_CURRENT_USER, backupSub, e.name);
+            DeleteValue(backupRoot, backupSub, e.name);
             return true;
         }
         else
@@ -563,13 +611,13 @@ namespace startup
             if (cmd.empty() && !ReadValue(def.root, def.subkey, e.name, cmd))
                 return false;
 
-            if (!WriteValue(HKEY_CURRENT_USER, backupSub, e.name, cmd)) return false;
+            if (!WriteValue(backupRoot, backupSub, e.name, cmd)) return false;
             if (!DeleteValue(def.root, def.subkey, e.name))
             {
                 // Yedek yazıldı ama canlı silinemedi: yedeği de kaldır ki
                 // enumerate'te hem canlı hem yedekte görünüp kullanıcıyı
                 // şaşırtmasın.
-                DeleteValue(HKEY_CURRENT_USER, backupSub, e.name);
+                DeleteValue(backupRoot, backupSub, e.name);
                 return false;
             }
             return true;
@@ -601,8 +649,14 @@ namespace startup
         const ScopeDef& def = kScopes[static_cast<int>(e.scope)];
         if (def.isMachine && !IsCurrentProcessElevated()) return false;
 
+        if (!IsUsableValueName(e.name)) return false;
+
         bool ok1 = DeleteValue(def.root, def.subkey, e.name);
-        bool ok2 = DeleteValue(HKEY_CURRENT_USER, ScopeBackupSubkey(e.scope), e.name);
-        return ok1 && ok2;
+        bool ok2 = DeleteValue(ScopeBackupRoot(e.scope), ScopeBackupSubkey(e.scope), e.name);
+        // Eski sürümlerden kalmış olabilir: makine kapsamı yedekler bir zamanlar
+        // HKCU'da tutuluyordu. Oradaki kalıntı da kaldırılır, aksi hâlde bir
+        // daha görünmeyecek bir değer hive'da asılı durur.
+        bool ok3 = DeleteValue(HKEY_CURRENT_USER, ScopeBackupSubkey(e.scope), e.name);
+        return ok1 && ok2 && ok3;
     }
 }

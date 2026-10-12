@@ -1,11 +1,14 @@
 #include "backup.hpp"
 #include "brand.hpp"
+#include "regtext.hpp"
+#include "syspath.hpp"
 
 #include <windows.h>
 #include <shellapi.h>
 
 #include <cstdio>
 #include <cwchar>
+#include <vector>
 
 #ifdef TENGRI_HAS_TWEAK_KEYS
 #include "tweak_keys.h"
@@ -33,9 +36,14 @@ namespace backup
         std::wstring RegKeyPath(const wchar_t* abbrev)
         {
             // Uretici HKCU/HKLM kisaltmalarini yaziyor; reg.exe tam ad ister.
+            // Yalnizca kisaltmanin dort harfi degistirilir, ayraç çizgisine
+            // dokunulmaz: onceki bicim çizgiyi düsürüyor ve
+            // "HKEY_CURRENT_USERSoftware\..." gibi gecersiz bir yol üretiyordu.
+            // reg.exe böyle bir anahtari bulamaz, dışa aktarim sessizce hicbir
+            // sey yapmazdi.
             std::wstring p(abbrev);
-            if (p.rfind(L"HKCU\\", 0) == 0)  p = L"HKEY_CURRENT_USER" + p.substr(5);
-            else if (p.rfind(L"HKLM\\", 0) == 0) p = L"HKEY_LOCAL_MACHINE" + p.substr(5);
+            if (p.rfind(L"HKCU\\", 0) == 0)       p.replace(0, 4, L"HKEY_CURRENT_USER");
+            else if (p.rfind(L"HKLM\\", 0) == 0)  p.replace(0, 4, L"HKEY_LOCAL_MACHINE");
             return p;
         }
 
@@ -43,8 +51,10 @@ namespace backup
         // da 0 dondurebilir; bu yuzden cikis kodu kontrol edilir.
         bool RunReg(const std::wstring& args)
         {
-            std::wstring cmd = L"reg.exe ";
-            cmd += args;
+            // Yalin "reg.exe" yazilmaz: CreateProcess aramaya uygulamanin kendi
+            // klasoruyle baslar, portable kurulumda o klasor kullanici-yazilabilir.
+            std::wstring cmd = syspath::CommandLine(L"reg.exe", args);
+            if (cmd.empty()) return false;
 
             STARTUPINFOW si = { sizeof(si) };
             si.dwFlags     = STARTF_USESHOWWINDOW;
@@ -56,8 +66,12 @@ namespace backup
                                 CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
                 return false;
 
-            // Zaman asimi: reg.exe takilirsa alt surec geride kalmasin.
-            if (WaitForSingleObject(pi.hProcess, 20000) == WAIT_TIMEOUT)
+            // Zaman asimi: reg.exe takilirsa alt surec geride kalmasin. Tavan
+            // geniş tutuluyor; meşru bir yedek bu makinede 30 MB'a kadar çıkıyor
+            // (HKLM\SYSTEM\CurrentControlSet\Control alt ağacı), içe aktarımın
+            // bitmesi gereken süre de o kadar uzun. Yarım kalan bir içe aktarım,
+            // hiç yapılmamışından daha kötü olduğu için beklemeyi seçiyoruz.
+            if (WaitForSingleObject(pi.hProcess, 120000) == WAIT_TIMEOUT)
             {
                 ::TerminateProcess(pi.hProcess, 1);
                 ::WaitForSingleObject(pi.hProcess, 1000);
@@ -90,6 +104,47 @@ namespace backup
             const DWORD a = GetFileAttributesW(p.c_str());
             return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
         }
+
+        // ------------------------------------------------ geri alma doğrulaması
+        //
+        // Ad ayrıştırma, kodlama çözme ve içerik karşılaştırması regtext.hpp'te
+        // duruyor: oradaki denetimler registry'ye ve üretici tabloya dokunmadan
+        // sınanabiliyor. Burada yalnızca "bu dosyanın dokunabileceği anahtarlar
+        // hangileri" sorusunun cevabı (ExpectedKeys) ve yolun yedek kökünün içinde
+        // olup olmadığı denetleniyor.
+        //
+        // Bir (kategori,sıra) çifti birden fazla anahtara karşılık gelebilir:
+        // üretici tablo, aynı ayarın dokunduğu her anahtarı ayrı satıra yazar
+        // (ör. cat 7 idx 1 üç farklı .exe'nin IFEO alt anahtarını taşıyor).
+        // ExportForCategories her satırı kendi dosyasına yazar, ama geri alma
+        // sırasında hangi dosyanın hangi satıra ait olduğu güvenilir bir bilgi
+        // değil (klasör kullanıcı tarafından düzenlenebiliyor). Bu yüzden denetim
+        // dosyayı çiftin TÜM anahtarlarına karşı yapılıyor: içerik, o ayarın
+        // yedeklediği alt ağaçlardan birinin dışına çıkıyorsa reddedilir.
+        void ExpectedKeys(int cat, int idx, std::vector<std::wstring>* out)
+        {
+            out->clear();
+            for (int i = 0; i < tweakkeys::kCount; ++i)
+                if (tweakkeys::kEntries[i].cat == cat && tweakkeys::kEntries[i].idx == idx)
+                    out->push_back(RegKeyPath(tweakkeys::kEntries[i].path));
+        }
+
+        // Yol, yedek kökünün ALTINDA ve tek bir zaman damgası adlı alt klasör
+        // olmalı. Kök ortam değişkeninden çözüldüğü için ".." gibi bir parçanın
+        // kökün dışına taşımasına izin verilmez.
+        bool InsideRoot(const std::wstring& dir)
+        {
+            const std::wstring root = RootDirectory();
+            if (root.empty() || dir.size() <= root.size() + 1) return false;
+            if (_wcsnicmp(dir.c_str(), root.c_str(), root.size()) != 0) return false;
+            if (dir[root.size()] != L'\\') return false;
+
+            const std::wstring leaf = dir.substr(root.size() + 1);
+            if (leaf.find(L'\\') != std::wstring::npos) return false;
+            for (wchar_t c : leaf)
+                if (c != L'-' && (c < L'0' || c > L'9')) return false;
+            return true;
+        }
     }
 
     std::wstring RootDirectory()
@@ -115,6 +170,7 @@ namespace backup
         if (!::CreateDirectoryW(dir.c_str(), nullptr)) return false;
 
         int exported = 0;
+        int prevCat = -1, prevIdx = -1, rep = 0;
         for (int i = 0; i < tweakkeys::kCount; ++i)
         {
             const tweakkeys::Entry& e = tweakkeys::kEntries[i];
@@ -131,8 +187,22 @@ namespace backup
             // ilk kez uygulaniyordur ve geri alinacak bir deger zaten yok. Dosya
             // olusmadigi icin o yedek icinde tutulmaz; hepsi basarisiz olursa klasor
             // de silinir.
+            //
+            // Ay adlandirmasi: bir (kategori,sira) cifti birden fazla anahtara
+            // karsilik gelebiliyor (uretablo ayni ayarin her anahtarini ayri satira
+            // yazar). Hepsine "<cat>-<idx>.reg" demek, ikinci disa aktarimin
+            // birincinin uzerine yazmasi demekti: o ayarin yedeginde tek bir
+            // anahtar kalirdi. Ikinci ve sonraki satirlar adin sonuna bir tekrar
+            // sayisi aliyor; boylece her anahtar kendi dosyasina yaziyor. Geri
+            // alma icin sayinin anlami yok -- denetim, adin karsilik geldigi
+            // ciftin TUM anahtarlarina bakar.
+            if (e.cat != prevCat || e.idx != prevIdx) { prevCat = e.cat; prevIdx = e.idx; rep = 0; }
             wchar_t file[MAX_PATH] = {};
-            ::swprintf_s(file, L"%s\\%d-%d.reg", dir.c_str(), e.cat, e.idx);
+            if (rep == 0)
+                ::swprintf_s(file, L"%s\\%d-%d.reg", dir.c_str(), e.cat, e.idx);
+            else
+                ::swprintf_s(file, L"%s\\%d-%d-%d.reg", dir.c_str(), e.cat, e.idx, rep);
+            ++rep;
             if (HasQuote(file)) continue;
 
             std::wstring args = L"export \"" + key + L"\" \"" + file + L"\" /y";
@@ -195,6 +265,7 @@ namespace backup
     bool Restore(const std::wstring& dir)
     {
         if (dir.empty() || !IsDir(dir)) return false;
+        if (!InsideRoot(dir)) return false;
 
         WIN32_FIND_DATAW fd = {};
         HANDLE h = ::FindFirstFileW((dir + L"\\*.reg").c_str(), &fd);
@@ -202,9 +273,26 @@ namespace backup
 
         bool any = false;
         bool all = true;
+        std::vector<std::wstring> keys;
         do
         {
+            int cat = -1, idx = -1;
+            if (!regtext::ParseBackupName(fd.cFileName, &cat, &idx)) continue;
+            ExpectedKeys(cat, idx, &keys);
+            if (keys.empty()) continue;                    // bizim dışa aktarmadığımız bir ad
+
             const std::wstring file = dir + L"\\" + fd.cFileName;
+            for (size_t i = 0; i < keys.size(); ++i)
+                if (keys[i].empty() || HasQuote(keys[i])) { keys.clear(); break; }
+            if (keys.empty() || HasQuote(file)) continue;
+
+            // İçerik denetimi: dosya yalnızca beklenen anahtarların (ya da alt
+            // anahtarlarının) içindeyse içe aktarılır. Okunamayan/bozuk dosya da
+            // reddedilir.
+            std::wstring text;
+            if (!regtext::ReadRegText(file, &text) ||
+                !regtext::ContentMatchesKeys(text, keys)) continue;
+
             std::wstring args = L"import \"" + file + L"\"";
             if (RunReg(args)) any = true;
             else all = false;

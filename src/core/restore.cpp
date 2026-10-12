@@ -1,8 +1,10 @@
 #include "restore.hpp"
+#include "syspath.hpp"
 
 #include <windows.h>
 #include <cstdint>
 #include <cwchar>
+#include <string>
 
 // SRSetRestorePointW; srclient.dll içinde yaşar ve statik olarak her SDK'da
 // bulunmaz. Yapı tanımları SRRestorePtAPI.h içindedir ama o başlık Windows SDK'nın
@@ -102,7 +104,11 @@ namespace restore
         // srclient.dll bazı Server SKU'larda ve Windows PE görüntülerinde yoktur.
         // Statik bağlama yerine dinamik yükleme kullanılıyor: olmasa bile uygulama
         // başlangıcı etkilenmez.
-        HMODULE dll = LoadLibraryW(L"srclient.dll");
+        // Yalın ad verilirse LoadLibrary aramaya uygulamanın kendi klasöründen
+        // başlar; System32'nin tam yolu verilirse oradan başka yerden çözülmez.
+        const std::wstring srclient = syspath::Tool(L"srclient.dll");
+        if (srclient.empty()) return Result::ServiceUnavailable;
+        HMODULE dll = ::LoadLibraryW(srclient.c_str());
         if (!dll) return Result::ServiceUnavailable;
 
         auto fn = (SRSetRestorePointWFn)GetProcAddress(dll, "SRSetRestorePointW");

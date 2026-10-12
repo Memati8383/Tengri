@@ -32,8 +32,17 @@ namespace backup
     // En son yedek; yoksa boş dize.
     std::wstring Latest();
 
-    // Verilen yedek klasöründeki tüm .reg dosyalarını içe aktarır. Dizin
-    // kullanıcı verisinden geldiği için içindeki dosyalar sadece *.reg olarak alınır.
+    // Verilen yedek klasöründeki dosyaları içe aktarır. Yalnızca iki koşulu
+    // birden sağlayan dosyalar alınır: adı üretici tablosundaki gerçek bir
+    // (kategori,sıra) çiftine karşılık gelmeli, ve içindeki TÜM anahtar
+    // satırları o çiftin anahtarlarından birinin kendisi ya da alt anahtarı
+    // olmalı. Klasör kullanıcı yetkisiyle yazılabilir bir yerde durduğu için bu
+    // denetim, oraya bırakılmış yabancı bir dosyanın yönetici yetkisiyle rastgele
+    // bir HKLM anahtarına (IFEO, hizmet, Run) yazmasını engeller: en fazla
+    // uygulamanın zaten yedeklediği alt ağaca dokunabilir. Alt anahtar
+    // hoşgörüsü zorunlu — reg.exe bir anahtarı dışa aktarırken alt anahtarlarını
+    // da aynı dosyaya yazıyor. Denetimi geçmeyen dosya atlanır; hiçbir dosya
+    // geçmezse false döner.
     bool Restore(const std::wstring& dir);
 
     // Yedeklerin tutulduğu kök klasör.
