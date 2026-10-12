@@ -8,7 +8,7 @@
   <img alt="Çalışma zamanı yok" src="https://img.shields.io/badge/%C3%A7al%C4%B1%C5%9Fma%20zaman%C4%B1-yok-7a4ea3?style=flat-square" />
   <img alt="1.7 MB tek dosya" src="https://img.shields.io/badge/tek%20dosya-1.7%20MB-2e8b57?style=flat-square" />
   <img alt="80 registry anahtarı" src="https://img.shields.io/badge/registry%20anahtar%C4%B1-80-b06a2c?style=flat-square" />
-  <img alt="521 denetim, 0 hata" src="https://img.shields.io/badge/denetim-521%20%2F%200%20hata-4b8b4b?style=flat-square" />
+  <img alt="608 denetim, 0 hata" src="https://img.shields.io/badge/denetim-608%20%2F%200%20hata-4b8b4b?style=flat-square" />
   <a href="https://github.com/Memati8383/Tengri/releases"><img alt="En yeni sürüm" src="https://img.shields.io/github/v/release/Memati8383/Tengri?style=flat-square&label=s%C3%BCr%C3%BCm" /></a>
 </p>
 
@@ -46,7 +46,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 - [Ekran görüntüleri](#ekran-görüntüleri)
 - [Çalıştırmadan önce](#çalıştırmadan-önce)
 - [Özellikler](#özellikler) — 9 ekran, tek tek
-- [Testler](#testler) — 5 paket, 521 denetim
+- [Testler](#testler) — 5 paket, 608 denetim
 - [Nasıl çalışıyor](#nasıl-çalışıyor)
 - [Ağ kullanımı](#ağ-kullanımı) — dışarı giden üç isteğin tam listesi
 - [Yükseltme](#yükseltme)
@@ -65,7 +65,7 @@ elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 |---|---|
 | İşletim sistemi | Windows 10 ve Windows 11 (x64) |
 | Mimari | 64-bit |
-| Disk | 1.7 MB — 1.6.0 yerel derlemesi 1.784.832 bayt; aynı sürümün CI derlemesi 1.773.056 bayt (araç seti yamasına göre birkaç KB oynar) |
+| Disk | 1.7 MB — 1.7.0 yerel derlemesi 1.814.016 bayt; yayınlanan CI derlemesinin gerçek boyutu ve SHA-256'sı `latest.json`da yazıyor (araç seti yamasına göre birkaç KB oynar) |
 | Ek bağımlılık | Yok — .NET, Python veya çalışma zamanı gerekmez |
 | Yönetici | Yalnızca ayar uygularken gerekir; açılışta gerekmez |
 
@@ -105,6 +105,9 @@ anahtarları **önce** dışa aktarılır, tarih damgalı bir klasöre:
 
 Sonrasında İnce Ayarlar sayfasındaki **Geri al** düğmesi bu yedeği geri içe aktarır.
 Yedekleme yalnızca okuma yaptığı için UAC istemez; geri alma yazdığı için UAC ister.
+Geri alma dosyayı içe aktarmadan önce denetler: adının üretilmiş tabloda gerçek bir
+ayara karşılık gelmesi ve içindeki **tüm** anahtar satırlarının o ayarın kendi alt
+ağacında kalması gerekir — klasöre elle bırakılmış yabancı bir `.reg` reddedilir.
 
 Yedekler birikmez, her uygulamada yeni bir klasör açılır. Temizlemek istersen
 `%LOCALAPPDATA%\TENGRI\backups` klasörünü silmen yeterli.
@@ -118,7 +121,7 @@ yazdıkları şey kendi tersini taşıyor:
 
 | Ekran | Ne yapar | Nasıl geri alınır |
 |---|---|---|
-| Başlatma | Değeri silmek yerine `HKCU\Software\TENGRI\StartupDisabled\<kapsam>` anahtarına taşır | Aynı düğmeyi tekrar açmak — değeri eski yerine yazar |
+| Başlatma | Değeri silmek yerine `Software\TENGRI\StartupDisabled\<kapsam>` anahtarına taşır — **kapsam hangi hive'dan geliyorsa oraya**: makine kapsamları HKLM'e, kullanıcı kapsamları HKCU'ya | Aynı düğmeyi tekrar açmak — değeri eski yerine yazar |
 | Hizmetler | Değişiklikten önce mevcut başlangıç türünü ve `DelayedAutostart` bayrağını `HKLM\SOFTWARE\TENGRI\ServicesBackup\<hizmet>` altına yazar | **Varsayılanlara dön** düğmesi yedekten geri okur |
 
 Bu iki yolda "geri al" bir veri kaybı yarışına değil, tek bir kayda bakıyor. Yine de
@@ -230,7 +233,8 @@ Hizmetler:
 >
 > Görseller 1.6.0 derlemesinden alındı: Ayarlar ekranında Dil artık Genel kartının
 > bölümü, Hakkında ekranı marka bloğu + meta şeridi + tıklanabilir yetenek ızgarası
-> olarak duruyor ve GitHub silüeti gömülü AA maskesinden çiziliyor.
+> olarak duruyor ve GitHub silüeti gömülü AA maskesinden çiziliyor. 1.7.0 arayüzde
+> hiçbir şey değiştirmedi, bu yüzden görseller geçerli.
 
 ---
 
@@ -520,11 +524,11 @@ açıldığında doğrudan çalışan kodu** listeleyebilen yolları yönetir; d
 
 | Davranış | Ayrıntı |
 |---|---|
-| Devre dışı bırakma | Değer **silinmez**, `HKCU\Software\TENGRI\StartupDisabled\<kapsam>` anahtarına **taşınır**. Açıp kapamak gerçek bir ters işlemdir; kullanıcının kendi değeri kaybolmaz |
+| Devre dışı bırakma | Değer **silinmez**, `Software\TENGRI\StartupDisabled\<kapsam>` anahtarına **taşınır**: HKLM kapsamları HKLM'e, HKCU kapsamları HKCU'ya. Açıp kapamak gerçek bir ters işlemdir; kullanıcının kendi değeri kaybolmaz |
 | Startup klasörü | Dosya **taşınır**: `%APPDATA%\TENGRI\startup-disabled\`. Aynı adda bir dosya zaten oradaysa işlem reddedilir — üstüne yazmak geri almanın yanlış dosyayı döndürmesine yol açardı |
 | Neden `StartupApproved` değil | Windows'un kendi devre dışı bırakma anahtarı sürümden sürüme anlambilim değiştiriyor ve üçüncü parti araçlarla çarpışma riski taşıyor. Kendi anahtarımız bu riski hiç taşımaz |
 | Silme | Ayrı bir düğme, gerçek `RegDeleteValue`. Taşımaktan farklı bir eylem olduğu için arayüzde de ayrı durur |
-| Yedeklerin yeri | Bilinçli olarak yalnızca HKCU'da: HKLM'e yedek yazmak her yazmada UAC istemek anlamına gelirdi |
+| Yedeklerin yeri | Yedeğin hive'ı girdinin hive'ıyla aynı: makine kapsamlı bir komut HKCU'dan okunup HKLM\Run'a **yazılmaz** (aynı kullanıcıda koşan bir program HKCU'yu yazabilir; yükseltilmiş süreç üzerinden HKLM\Run'a taşımak yönetici yetkisiyle kalıcılık olurdu). Makine girdisini kapatmak zaten HKLM yazdığı için ek UAC istemez |
 | Kendi kaydı | Uygulamanın `Run` girdisi listede **"TENGRİ otobaşlatma"** olarak görünür ama **silme düğmesi kilitlidir** — kendi kendini kaldıramaz. Açıp kapatmak Ayarlar ekranından yapılır, iki yerin ayrışmaması için |
 | Satır içeriği | Ad + kapsam, altında yayıncı (`VERSIONINFO` şirket adı; yoksa çözülen yol), etki ve komut satırı |
 | Etki tahmini | Hedef dosyanın disk boyutundan sezgisel (Düşük <2 MB, Orta <20 MB, Yüksek ≥20 MB, okunamazsa Bilinmiyor). Kesin bir ölçüm değil, bir sıralama ipucu |
@@ -884,14 +888,14 @@ ve etiket ile exe içindeki `VERSIONINFO` sürümünün aynı olduğu doğrulan�
 
 ## Testler
 
-`build.bat` derlemenin sonunda beş paket çalıştırır. Toplam **521 denetim**, 0 hata:
+`build.bat` derlemenin sonunda beş paket çalıştırır. Toplam **608 denetim**, 0 hata:
 
 | Paket | Denetim | Kapsam | Gerçek sisteme dokunur mu |
 |---|---|---|---|
-| `test_pure.cpp` | 256 | i18n tabloları (boyut **+ sıra**), RAM ön ayarları, tweak sözleşmeleri, `.reg` paket gövdeleri ve açma/kapama simetrisi, yetki yükseltme komut kodlama/çözme gidiş-dönüşü, `TENGRI_SHOT` örnek veri kipi | Hayır — saf mantık |
+| `test_pure.cpp` | 310 | i18n tabloları (boyut **+ sıra**), RAM ön ayarları, tweak sözleşmeleri, `.reg` paket gövdeleri ve açma/kapama simetrisi, yetki yükseltme komut kodlama/çözme gidiş-dönüşü, yedek dosyası adı ayrıştırması ve içerik kapısı (alt ağaç hoşgörüsü, önek tuzağı, silme biçimi), `TENGRI_SHOT` örnek veri kipi | Hayır — saf mantık |
 | `test_modules.cpp` | 44 | Geri yükleme noktası sonuç metinleri, hizmet beyaz listesi güvenlik kapısı, hizmet ve başlangıç sorguları, shader taraması | Hayır — beşi de salt-okunur |
 | `test_license.cpp` | 22 | `license::Mask` çırpısı ve grup konumları, `sys::Hwid` determinizması ve biçimi, "beni hatırla" kalıcılığı | Hayır — izole APPDATA |
-| `test_write_paths.cpp` | 29 | Shader ve geçici dosya temizleyicilerinin tarama/temizleme tersinirliği, yedek kök dizini + listeleme/en-yeni sıralaması, içe aktarmayı reddetme yolları | Hayır — izole ortam |
+| `test_write_paths.cpp` | 62 | Shader ve geçici dosya temizleyicilerinin tarama/temizleme tersinirliği, yedek kök dizini + listeleme/en-yeni sıralaması, **üretilen gerçek `.reg` dosyalarının içerik kapısından geçmesi**, kodlama çözümlemesi (UTF-16LE/BOM/UTF-8) ve içe aktarmayı reddetme yolları | Hayır — izole ortam, içe aktarma hiç koşmaz |
 | `test_update.cpp` | 170 | Üç parçalı sürüm karşılaştırması, `latest.json` ayrıştırması (eksik/bozuk/taşkın alanlar, sınırda boyut), adres kilidi `HostAllowed` (şema, nokta sonu, alt alan, kullanıcı adı tuzağı), SHA-1/SHA-256 akış hesaplayıcısı bilinen vektörlerle, takas planı ve zamanlayıcı/24 saat matematiği | Hayır — **ağ istemi yok**, döngü içi istek de yok |
 
 **i18n'de boyut denetimi yetmez.** `test_pure`, blok tablolarının birbirine göre
@@ -913,9 +917,12 @@ paylaşılan sisteme yazan eylemler. Bu yüzeyler testlerde yalnızca reddedilme
 koşullarıyla (yetki yok, hedef yok, liste dışı ad, `.reg` içermeyen klasör) denenir.
 
 **Kodla doğrulanamayan yollar.** Yükseltme devri (`asInvoker` → `runas` → iş → çıkış) ve
-yedekleme/geri alma adım adımı elle denenecek olarak kaldı; adımlar
+geri alma adım adımı elle denenecek olarak kaldı; adımlar
 [`docs/TEST-YUKSELTME.md`](docs/TEST-YUKSELTME.md) içinde — otomatik testler süreçler
-arası gerçek UAC çağrısını çalıştıramaz, bunu ancak bir insan gözlemler. Güncelleme
+arası gerçek UAC çağrısını çalıştıramaz ve gerçek registry'ye içe aktarma yapamaz.
+Dışa aktarım tarafı 1.7.0'dan beri otomatik: `test_write_paths` gerçek `reg.exe export`
+çıkartıyor, üretilen her dosyayı içerik kapısından geçiriyor ve sayıyı çıktıda
+yazıyor. Güncelleme
 modülünde de WinHTTP'nin kendisi test dışı: `test_update` ne gerçek ne de döngü içi bir
 bağlantı açar, ağ katmanının üstünde kalan her şey (karşılaştırma, ayrıştırma, adres
 kilidi, özeti hesabı, takas planı) sahte girdilerle denenir. Gerçek indirme + doğrulama
@@ -1007,7 +1014,9 @@ src/core/sample_data.hpp     TENGRI_SHOT=1: tanıtıcı alanları sabit örnekle
 src/core/lang.cpp            İngilizce / Türkçe metin tabloları
 src/core/license.cpp         Demo lisans ekranı, HWID ve Mask
 src/core/elevate.cpp         Yetki yükseltme: runas ile yeniden başlatma, komut satırı kodlama
-src/core/backup.cpp          Uygulama öncesi registry yedeği (reg export) ve geri alma (reg import)
+src/core/syspath.hpp         Alt süreçlere giden System32 tam yolu (yalın ad araması kapanır)
+src/core/regtext.hpp         .reg okuma + içerik kapısı: ad ayrıştırma, kodlama çözümü, anahtar alt ağacı denetimi
+src/core/backup.cpp          Uygulama öncesi registry yedeği (reg export) ve geri alma (reg import, içerik kapısından geçmiş dosya)
 src/core/startup.cpp         10 başlangıç kapsamı; devre dışı bırakmak = HKCU yedeğine taşımak (dosya girdileri taşınır), Winlogon salt-okunur
 src/core/services.cpp        16 hizmetlik beyaz liste, başlangıç türü, oyun profili + yedeği
 src/core/restore.cpp         Sistem geri yükleme noktası API'si (SRSetRestorePointW, throttling)
@@ -1032,10 +1041,10 @@ tools/shoot.ps1              Ekran görüntüsü alma yardımcısı (capture_all
 tools/shrink.ps1, zoom.ps1   Görsel küçültme / bölgesel yakınlaştırma (gözle kontrol)
 tools/normalise_type_scale.ps1  Sabit font boyotlarını theme.hpp ölçeğine taşıyan tek seferlik göç betiği
 tools/_health.ps1, _probe.ps1   Geliştirme sırasındaki tek seferlik teşhis betikleri
-tests/test_pure.cpp          Registry'ye dokunmayan saf mantık — 256 denetim
+tests/test_pure.cpp          Registry'ye dokunmayan saf mantık — 310 denetim
 tests/test_modules.cpp       restore/startup/services/shader yüzeyleri, salt-okunur - 44 denetim
 tests/test_license.cpp       HWID, Mask ve kalıcılık (izole APPDATA) — 22 denetim
-tests/test_write_paths.cpp   Yazma yolları, tamamen izole ortam değişkenlerinde — 29 denetim
+tests/test_write_paths.cpp   Yazma yolları, tamamen izole ortam değişkenlerinde — 62 denetim (+ gerçek yedeklerin kapıdan geçmesi)
 tests/test_update.cpp        Sürüm karşılaştırma, bildirim ayrıştırma, adres kilidi, özet, takas planı — 170 denetim (ağ istemi yok)
 build.bat                    Tek giriş noktası: üret + derle + beş test paketini çalıştır
 CMakeLists.txt               Alternatif derleme (test hedefleri yok; testler build.bat'ta)

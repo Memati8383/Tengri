@@ -7,9 +7,14 @@ TENGRI'ye özgü bir hata değildir.
 
 **Neden oluyor.** TENGRI üç şey yapıyor:
 
-1. Açılışta **yönetici yetkisi** istiyor (`requireAdministrator`)
-2. `HKEY_LOCAL_MACHINE` altına **registry değeri yazıyor**
-3. Geçici `.reg` dosyalarını içe aktarmak için **`reg.exe` çağırıyor**
+1. Ayar yazacağı zaman **yönetici yetkisi** istiyor. Uygulamanın kendisi
+   `asInvoker` açılır (`res/app.manifest`) — yalnızca bilgi ekranlarını görmek UAC
+   istemez. HKLM'e dokunacak bir ayar seçildiğinde süreç `runas` ile kendini
+   yeniden başlatır ve o tek işi yükseltilmiş çocuk yapar. Sezgisel motorlar bu
+   kendin-yükseltme davranışını imzasız bir exe'de görür.
+2. `HKEY_LOCAL_MACHINE` altına **registry değeri yazıyor**.
+3. Geçici `.reg` dosyalarını içe aktarmak için **`reg.exe` çağırıyor** (System32'den
+   tam yolla; bkz. `src/core/syspath.hpp`).
 
 Bu üç davranışın üçü birden, bir "registry temizleyici / sistem optimizer" zararlı
 yazılımının davranış imzasıyla örtüşüyor. Sezgisel motorlar davranış imzasına bakar, dosyanın
@@ -67,6 +72,38 @@ yeniden üretebilir.
 Bu yüzden güncelleme akışı üç tasarımla sınırlı tutuldu: otomatik indirme yok, kurulum ayrı
 bir onay ister, eski exe'in yerine yeni dosya konur. Kendi şüphen varsa `git tag` + yerel
 derleme yolunu kullan; doğrulamanın en güçlü hali bu.
+
+## Yerel girdilerin güven sınırı
+
+Uygulamanın okuduğu her yer yönetici olarak yazan çocuğa girebilir. Sınırlar şöyle
+çizildi:
+
+- **Yedek klasörü** `%LOCALAPPDATA%\...\backups`. Aynı kullanıcıda koşan herhangi
+  bir program oraya kendi `.reg` dosyasını koyabilir; dosyaların kökenini kanıtlayan
+  güvenilir bir kayıt yok (bizim tuttuğumuz bir liste de aynı program tarafından
+  değiştirilebilirdi). Bu yüzden `backup::Restore()` içeriği iki sabitle daraltır:
+  dosya adı üretilen tabloda gerçek bir `(kategori,sıra)` çifti olmak zorunda, ve
+  dosyanın içindeki **tüm** anahtar satırları o çiftin anahtarlarından birinin
+  kendisi ya da alt anahtarı olmak zorunda. Alt anahtar hoşgörüsü keyfi değil:
+  `reg.exe` bir anahtarı dışa aktarırken alt anahtarlarını da aynı dosyaya yazıyor
+  (bu makinede beş ayar birden fazla anahtara yazıyor, bir yedek 14 427 satır
+  alt anahtar taşıyor). Klasöre bırakılmış yabancı bir dosya en fazla uygulamanın
+  zaten yedeklediği alt ağaca dokunabilir; IFEO, hizmet ya da `Run` gibi rastgele
+  bir HKLM anahtarına yazamaz. `--apply` üzerinden gelen klasör adı yalnızca rakam
+  ve tire taşıyabilir.
+- **Başlangıç girdisi yedekleri** kendi hive'ında durur: makine kapsamı yedekler
+  HKLM'de, kullanıcı kapsamı yedekler HKCU'da. Geri açma HKCU'dan okunan bir
+  komutu HKLM\Run'a **yazmaz**; aksi, aynı kullanıcıdaki bir zararlıya yönetici
+  yetkisiyle kalıcı başlangıç girdisi kurdurmak olurdu. Eski sürümlerin HKCU'da
+  bıraktığı makine yedekleri bu yüzden listede görünmez ve geri açılamaz; komut
+  `HKCU\Software\TENGRI\StartupDisabled\...` altında durmaya devam eder, silinmez.
+- **Bildirim tıklamaları** (`WM_COPYDATA`) tek örnek kilidiyle sınırlıdır ve
+  Windows'un UIPI sınırı düşük yetkililik seviyelerini zaten engeller. Geri alma
+  (`CmdUndo`) yazmadan önce ekranda onay ister.
+- **Alt süreçler** daima System32 tam yoluyla çağrılır; `srclient.dll` de aynı
+  kurala uyuyor. Yalın ad vermek, arama uygulamanın kendi (portable kurulumda
+  kullanıcı-yazılabilir) klasöründen başladığı için, oraya bırakılmış programı
+  yönetici olarak çalıştırmak olurdu.
 
 ## Kapsam dışı
 
