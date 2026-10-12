@@ -16,12 +16,14 @@
 #include "../src/core/network.hpp"
 #include "../src/core/startup.hpp"
 #include "../src/core/sample_data.hpp"
+#include "../src/core/regtext.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
+#include <vector>
 
 static int g_fail = 0;
 static int g_pass = 0;
@@ -533,6 +535,131 @@ static bool LisansMaskesiBicimi(const char* s)
     return true;
 }
 
+static void Test_BackupNameAndContentGate()
+{
+    std::printf("yedek: dosya adi ayristirma ve icerik kapisi\n");
+
+    // ---- ad: "<cat>-<idx>.reg" veya "<cat>-<idx>-<tekrar>.reg"
+    struct NameCase { const wchar_t* name; bool ok; int cat; int idx; };
+    const NameCase kNames[] = {
+        { L"3-12.reg",          true,   3,  12 },
+        { L"0-0.reg",           true,   0,   0 },
+        { L"12-345.reg",        true,  12, 345 },
+        { L"7-1-2.reg",         true,   7,   1 },  // ayni ayarin ikinci anahtari
+        { L"3-12.REG",          true,   3,  12 },  // uzanti buyuk/kucuk harf duyarsiz
+        { L"",                 false,  -1,  -1 },
+        { L"3.reg",            false,  -1,  -1 },  // sira yok
+        { L"3-12",             false,  -1,  -1 },  // uzanti yok
+        { L"-12.reg",          false,  -1,  -1 },  // kategori yok
+        { L"3-.reg",           false,  -1,  -1 },  // bos sira
+        { L"3-12-.reg",        false,  -1,  -1 },  // tire ile bitiyor
+        { L"3-12-9-4.reg",     false,  -1,  -1 },  // dorduncu grup
+        { L"a-12.reg",         false,  -1,  -1 },  // harf
+        { L"3_12.reg",         false,  -1,  -1 },  // alt cizgi
+        { L"3-12.exe",         false,  -1,  -1 },
+        { L"..\\evil.reg",     false,  -1,  -1 },  // ad uzerinden yol zorlama
+        { L"3-12.reg.reg",     false,  -1,  -1 },
+        { L"00000003-1.reg",   true,   3,   1 },   // bastaki sifirlar zararsiz: cift yine tabloda olmak zorunda
+        { L"10000000-1.reg",   false,  -1,  -1 },  // sayi tavanini asan uzunluk
+        { L"3-12 .reg",        false,  -1,  -1 },  // bosluk
+    };
+    for (const NameCase& c : kNames)
+    {
+        int cat = -9, idx = -9;
+        const bool got = regtext::ParseBackupName(c.name, &cat, &idx);
+        Check(got == c.ok, c.ok ? "ad kabul edilmeli" : "ad reddedilmeli");
+        if (c.ok && got) { CheckEq(cat, c.cat, "kategori dogru okundu"); CheckEq(idx, c.idx, "sira dogru okundu"); }
+    }
+
+    // ---- icerik kapisi: yalnizca beklenen anahtarlarin alt agaci gecer
+    const std::vector<std::wstring> keys = {
+        L"HKEY_CURRENT_USER\\Software\\TENGRI\\Probe",
+        L"HKEY_LOCAL_MACHINE\\SOFTWARE\\TENGRI\\Other",
+    };
+    const wchar_t* const H = L"Windows Registry Editor Version 5.00";
+
+    struct Case { std::wstring text; bool ok; const char* what; };
+    const std::wstring NL = L"\r\n";
+    const std::wstring kValueLine = L"\"Deger\"=dword:00000001";
+    const std::wstring kHexCont   = L"\"Coklu\"=hex(7):61,00,00,00,\\\r\n  62,00,00,00\r\n";
+
+    const Case kCases[] = {
+        // Kabul: tam anahtar, tek deger satiri.
+        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL + kValueLine + NL,
+          true, "beklenen anahtar + deger" },
+        // Kabul: alt anahtar satirlari. Olculdu: reg.exe bir anahtari disa
+        // aktarirken alt anahtarlarini da ayni dosyaya yaziyor (54 yedekten 12'si
+        // boyle; biri 14427 satir). Bu satirlari reddetmek meşru yedegi geri
+        // alinamaz kilar.
+        { std::wstring(H) + NL + L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\TENGRI\\Other]" + NL
+          + L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\TENGRI\\Other\\Alt\\DahaAlt]" + NL,
+          true, "anahtar ve alt anahtarlari" },
+        // Kabul: buyuk/kucuk harf duyarsizlik registry'de varsayilan.
+        { std::wstring(H) + NL + L"[hkey_current_user\\software\\tengri\\probe]" + NL,
+          true, "kucuk harfle yazilmis beklenen anahtar" },
+        // Kabul: hex satir devamI boslukla baslar, ayraç satiri degildir.
+        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL + kHexCont,
+          true, "devam satiri olan deger" },
+        // Kabul: sondaki satir atlamasi yok.
+        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]",
+          true, "satir atlamasiyla bitmeyen dosya" },
+        // Kabul: iki beklenen anahtar birden.
+        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL
+          + L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\TENGRI\\Other]" + NL,
+          true, "ciftin iki anahtari da" },
+
+        // Red: yabanci anahtar - kapinin asil isi.
+        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]" + NL,
+          false, "yabanci Run anahtari" },
+        // Red: ONEK tuzagi - beklenen anahtarin adinin basindaki metin ayni ama
+        // bir karakter uzun. Bisl olmadan gecmemeli.
+        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\ProbeX]" + NL,
+          false, "beklenen anahtarin kardesi (onek tuagi)" },
+        // Red: IFEO - ayni kategorideki gercek bir ayarin anahtari bile olsa,
+        // beklenen kume disindaysa gecerli degil.
+        { std::wstring(H) + NL + L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\notepad.exe]" + NL,
+          false, "IFEO anahtari" },
+        // Red: silme bicimi. Disa aktarim bunu hic uretmiyor; geri alma sirasinda
+        // anahtar yok etmek, deger geri getirmek degil.
+        { std::wstring(H) + NL + L"[-HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL,
+          false, "anahtar silme bicimi" },
+        // Red: baslik satiri yok (dosya anahtarla basliyor).
+        { std::wstring(L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]") + NL,
+          false, "baslik eksik" },
+        // Red: baslik yanlis.
+        { std::wstring(L"REGEDIT4") + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL,
+          false, "baslik REGEDIT4" },
+        // Red: hic anahtar satiri yok - bos bir dosya icine aktarilmak icin degil.
+        { std::wstring(H) + NL + kValueLine + NL,
+          false, "anahtar satiri icermeyen dosya" },
+        // Red: bos ayraclar.
+        { std::wstring(H) + NL + L"[]" + NL, false, "bos anahtar ayraci" },
+        // Red: kapanmis ayracli satir.
+        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe" + NL,
+          false, "kapanmamis ayraclar" },
+        // Red: baska kök anahtar.
+        { std::wstring(H) + NL + L"[HKEY_CLASSES_ROOT\\Software\\TENGRI\\Probe]" + NL,
+          false, "HKEY_CLASSES_ROOT koku" },
+    };
+    for (size_t i = 0; i < sizeof(kCases) / sizeof(kCases[0]); ++i)
+    {
+        const Case& c = kCases[i];
+        Check(regtext::ContentMatchesKeys(c.text, keys) == c.ok, c.what);
+    }
+
+    // Bos beklenen kume: tabloya karsilik gelmeyen hicbir dosya gecerli sayilmaz.
+    Check(!regtext::ContentMatchesKeys(std::wstring(H) + NL
+          + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL,
+          std::vector<std::wstring>()), "beklenen anahtar kumesi bos");
+
+    // KeyInSubtree dogrudan: siniri ya dizinin sonu ya bisl belirler.
+    Check(regtext::KeyInSubtree(L"A\\B", L"A\\B"), "ayni anahtar kendisinin alt agacinda");
+    Check(regtext::KeyInSubtree(L"A\\B\\C", L"A\\B"), "alt anahtar alt agacta");
+    Check(!regtext::KeyInSubtree(L"A\\BC", L"A\\B"), "onek olarak uzun kardes alt agac DEGIL");
+    Check(!regtext::KeyInSubtree(L"A", L"A\\B"), "ustu alt agac DEGIL");
+    Check(regtext::KeyInSubtree(L"a\\b\\c", L"A\\B"), "buyuk/kucuk harf duyarsiz");
+}
+
 static void Test_SampleMode()
 {
     _putenv_s("TENGRI_SHOT", "");
@@ -592,6 +719,7 @@ int main()
     Test_RegPackBodies();
     Test_RegPackSymmetry();
     Test_ElevateCodec();
+    Test_BackupNameAndContentGate();
     Test_SampleMode();
 
     std::printf("\n%d gecti, %d kaldi\n", g_pass, g_fail);
