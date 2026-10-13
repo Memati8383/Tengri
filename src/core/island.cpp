@@ -721,6 +721,10 @@ namespace island
         };
         constexpr int kThemeCover = 5;
 
+        // Şarkı değişiminin toplam süresi: yarısı eskisini siler, yarısı
+        // yenisini getirir.
+        constexpr float kXfDur = 0.42f;
+
         ImFont* g_font = nullptr;
         ImFont* g_bold = nullptr;
 
@@ -862,6 +866,16 @@ namespace island
             ID3D11ShaderResourceView* cover = nullptr;
             int coverVer = -1;
             uint64_t lyrTid = 0;
+
+            // Şarkı değişiminin kimlik geçişi: eski kapak/başlık solar, yeni
+            // belirir. Kontroller (düğmeler, ilerleme, ses) geçişe girmez;
+            // %50 üst üste binen iki metin okunmaz olduğu için geçiş iki
+            // aşamalıdır.
+            float xf = 0;
+            ID3D11ShaderResourceView* coverOld = nullptr;
+            std::string pTitle, pArtist, pAlbum, oTitle, oArtist, oAlbum;
+            bool pHas = false;
+            uint64_t tid = 0;
         } g_u;
 
         ID3D11Device*           g_dev  = nullptr;   // == g_sharedDev (paylaşılan)
@@ -976,6 +990,31 @@ namespace island
                 if (G.coverVer != u.coverVer) { px = G.cover; newCoverVer = G.coverVer; }
             }
             wantLyr = lyrics;
+
+            // ---- şarkı değişimi: kimlik bloğunun iki aşamalı geçişi ----
+            // Eskiyi ayırmak kapağın sürücüye yüklenmesinden ÖNCE olmalı: worker
+            // parça değişimi ile yeni kapağı aynı turda yayımlıyorsa aşağıdaki
+            // yükleme bloğu u.cover'ı zaten yenisine çevirmiş olur.
+            if (u.xf > 0.f) u.xf = std::max(0.f, u.xf - (float)dt / kXfDur);
+            if (tid != u.tid)
+            {
+                // u.tid == 0: ilk parça, sönecek bir şey yok. has == false:
+                // oynatıcı kapandı, orada zaten ayrı bir durum çiziliyor.
+                if (u.tid != 0 && has && u.pHas)
+                {
+                    if (u.coverOld) { u.coverOld->Release(); u.coverOld = nullptr; }
+                    u.coverOld = u.cover;
+                    u.cover = nullptr;
+                    u.oTitle = u.pTitle; u.oArtist = u.pArtist; u.oAlbum = u.pAlbum;
+                    u.xf = 1.f;
+                }
+                u.tid = tid;
+            }
+            u.pTitle = title; u.pArtist = artist; u.pAlbum = album; u.pHas = has;
+
+            // xf 1→0: ilk yarıda eskisi görünür, ikinci yarıda yenisi.
+            const float aOld = u.xf >= 0.5f ? Smooth((u.xf - 0.5f) * 2.f) : 0.f;
+            const float aNew = u.xf >= 0.5f ? 0.f : Smooth((0.5f - u.xf) * 2.f);
 
             // Kapak dokusu sürücüye yalnızca burada, yani sunumdan önce
             // yüklenir. D3D11 nesneleri oluşturulduğu için başka bir yerde
@@ -1105,11 +1144,13 @@ namespace island
                 if (has)
                 {
                     const ImVec2 a(x0 + S(5), y0 + (h - S(24)) * 0.5f);
-                    if (u.cover)
-                        d->AddImageRounded((ImTextureID)(intptr_t)u.cover, a, ImVec2(a.x + S(24), a.y + S(24)),
-                                           ImVec2(0, 0), ImVec2(1, 1), Wh(aMini), S(8));
+                    ID3D11ShaderResourceView* tx = aOld > 0.f ? u.coverOld : u.cover;
+                    const float ia = aOld > 0.f ? aOld : aNew;
+                    if (tx)
+                        d->AddImageRounded((ImTextureID)(intptr_t)tx, a, ImVec2(a.x + S(24), a.y + S(24)),
+                                           ImVec2(0, 0), ImVec2(1, 1), Wh(aMini * ia), S(8));
                     else
-                        d->AddRectFilled(a, ImVec2(a.x + S(24), a.y + S(24)), Wh(0.12f * aMini), S(8));
+                        d->AddRectFilled(a, ImVec2(a.x + S(24), a.y + S(24)), Wh(0.12f * aMini * ia), S(8));
 
                     const float bx = x0 + w - S(14) - 4 * S(3) - 3 * S(2.5f);
                     for (int i = 0; i < 4; i++)
@@ -1153,20 +1194,23 @@ namespace island
 
                 // kapak
                 const ImVec2 cv0(ox + S(18), oy + S(18)), cv1(cv0.x + S(72), cv0.y + S(72));
-                if (u.cover)
-                    d->AddImageRounded((ImTextureID)(intptr_t)u.cover, cv0, cv1, ImVec2(0, 0), ImVec2(1, 1), Wh(A), S(14));
+                ID3D11ShaderResourceView* cvTex = aOld > 0.f ? u.coverOld : u.cover;
+                const float ia = aOld > 0.f ? aOld : aNew;
+                if (cvTex)
+                    d->AddImageRounded((ImTextureID)(intptr_t)cvTex, cv0, cv1, ImVec2(0, 0), ImVec2(1, 1), Wh(A * ia), S(14));
                 else
-                    d->AddRectFilled(cv0, cv1, Wh(0.10f * A), S(14));
+                    d->AddRectFilled(cv0, cv1, Wh(0.10f * A * ia), S(14));
 
                 // başlıklar
                 const float tx = ox + S(104), tmax = S(200);
-                const std::string t1 = has ? title : brand::kNameA;
-                const std::string t2 = has ? artist : L(IslandOpenPlayer);
-                Marquee(d, g_bold, S(17), ImVec2(tx, oy + S(20)), tmax, Wh(A), t1, now);
-                Marquee(d, g_font, S(14), ImVec2(tx, oy + S(43)), tmax, Wh(0.62f * A), t2, now);
-                const std::string t3 = (!conn && has) ? L(IslandPlayerClosed) : album;
+                const bool oldIds = aOld > 0.f;
+                const std::string t1 = oldIds ? u.oTitle : (has ? title : brand::kNameA);
+                const std::string t2 = oldIds ? u.oArtist : (has ? artist : L(IslandOpenPlayer));
+                Marquee(d, g_bold, S(17), ImVec2(tx, oy + S(20)), tmax, Wh(A * ia), t1, now);
+                Marquee(d, g_font, S(14), ImVec2(tx, oy + S(43)), tmax, Wh(0.62f * A * ia), t2, now);
+                const std::string t3 = oldIds ? u.oAlbum : ((!conn && has) ? L(IslandPlayerClosed) : album);
                 d->PushClipRect(ImVec2(tx, oy + S(62)), ImVec2(tx + tmax, oy + S(82)), true);
-                d->AddText(g_font, S(12), ImVec2(tx, oy + S(63)), Wh(0.38f * A), t3.c_str());
+                d->AddText(g_font, S(12), ImVec2(tx, oy + S(63)), Wh(0.38f * A * ia), t3.c_str());
                 d->PopClipRect();
 
                 // sağ üst düğmeler: tema / sözler / yardım
@@ -1522,6 +1566,7 @@ namespace island
             // pencerenin sahibidir. Burada yalnızca ADAYA ait olan serbest
             // kalır (swap zinciri, hedef görüntü, kapak dokusu, pencere).
             if (g_u.cover) { g_u.cover->Release(); g_u.cover = nullptr; }
+            if (g_u.coverOld) { g_u.coverOld->Release(); g_u.coverOld = nullptr; }
             if (g_dlist) { IM_DELETE(g_dlist); g_dlist = nullptr; }
             g_ddata.Clear();
             DestroyIslandWindow();
