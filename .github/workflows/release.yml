@@ -22,7 +22,10 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      # Sürüm yayınlayan iş akışı: etiket adı yerine commit tam adresi. `@v4` yazarsan
+      # upstream yeni bir `v4` yayınladığı an bu dosya senin hiç incelemediğin bir koda
+      # çalışır ve o kod depoya erişip sürüm varlıklarını yeniden yazabilir.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # Arayüz kütüphanesi submodule; submodule olmadan checkout eksik dosyalarla döner.
           submodules: recursive

@@ -972,7 +972,7 @@ oynatma durumunu gösterir; kendi başına bir oynatıcı değildir.
 | Düğmeler | Oynat/duraklat, ileri, geri, karıştır, tekrarla, ses (tekerlek); komutlar gerçek oynatıcıya gider |
 | Sözler | Senkronize sözler `lrclib.net`'ten alınır: önce tam eşleşme, olmazsa arama, olmazsa temizlenmiş başlıkla ikinci arama — üç deneme |
 | Erişim | `INSERT` ile açılıp kapanır (hatırlanır), imleç üstüne gelince genişler, tekerlek sesi ayarlar |
-| Ayarlar | Ada kartı: göster (varsayılan açık), tema (Siyah / Spotify), yalnızca masaüstünde (başka bir pencere öndeyken gizlenir), senkronize sözler (varsayılan açık) |
+| Ayarlar | Ada kartı: göster (varsayılan açık), tema (Black / Spotify / Aurora / Sunset / Ocean / Cover — altı, `src\core\island.cpp`), yalnızca masaüstünde (başka bir pencere öndeyken gizlenir), senkronize sözler (varsayılan açık) |
 | Yetki | UAC istemez — medya oturumu okumak ve oynatıcıya komut göndermek yükseltme gerektirmez |
 | Gizlilik | Okunan şarkı bilgisi yalnızca ekranda çizilir; dışarı tek giden, sözler açıksa şarkının adı/sanatçısıdır (bkz. [Ağ kullanımı](#ağ-kullanımı)). Sözler kapanınca ağa hiçbir şey çıkmaz |
 

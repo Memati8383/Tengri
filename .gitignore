@@ -23,3 +23,20 @@ out/
 *.user
 Thumbs.db
 desktop.ini
+
+# Geliştirme artıkları. Loglar mutlak iş istasyonu yolu taşıyor
+# ("surum basligi yazildi: C:\Users\...\build\obj\version.h"); bunlardan biri
+# depoya girerse ekran görüntülerinde maskelemeyi taahhüt ettiğimiz makine
+# bilgisini düz metinle yayınlamış oluruz. Kalıcı betiklerin adları README'deki
+# dosya ağacında durur ve aşağıdaki listeye yazılmaz; listeye yazılan bir dosya
+# bir daha depoya girmeyecek demektir, o yüzden tek tek sayıldı.
+*.log
+tools/_audit_pe.ps1
+tools/_kill_probe.ps1
+tools/_run_engine_probe.ps1
+tools/_run_probe.ps1
+tools/_run_sds_probe.ps1
+tools/_show_dump.ps1
+tools/probe_mft_sizes.cpp
+_disk_test_build.bat
+_probe_build.bat
