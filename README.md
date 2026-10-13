@@ -96,9 +96,12 @@ Bu birkaç şeyi **yapmaz**, ve yapmadığını açıkça söylemek bu aracın b
 - **Kullanıcı verisini okumaz.** Yalnızca [registry tablosunda](docs/tweaks-registry.md)
   listelenen anahtarlara yazar, temizleyicide de yalnızca kendi kategorilerinin saydığı
   geçici dosyaları siler. **Medya adası bu satırın birinci istisnasıdır ve adı konur:**
-  aktif oynatıcının şarkı / sanatçı / album bilgisini Windows'un sistem medya oturumundan
-  (GSMTC) okur — bunu ekranda göstermek ve istersen söz servisine sormak için. Ada
-  kapalıyken ya da yalnızca masaüstündeyken veri toplanmaz; okunan bilgi hiçbir yere
+  Spotify'ın şarkı / sanatçı / album bilgisini Windows'un sistem medya oturumundan (GSMTC)
+  okur — bunu ekranda göstermek ve istersen söz servisine sormak için. Oturum seçimi
+  bilinçli olarak Spotify ile sınırlıdır, diğer oynatıcıların oturumları listelenmez
+  (bkz. [SECURITY.md](SECURITY.md)'de). Ayarlar → **Adayı göster** kapatılınca okuyan iş
+  parçacığı tamamen durur; `INSERT` ile gizlemek ve "yalnızca masaüstünde" modu ise
+  çizimi durdurur, 250 ms'lik oturum okuması sürer. Okunan bilgi hiçbir yere
   gönderilmez (söz araması ayrı bir kapıdır, bkz. [Ağ kullanımı](#ağ-kullanımı)).
   **Disk Analizörü ikinci istisnadır:**
   sürücünün ad alanını okur (NTFS'te `$MFT` kayıtları), çünkü "diski neyin doldurduğu"
@@ -184,6 +187,8 @@ ise uygulanan şeyin **nerede bittiğini** söyler.
 | WMI satırları | RAM hızı/yuvaları ve TPM sorguları arka planda koşar; değer gelmemişse satır çizilmez (`N/A` gösterilmez) |
 | Güncelleme — geri dönüş | Takastan sonra eski exe **silinir**, geri dönüş kopyası tutulmaz. Kurtarma yolu Releases'tan aynı dosyayı elle indirmek |
 | Güncelleme — imza | Doğrulama SHA-256 ile yapılır ama **minisign imzalı bildirim yok**. Depo ele geçirilmiş bir yayında exe ile özet aynı güven alanından gelir |
+| Medya Adası — oynatıcı | Yalnızca **Spotify'ın** GSMTC oturumu okunur; diğer oynatıcıların oturumları listelenmez. Ses seviyesi de `spotify.exe` süreçlerinin kendi audio session'ı üzerinden ayarlanır |
+| Medya Adası — okuma | `INSERT` ile gizlemek ve "yalnızca masaüstünde" modu **çizimi** durdurur, 250 ms'lik oturum okuması sürer. Okumayı tamamen kesen şey Ayarlar → **Adayı göster** kapısıdır |
 | Paylaşılan registry değerleri | Birden çok anahtarın sahiplendiği değerlerin listesi **elle tutuluyor**. Yeni anahtar eklerken `CONTRIBUTING.md`'ye bakmak gerekir |
 | Yükseltme devri | `asInvoker → runas → iş → çıkış` zinciri otomatik testlerle **kapsanamaz**; elle denenecek olarak kaldı. Liste: [`docs/TEST-YUKSELTME.md`](docs/TEST-YUKSELTME.md) |
 | Lisans | **Demodur.** Her anahtar kabul edilir, sunucuya karşı doğrulama yapılmaz |
@@ -963,12 +968,16 @@ kurulumu ise **sana** sorar — kendiliğinden inen veya kendiliğinden kurulan 
 
 Onuncu ekran bir pencere değil, **masaüstünün üstünde yüzen bir katmandır**: ana
 pencere kapalı ya da tepsideyken bile durur. Windows'un sistem medya oturumunu (GSMTC)
-dinler, yani Spotify gibi herhangi bir oynatıcının şu an çaldığı parçayı, kapağını ve
-oynatma durumunu gösterir; kendi başına bir oynatıcı değildir.
+dinler; kendi başına bir oynatıcı değildir. Oturum seçimi **yalnızca Spotify**'la
+sınırlıdır: API anahtarı/token gerektirmez, ama "her oynatıcıda çalışır" da değildir —
+birden çok oturumdan hangisinin gösterileceği (arka plandaki bir tarayıcı sekmesi adayı
+ele geçirebilir) yerine kapıyı dar tutmayı seçtik. Bu kısıt [SECURITY.md](SECURITY.md)
+içinde sözü verilmiş bir beyandır, kaldırmak o beyanı yeniden yazmak demektir.
 
 | Konu | Ayrıntı |
 |---|---|
-| Ne gösterir | Şarkı adı, sanatçı, album, kapak resmi, ilerleme çubuğu, oynatma durumu; kapağın baskın rengiyle boyanır |
+| Ne gösterir | Şarkı adı, sanatçı, album, kapak resmi, ilerleme çubuğu, oynatma durumu; **Cover** temasında kapağın baskın rengiyle boyanır (diğer beş tema sabit palet kullanır) |
+| Şarkı değişimi | Kapak ve üç yazı satırı tek seferde swap olmaz: 0,21 s'de önceki parça solar, 0,21 s'de yenisi belirir (toplam 0,42 s). Kontroller geçişe girmez — yarım saniye tıklanamaz kalmaktansa sabit dururlar. İlk parçada ve oynatıcı kapalıyken geçiş yok, boş bir alan soldurulmaz |
 | Düğmeler | Oynat/duraklat, ileri, geri, karıştır, tekrarla, ses (tekerlek); komutlar gerçek oynatıcıya gider |
 | Sözler | Senkronize sözler `lrclib.net`'ten alınır: önce tam eşleşme, olmazsa arama, olmazsa temizlenmiş başlıkla ikinci arama — üç deneme |
 | Erişim | `INSERT` ile açılıp kapanır (hatırlanır), imleç üstüne gelince genişler, tekerlek sesi ayarlar |
