@@ -571,93 +571,207 @@ static void Test_BackupNameAndContentGate()
         if (c.ok && got) { CheckEq(cat, c.cat, "kategori dogru okundu"); CheckEq(idx, c.idx, "sira dogru okundu"); }
     }
 
-    // ---- icerik kapisi: yalnizca beklenen anahtarlarin alt agaci gecer
-    const std::vector<std::wstring> keys = {
-        L"HKEY_CURRENT_USER\\Software\\TENGRI\\Probe",
-        L"HKEY_LOCAL_MACHINE\\SOFTWARE\\TENGRI\\Other",
+    // ---- icerik kapisi: yalnizca beklenen (anahtar, deger) ciftleri gecer
+    //
+    // Kapi artik deger ADINA kadar iniyor. Onceki bicim yalnizca anahtar satirlarina
+    // bakip deger satirlarini atliyordu; bir yedek dosyasi boylece beklenen anahtar
+    // altinda istenen herhangi bir degere (HKLM\SYSTEM\CurrentControlSet\Control
+    // altinda Session Manager\BootExecute gibi) yazabiliyordu. Asagidaki
+    // "listede olmayan deger adi" vakalari tam olarak bunu olduruyor.
+    const std::vector<regtext::Allowed> allowed = {
+        { L"HKCU\\Software\\TENGRI\\Probe", L"Deger" },
+        { L"HKCU\\Software\\TENGRI\\Probe", L"" },          // varsayilan deger
+        { L"HKLM\\SOFTWARE\\TENGRI\\Other", L"Deger" },
     };
     const wchar_t* const H = L"Windows Registry Editor Version 5.00";
 
-    struct Case { std::wstring text; bool ok; const char* what; };
+    struct Case { std::wstring text; bool ok; int recs; const char* what; };
     const std::wstring NL = L"\r\n";
+    const std::wstring kProbe = L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]";
+    const std::wstring kOther = L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\TENGRI\\Other]";
     const std::wstring kValueLine = L"\"Deger\"=dword:00000001";
-    const std::wstring kHexCont   = L"\"Coklu\"=hex(7):61,00,00,00,\\\r\n  62,00,00,00\r\n";
+    const std::wstring kHexCont   = L"\"Deger\"=hex(7):61,00,00,00,\\\r\n  62,00,00,00\r\n";
 
     const Case kCases[] = {
-        // Kabul: tam anahtar, tek deger satiri.
-        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL + kValueLine + NL,
-          true, "beklenen anahtar + deger" },
-        // Kabul: alt anahtar satirlari. Olculdu: reg.exe bir anahtari disa
-        // aktarirken alt anahtarlarini da ayni dosyaya yaziyor (54 yedekten 12'si
-        // boyle; biri 14427 satir). Bu satirlari reddetmek meşru yedegi geri
-        // alinamaz kilar.
-        { std::wstring(H) + NL + L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\TENGRI\\Other]" + NL
-          + L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\TENGRI\\Other\\Alt\\DahaAlt]" + NL,
-          true, "anahtar ve alt anahtarlari" },
-        // Kabul: buyuk/kucuk harf duyarsizlik registry'de varsayilan.
-        { std::wstring(H) + NL + L"[hkey_current_user\\software\\tengri\\probe]" + NL,
-          true, "kucuk harfle yazilmis beklenen anahtar" },
-        // Kabul: hex satir devamI boslukla baslar, ayraç satiri degildir.
-        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL + kHexCont,
-          true, "devam satiri olan deger" },
-        // Kabul: sondaki satir atlamasi yok.
-        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]",
-          true, "satir atlamasiyla bitmeyen dosya" },
-        // Kabul: iki beklenen anahtar birden.
-        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL
-          + L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\TENGRI\\Other]" + NL,
-          true, "ciftin iki anahtari da" },
+        // Kabul: beklenen anahtar + beklenen deger.
+        { std::wstring(H) + NL + kProbe + NL + kValueLine + NL, true, 1,
+          "beklenen anahtar + beklenen deger" },
+        // Kabul: deger adinin buyuk/kucuk harfi registry'de duyarlidir; tablo
+        // "Deger" diyor, "deger" listede yok.
+        { std::wstring(H) + NL + kProbe + NL + L"\"deger\"=dword:00000001" + NL, false, 0,
+          "deger adi buyuk/kucuk harf duyarli" },
+        // Kabul: anahtar adi duyarsiz.
+        { std::wstring(H) + NL + L"[hkey_current_user\\software\\tengri\\probe]" + NL + kValueLine + NL,
+          true, 1, "kucuk harfle yazilmis beklenen anahtar" },
+        // Kabul: iki beklenen cift.
+        { std::wstring(H) + NL + kProbe + NL + kValueLine + NL + kOther + NL + kValueLine + NL,
+          true, 2, "ciftin iki anahtari da" },
+        // Kabul: devam satiri olan hex degeri.
+        { std::wstring(H) + NL + kProbe + NL + kHexCont, true, 1, "devam satiri olan deger" },
+        // Kabul: varsayilan deger @= ile yazilir, adi bos.
+        { std::wstring(H) + NL + kProbe + NL + L"@=hex(1):61,00,00,00" + NL, true, 1,
+          "varsayilan deger" },
+        // Kabul: sifir uzunluklu deger (disa aktarim "hex(N):" olarak yaziyor).
+        { std::wstring(H) + NL + kProbe + NL + L"\"Deger\"=hex(3):" + NL, true, 1,
+          "sifir uzunluklu deger" },
 
-        // Red: yabanci anahtar - kapinin asil isi.
-        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]" + NL,
-          false, "yabanci Run anahtari" },
-        // Red: ONEK tuzagi - beklenen anahtarin adinin basindaki metin ayni ama
-        // bir karakter uzun. Bisl olmadan gecmemeli.
-        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\ProbeX]" + NL,
-          false, "beklenen anahtarin kardesi (onek tuagi)" },
+        // Red: ONEK TUZAGI - anahtar adi beklenenin baslangiciyla ayni ama bir
+        // karakter uzun. Bisl olmadan gecerli degil.
+        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\ProbeX]" + NL + kValueLine + NL,
+          false, 0, "beklenen anahtarin kardesi (onek tuagi)" },
+        // Red: yabanci anahtar.
+        { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]" + NL
+          + L"\"Yeni\"=dword:00000001" + NL, false, 0, "yabanci Run anahtari" },
+        // Red: LISTE DISI DEGER ADI - kapinin asil isi. Anahtar beklenen, deger
+        // tablonun o cifti icin yazdigi listede yok.
+        { std::wstring(H) + NL + kProbe + NL + L"\"ListedeOlmayan\"=dword:00000001" + NL,
+          false, 0, "listede olmayan deger adi" },
+        // Red: gercek yukseltme deseni. Anahtar HKLM\SYSTEM\CurrentControlSet\Control
+        // uygulamanin meşru bir yedek anahtari; deger adi BootExecute ise SYSTEM
+        // kodkoşumu demek. Tablo o anahtar altinda yalnizca WaitToKillServiceTimeout
+        // tanir, dolayisiyla burasi reddedilmeli.
+        { std::wstring(L"Windows Registry Editor Version 5.00") + NL
+          + L"[HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control]" + NL
+          + L"\"WaitToKillServiceTimeout\"=\"2000\"" + NL, false, 0,
+          "gercek tabloda olmayan anahtar BootExecute icin kullanilamaz" },
         // Red: IFEO - ayni kategorideki gercek bir ayarin anahtari bile olsa,
         // beklenen kume disindaysa gecerli degil.
-        { std::wstring(H) + NL + L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\notepad.exe]" + NL,
-          false, "IFEO anahtari" },
-        // Red: silme bicimi. Disa aktarim bunu hic uretmiyor; geri alma sirasinda
-        // anahtar yok etmek, deger geri getirmek degil.
-        { std::wstring(H) + NL + L"[-HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL,
-          false, "anahtar silme bicimi" },
+        { std::wstring(H) + NL + L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\notepad.exe]" + NL
+          + L"\"CpuPriorityClass\"=dword:00000001" + NL, false, 0, "IFEO anahtari" },
+        // Red: anahtari silme bicimi. Disa aktarim bunu hic uretmiyor; geri alma
+        // sirasinda anahtar yok etmek, deger geri getirmek degil.
+        { std::wstring(H) + NL + L"[-HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL + kValueLine + NL,
+          false, 0, "anahtar silme bicimi" },
+        // Red: deger silme bicimi yedekte uretilemez.
+        { std::wstring(H) + NL + kProbe + NL + L"\"Deger\"=-" + NL, false, 0,
+          "yedekte deger silme bicimi" },
         // Red: baslik satiri yok (dosya anahtarla basliyor).
-        { std::wstring(L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]") + NL,
-          false, "baslik eksik" },
+        { kProbe + NL + kValueLine + NL, false, 0, "baslik eksik" },
         // Red: baslik yanlis.
-        { std::wstring(L"REGEDIT4") + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL,
-          false, "baslik REGEDIT4" },
-        // Red: hic anahtar satiri yok - bos bir dosya icine aktarilmak icin degil.
-        { std::wstring(H) + NL + kValueLine + NL,
-          false, "anahtar satiri icermeyen dosya" },
+        { std::wstring(L"REGEDIT4") + NL + kProbe + NL + kValueLine + NL, false, 0,
+          "baslik REGEDIT4" },
+        // Red: hic deger kaydi yok - bos bir dosya geri yuklenmek icin degil.
+        { std::wstring(H) + NL + kProbe + NL, false, 0, "deger satiri icermeyen dosya" },
         // Red: bos ayraclar.
-        { std::wstring(H) + NL + L"[]" + NL, false, "bos anahtar ayraci" },
-        // Red: kapanmis ayracli satir.
+        { std::wstring(H) + NL + L"[]" + NL, false, 0, "bos anahtar ayraci" },
+        // Red: kapanmamis ayracli satir.
         { std::wstring(H) + NL + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe" + NL,
-          false, "kapanmamis ayraclar" },
-        // Red: baska kök anahtar.
-        { std::wstring(H) + NL + L"[HKEY_CLASSES_ROOT\\Software\\TENGRI\\Probe]" + NL,
-          false, "HKEY_CLASSES_ROOT koku" },
+          false, 0, "kapanmamis ayraclar" },
+        // Red: baska kok anahtar.
+        { std::wstring(H) + NL + L"[HKEY_CLASSES_ROOT\\Software\\TENGRI\\Probe]" + NL + kValueLine + NL,
+          false, 0, "HKEY_CLASSES_ROOT koku" },
+        // Red: bolumsuz deger satiri.
+        { std::wstring(H) + NL + kValueLine + NL, false, 0, "bolum disi deger satiri" },
+        // Red: taninmayan satir.
+        { std::wstring(H) + NL + kProbe + NL + L"bu bir satir degil" + NL, false, 0,
+          "taninmayan satir" },
+        // Red: dword uzunlugu yanlış.
+        { std::wstring(H) + NL + kProbe + NL + L"\"Deger\"=dword:01" + NL, false, 0,
+          "kisa dword" },
+        // Red: hex kumesinde taninmayan karakter.
+        { std::wstring(H) + NL + kProbe + NL + L"\"Deger\"=hex:gg" + NL, false, 0,
+          "gecersiz hex" },
+        // Red: tip listesi dışinda (REG_LINK = 6).
+        { std::wstring(H) + NL + kProbe + NL + L"\"Deger\"=hex(6):01" + NL, false, 0,
+          "geri yuklenemeyen tip" },
+        // Red: gecerli bir kayitten SONRA liste dışı bir kayit gelirse tüm dosya
+        // reddedilir ve cozumlenmis hicbir sey geri kalmamali.
+        { std::wstring(H) + NL + kProbe + NL + kValueLine + NL
+          + L"\"Yabanci\"=dword:00000001" + NL, false, 0, "kismi gecerli dosya" },
     };
     for (size_t i = 0; i < sizeof(kCases) / sizeof(kCases[0]); ++i)
     {
         const Case& c = kCases[i];
-        Check(regtext::ContentMatchesKeys(c.text, keys) == c.ok, c.what);
+        std::vector<regtext::Record> recs;
+        const bool got = regtext::ParseRegText(c.text, &allowed, &recs);
+        Check(got == c.ok, c.what);
+        if (c.ok) CheckEq((int)recs.size(), c.recs, "kayit sayisi dogru cozuldu");
+        else Check(recs.empty(), "reddedilen dosyadan kayit kalmadi");
     }
 
-    // Bos beklenen kume: tabloya karsilik gelmeyen hicbir dosya gecerli sayilmaz.
-    Check(!regtext::ContentMatchesKeys(std::wstring(H) + NL
-          + L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]" + NL,
-          std::vector<std::wstring>()), "beklenen anahtar kumesi bos");
+    // Bos beklenen kume: tabloya karsilik gelmeyen hicbir dosya gecerli degil.
+    {
+        const std::vector<regtext::Allowed> none;
+        std::vector<regtext::Record> recs;
+        Check(!regtext::ParseRegText(std::wstring(H) + NL + kProbe + NL + kValueLine + NL,
+                                     &none, &recs), "beklenen kume bos");
+    }
 
-    // KeyInSubtree dogrudan: siniri ya dizinin sonu ya bisl belirler.
-    Check(regtext::KeyInSubtree(L"A\\B", L"A\\B"), "ayni anahtar kendisinin alt agacinda");
-    Check(regtext::KeyInSubtree(L"A\\B\\C", L"A\\B"), "alt anahtar alt agacta");
-    Check(!regtext::KeyInSubtree(L"A\\BC", L"A\\B"), "onek olarak uzun kardes alt agac DEGIL");
-    Check(!regtext::KeyInSubtree(L"A", L"A\\B"), "ustu alt agac DEGIL");
-    Check(regtext::KeyInSubtree(L"a\\b\\c", L"A\\B"), "buyuk/kucuk harf duyarsiz");
+    // ---- guvenilir mod: derleme zamani govdeleri (regpack.cpp)
+    //
+    // allowed == nullptr oldugunda kapsam denetlenmiyor, cunku metin EXE'nin
+    // icinde. Silme bicimi yalnizca burada gecer.
+    {
+        std::vector<regtext::Record> recs;
+        Check(regtext::ParseRegText(std::wstring(H) + NL + kProbe + NL
+              + L"\"Deger\"=-" + NL, nullptr, &recs), "goqvde silme bicimi kabul eder");
+        Check(recs.size() == 1 && recs[0].remove, "silme kaydi isaretlendi");
+
+        recs.clear();
+        Check(regtext::ParseRegText(std::wstring(H) + NL
+              + L"[HKEY_LOCAL_MACHINE\\ANYTHING\\At\\All]" + NL
+              + L"\"HerNeyse\"=dword:00000001" + NL, nullptr, &recs),
+              "guvenilir mod anahtar adini denetlemiyor");
+    }
+
+    // ---- SplitRoot / ExpandKey: yazma yolunun tek kok ayirici
+    Check(regtext::ExpandKey(L"HKCU\\A") == L"HKEY_CURRENT_USER\\A", "HKCU tam ada cevrildi");
+    Check(regtext::ExpandKey(L"HKLM\\A") == L"HKEY_LOCAL_MACHINE\\A", "HKLM tam ada cevrildi");
+    // Cizgi dusurulursa "HKEY_CURRENT_USERSoftware\\..." gibi gecersiz yol olurdu.
+    Check(regtext::ExpandKey(L"SKUNTER\\A") == L"SKUNTER\\A", "kisa adi olmayan yol dokunulmadi");
+    {
+        HKEY root = nullptr; std::wstring sub;
+        Check(regtext::SplitRoot(L"HKEY_LOCAL_MACHINE\\SYSTEM", &root, &sub)
+              && root == HKEY_LOCAL_MACHINE && sub == L"SYSTEM",
+              "HKLM ondeki uzunlugu dogru (cizgi dahil)");
+        Check(regtext::SplitRoot(L"HKEY_CURRENT_USER\\A\\B", &root, &sub)
+              && root == HKEY_CURRENT_USER && sub == L"A\\B",
+              "HKCU ondeki uzunlugu dogru");
+        Check(!regtext::SplitRoot(L"HKEY_LOCAL_MACHINE", &root, &sub), "tek basina kok reddedilir");
+        Check(!regtext::SplitRoot(L"HKEY_LOCAL_MACHINEX\\A", &root, &sub), "onek tuagi reddedilir");
+        Check(!regtext::SplitRoot(L"HKEY_USERS\\S-1-5\\A", &root, &sub), "HKU reddedilir");
+        Check(!regtext::SplitRoot(L"Software\\TENGRI", &root, &sub), "koksuz yol reddedilir");
+    }
+
+    // ---- SerializeValue / ParseRegText gidis-donus
+    //
+    // Disa aktarim ile geri yukleme ayni bicimi kullaniyor; biri digerinin
+    // cikardisini okuyamiyorsa yedek sessizce geri alinamaz olur. Bu, eski
+    // surumde butun regpack kategorilerinin hic uygulanmamasina yol acan hata
+    // sinifiynin aynı hali: uretici ile tuketici arasinda sozlesme testi.
+    {
+        auto roundtrip = [&](const wchar_t* name, DWORD type,
+                            const std::vector<unsigned char>& in) {
+            std::wstring text;
+            if (!regtext::SerializeValue(name, type, in.empty() ? nullptr : in.data(),
+                                         (DWORD)in.size(), &text)) return false;
+            std::vector<regtext::Record> recs;
+            const std::wstring full = std::wstring(H) + NL + kProbe + NL + text;
+            // Ciftin izin listesi bu anahtar icin "Deger" ve varsayilanadi taniyor.
+            if (!regtext::ParseRegText(full, &allowed, &recs)) return false;
+            if (recs.size() != 1) return false;
+            const regtext::Record& r = recs[0];
+            return r.name == name && r.type == type && r.data == in && !r.remove;
+        };
+
+        Check(roundtrip(L"Deger", REG_DWORD, { 1, 0, 0, 0 }), "dword gidis-donus");
+        Check(roundtrip(L"Deger", REG_DWORD, { 0xFF, 0xFF, 0xFF, 0xFF }), "buyuk dword gidis-donus");
+        Check(roundtrip(L"Deger", REG_SZ, { 'a', 0, 'b', 0, 0, 0 }), "REG_SZ bayt olarak dondu");
+        Check(roundtrip(L"Deger", REG_BINARY, { 0xDE, 0xAD, 0xBE, 0xEF }), "binary gidis-donus");
+        Check(roundtrip(L"Deger", REG_NONE, {}), "sifir uzunluklu deger gidis-donus");
+        Check(roundtrip(L"", REG_SZ, { 0, 0 }), "varsayilan deger gidis-donus");
+
+        // Uzun ad: 64 haneden fazla bayt yazilmamali.
+        std::vector<unsigned char> big(regtext::kMaxValueBytes + 1, 0xAB);
+        std::wstring text;
+        Check(!regtext::SerializeValue(L"Deger", REG_BINARY, big.data(),
+                                       (DWORD)big.size(), &text),
+              "boyut tavani asan deger disa aktarilmaz");
+
+        // Adinda tirsnak olan deger satiri bozardi; yazmayi reddetmeli.
+        Check(!regtext::SerializeValue(L"Kacli\"Deger", REG_DWORD, nullptr, 0, &text),
+              "adinda tirsnak olan deger yazilmaz");
+    }
 }
 
 static void Test_SampleMode()

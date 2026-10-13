@@ -3,148 +3,52 @@
 // Her ayar bir çift olarak tutulur: { etkin olduğundaki gövde, kapalı olduğundaki gövde }.
 // Kapalı gövde hiçbir şey yapmaz; belgelenmiş varsayılanı geri yükler ya da değeri
 // anahtardan siler. Böylece geri alma tahminle değil, gerçek bir ters işlemle yapılır.
+//
+// Gövdeler diske yazılmıyor: bellekte çözümlenip RegSetValueExW ile uygulanıyor
+// (regtext.hpp + regwrite.hpp). Eskiden %TEMP%'e bir .reg dosyası yazılıp reg.exe'e
+// veriliyordu ve bunun iki maliyeti vardı:
+//   1) HKLM yazan her ayar yükseltilmiş çalıştığı için dosya herkesin yazabildiği bir
+//      dizine düşüyordu; geçici ad rastgele olsa da yarışan bir sürecin yazabileceği
+//      bir yol vardı.
+//   2) Doğrulama yoktu: gövdenin ne yazdığı, dosyaya yazılan metne bakarak denetlenemiyordu.
+// Şimdi gövde bir kez çözümleniyor ve çözülen kayıtlar doğrudan yazılıyor.
+//
+// Bu gövdeler EXE'nin içinde durduğu için kaynak güvenilir; ParseRegText'e izin
+// listesi verilmiyor (allowed == nullptr) ve yalnızca biçim denetleniyor. Silme
+// biçimi ("değer adı"=-) yalnızca bu derleme zamanı gövdelerinde geçer.
 
 #include "regpack.hpp"
-#include "brand.hpp"
-#include "syspath.hpp"
+#include "regtext.hpp"
+#include "regwrite.hpp"
+
 #include <windows.h>
-#include <wincrypt.h>
-#include <string>
+
 #include <cstring>
-#include <cstdio>
+#include <string>
 
 namespace regpack
 {
     namespace
     {
         const char* kHeader = "Windows Registry Editor Version 5.00\r\n\r\n";
-
-        bool RunRegImport(const wchar_t* path)
-        {
-            // reg.exe gerçek bir çıkış kodu döndürür; regedit /s ise her zaman 0 döner ve hatalı
-            // bir içe aktarmayı bile başarı gibi gösterir.
-            //
-            // Çalıştırılabilir tam yoldan çağrılır: yalın "reg.exe" yazmak, arama
-            // sırası uygulamanın kendi klasöründen başladığı için, o klasöre
-            // bırakılmış aynı adlı programı çalıştırmak olurdu.
-            std::wstring cmd = syspath::CommandLine(L"reg.exe",
-                                                    L"import \"" + std::wstring(path) + L"\"");
-            if (cmd.empty()) return false;
-
-            // Tırnak, komut satırında argümanı erken kapatır: yol tırnak
-            // içeriyorsa hiç denemeyiz.
-            if (std::wstring(path).find(L'"') != std::wstring::npos) return false;
-
-            STARTUPINFOW si = { sizeof(si) };
-            si.dwFlags     = STARTF_USESHOWWINDOW;
-            si.wShowWindow = SW_HIDE;
-            PROCESS_INFORMATION pi = {};
-
-            std::wstring buf = cmd;
-            if (!CreateProcessW(nullptr, &buf[0], nullptr, nullptr, FALSE,
-                                CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
-                return false;
-
-            // Zaman aşımında çıkış kodu hâlâ STILL_ACTIVE olur ve içe aktarma denetimsiz
-            // çalışmayı sürdürürdü; bu yüzden alt süreç sonlandırılır ve ayar
-            // başarısız olarak bildirilir.
-            if (WaitForSingleObject(pi.hProcess, 20000) == WAIT_TIMEOUT)
-            {
-                ::TerminateProcess(pi.hProcess, 1);
-                ::WaitForSingleObject(pi.hProcess, 1000);
-                CloseHandle(pi.hProcess);
-                CloseHandle(pi.hThread);
-                return false;
-            }
-            DWORD code = 1;
-            GetExitCodeProcess(pi.hProcess, &code);
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-            return code == 0;
-        }
     }
 
     bool Import(const char* text)
     {
         if (!text || !*text) return false;
 
-        wchar_t dir[MAX_PATH];
-        if (!GetTempPathW(MAX_PATH, dir)) return false;
-
-        // HKLM'ye dokunan her ayarda uygulama yükseltilmiş yetkiyle çalışır, dolayısıyla geçici
-        // dosya herkesin yazabildiği bir dizine düşer. Yalnızca pid+tick'ten türetilen bir ad
-        // yerel bir saldırgan tarafından önceden oluşturulup bir junction'a yönlendirilebilecek
-        // kadar tahmin edilebilirdi ve bu, `reg import`'u keyfi bir yazma işlemine dönüştürürdü.
-        // Rastgele ad + CREATE_NEW bu pencereyi kapatıyor: CREATE_NEW, dosya zaten
-        // varsa BAŞARISIZ olur, yani saldırganın yolu önceden doldurması işe yaramaz.
-        unsigned char rnd[16] = {};
-        // CryptGenRandom'in ilk argümanı bir sağlayıcı TUTAMAĞIDIR; NULL "varsayılan
-        // sağlayıcı" demek DEĞİLDİR ve bu çağrı ERROR_INVALID_PARAMETER (87) ile
-        // başarısız olur. Buraya NULL verildiği için Import, geçici dosyayı hiç
-        // yazmadan false dönüyordu — yani Oyunlar/FiveM/Gecikme dahil BÜTÜN regpack
-        // kategorileri hiçbir zaman registry'ye ulaşmıyordu.
-        //
-        // Düzeltme: gerçek bir sağlayıcı açılır. Düşen yol (sağlayıcı açılamazsa)
-        // içe aktarmayı sessizce atlamak yerine hata olarak yüzeye çıkar, çünkü
-        // rastgele ad üretilemiyorsa güvenlik açığı da kapatılmış sayılmaz.
-        HCRYPTPROV hProv = 0;
-        if (!CryptAcquireContextW(&hProv, nullptr, nullptr, PROV_RSA_FULL,
-                                  CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
-            return false;
-        const BOOL gen = CryptGenRandom(hProv, (DWORD)sizeof(rnd), rnd);
-        CryptReleaseContext(hProv, 0);
-        if (!gen) return false;
-
-        unsigned h[4] = {};
-        memcpy_s(h, sizeof(h), rnd, sizeof(rnd));
-
-        wchar_t path[MAX_PATH];
-        swprintf_s(path, L"%s%s%lu_%08X%08X%08X%08X.reg", dir, brand::kTempPrefixW,
-                   GetCurrentProcessId(), h[0], h[1], h[2], h[3]);
-
-        // reg.exe satır sonlarını CRLF bekler, gömülü gövdeler ise düz LF ile yazılmıştır;
-        // dönüştürmezsek anahtarlar tek satırda birleşir ve içe aktarma sessizce bozulur.
-        std::string norm;
-        norm.reserve(strlen(text) + 128);
-        for (const char* p = text; *p; ++p)
-        {
-            if (*p == '\n' && (p == text || p[-1] != '\r')) norm += '\r';
-            norm += *p;
-        }
-
-        const int wn = MultiByteToWideChar(CP_UTF8, 0, norm.c_str(), -1, nullptr, 0);
+        const int wn = MultiByteToWideChar(CP_UTF8, 0, text, -1, nullptr, 0);
         if (wn <= 1) return false;
         std::wstring w((size_t)wn - 1, L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, norm.c_str(), -1, &w[0], wn);
+        if (MultiByteToWideChar(CP_UTF8, 0, text, -1, &w[0], wn) != wn) return false;
 
-        // FILE_FLAG_OPEN_REPARSE_POINT yalnizca ZATEN VAR OLAN bir dosyayi
-        // acarken anlamlidir: amacı, yolun sonundaki bileşenin bir junction
-        // olmasina izin vermemektir. CREATE_NEW ile birlikte bu bayrak
-        // ERROR_INVALID_PARAMETER (87) dondurur ve dosya hic acilmaz.
-        //
-        // Burada koruma zaten iki katmanli ve bayraksiz calisir:
-        //   1) Ad 128 bit CryptGenRandom ile uretilir; pid eklenir ama
-        //      belirlenebilir olmaktan cikar.
-        //   2) CREATE_NEW, dosya ZATEN varsa basarisiz olur. Yani saldirgan
-        //      yolu once doldurup bizi bir junction'a yonlendiremez; acik
-        //      olan tek yol bizim yazdigimiz dosyadir.
-        // Bu yuzden OPEN_REPARSE_POINT burada hem gerekli degil hem de
-        // Import'u tamamen basarisiz kiliyordu.
-        HANDLE f = CreateFileW(path, GENERIC_WRITE, 0, nullptr,
-                               CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY, nullptr);
-        if (f == INVALID_HANDLE_VALUE) return false;
+        std::vector<regtext::Record> recs;
+        if (!regtext::ParseRegText(w, nullptr, &recs)) return false;
 
-        // "Version 5.00" .reg dosyaları UTF-16LE'dir ve bir BOM ile başlamak zorundadır;
-        // BOM olmadan içerik yanlış hizada okunur.
-        const wchar_t bom = 0xFEFF;
-        DWORD written = 0;
-        BOOL ok = WriteFile(f, &bom, sizeof(bom), &written, nullptr);
-        ok = ok && WriteFile(f, w.data(), (DWORD)(w.size() * sizeof(wchar_t)), &written, nullptr);
-        CloseHandle(f);
-
-        const bool imported = ok && RunRegImport(path);
-        DeleteFileW(path);
-        return imported;
+        const regwrite::Result r = regwrite::Apply(recs);
+        // "Silinecek değer zaten yoktu" hedef durumdur, hata değil; ama hiçbir şey
+        // yazılmadıysa bu bir başarısızlıktır: gövde çözümlenmiş ama uygulanmamış.
+        return r.failed == 0 && (r.written + r.removed + r.absent) > 0;
     }
 
     bool ImportMany(const char* const* bodies, int count)
@@ -155,7 +59,7 @@ namespace regpack
         for (int i = 0; i < count; ++i)
         {
             if (!bodies[i]) continue;
-            // Her gövdenin kendi başlık satırı var; birleştirilen dosyada ikinci bir başlık
+            // Her gövdenin kendi başlık satırı var; birleştirilen metinde ikinci bir başlık
             // hatalı içe aktarmaya yol açardı, bu yüzden yalnızca ilki tutuluyor.
             const char* keys = strchr(bodies[i], '\n');
             all += keys ? keys + 1 : bodies[i];

@@ -169,6 +169,39 @@ namespace S
         // türetiliyor).
         CloseToTray, CloseToTrayDesc, TrayOpen, TrayGoTo, TrayExit,
 
+        // Disk analizörü: sekme + tarama yüzeyi + silme eylemleri. FlatEnd'den
+        // hemen önce olmalı (blok başlangıçları buradan türetiliyor).
+        Disk, DiskDesc,
+        DiskEmpty, DiskBrowse, DiskEngineMft, DiskEngineWalk, DiskAdminHint,
+        DiskScanning, DiskFilesCount, DiskOnDisk, DiskTotal,
+        DiskCancelledBadge, DiskFailedBadge,
+        DiskMap, DiskList, DiskTypes, DiskDup,
+        DiskBack, DiskOther, DiskLargestFiles, DiskTypeStats,
+        DiskRecycleBtn, DiskPermBtn, DiskExplorerBtn, DiskOpenBtn,
+        DiskSaveBtn, DiskLoadBtn,
+        DiskDeleteConfirmFmt, DiskRecycledFmt, DiskPermDeletedFmt, DiskDeleteFailed,
+        DiskProtectedNote, DiskCachedNote,
+        DiskDupBtn, DiskDupRunning, DiskDupNone, DiskDupGroupsFmt, DiskDupWasted,
+        DiskDupKeepRest, DiskStopBtn, DiskDrives,
+        // Düğüm bayrakları (disk::NodeFlag) ve ölçülemeyen boyut sayacı.
+        DiskUnknownSizeFmt, DiskFlagCompressed, DiskFlagSparse, DiskFlagEncrypted,
+        DiskFlagReparse, DiskFlagOffline, DiskFlagAds, DiskFlagHardLink,
+        DiskFlagSizeUnknown,
+        // $SDS sahibi: etiket sözcüğü ve SID adı alınamadığındaki not.
+        DiskOwnerLabel, DiskOwnerUnresolved,
+        // MFT okuma dilimi sayısı (tarama başlarken okunur).
+        DiskThreadsLabel,
+
+        // Medya adası: ayar kartı, ada üzerindeki düğmeler ve panel metinleri.
+        IslandHeading, IslandDesc,
+        IslandEnabled, IslandEnabledDesc,
+        IslandTheme, IslandDesktopOnly, IslandDesktopOnlyDesc,
+        IslandLyrics, IslandLyricsDesc,
+        IslandPlayerClosed, IslandOpenPlayer,
+        IslandLyricsLoading, IslandNoLyrics,
+        IslandHintToggle, IslandHintHover,
+        IslandDesktopMode, IslandOn, IslandOff,
+
         // sonradan eklenenler: bildirim metinleri, kategori başlıkları ve ağ satır
         // başlangıçları buradan türetildiği için, sonrasına yeni bir düz anahtar
         // eklenmesi bütün tweak etiketlerini sessizce kaydırırdı. Daha önce de tam

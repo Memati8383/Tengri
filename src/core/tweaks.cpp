@@ -528,8 +528,8 @@ namespace tweaks
         case 1: return ApplyGame(idx, enable);
         case 2: return ApplyPriv(idx, enable);
         case 3: return ApplyVis(idx, enable);
-        // Oyunlar, FiveM, gecikme ve oyun profilleri gömülü .reg gövdeleri
-        // olarak gelir ve reg.exe üzerinden içe aktarılır.
+        // Oyunlar, FiveM, gecikme ve oyun profilleri gömülü gövdeler olarak gelir
+        // ve bellekte çözülüp doğrudan yazılır (regpack::Import).
         case 4:
         case 5:
         case 6:

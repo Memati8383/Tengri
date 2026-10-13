@@ -17,6 +17,18 @@ build.bat
 Submodule'ı unuttuysan `build.bat` durur, `git submodule update --init --recursive` ile
 tamamla. Depoyu GitHub'dan indirdiysen submodule boş gelir ve derleme tamamlanmaz.
 
+Dar bir geçiş istiyorsan kipleri kullan:
+
+```bat
+build.bat app          :: yalnızca build\TENGRI.exe
+build.bat tests        :: yalnızca altı test paketi
+build.bat test disk    :: tek paket: pure modules license write update disk
+```
+
+Her aşama tek satırda ilerleme çubuğuyla yazılır; sonda aşama tablosu gelir — süresi ve
+test paketlerinin **kendi** özet satırı orada durur, betik rakam uydurmaz. Bir aşama
+planla uyuşmazsa (biri eklenip sayı güncellenmezse) betik başarılı görünmez.
+
 Çıktı `build\TENGRI.exe`. CMake de çalışır:
 
 ```bat

@@ -76,6 +76,15 @@ function Resolve-Escapes([string]$s) {
     return $out -replace '\\\\', '\'
 }
 
+# Bir C++ dize literalinin GÖVDESini çözümle. Resolve-Escapes kaçış görmeyince
+# metne hiç dokunmadan döndürüyor, yani "Control Panel\\Desktop" çift bisll
+# olarak kalıyor; anahtar adları için bu hâlde kullanılamaz. Burada kaçış olsun
+# ya da olmasın  \\  her zaman  \  olur.
+function Unesc-Lit([string]$s) {
+    if ($s -match '\\[xu]') { return Resolve-Escapes $s }
+    return $s -replace '\\\\', '\'
+}
+
 # --- Display names -----------------------------------------------------------
 # The UI labels come out of lang.cpp so the table cannot drift from what the app shows.
 $names = @{}
@@ -184,7 +193,36 @@ if ($catNames.Count -lt $catCount) {
 
 $switchRows = @{}
 
-# Anahtar yollari ayrica toplanir: bunlar build\obj\tweak_keys.h dosyasini uretir,
+# Yazma hedefleri: (kategori,sira,anahtar) -> deger adlari listesi. Yedekleme ve
+# geri alma ARTIK bu listeyi kullanıyor; eskiden yalnızca anahtar adları
+# biliniyordu ve denetim anahtar adının üstünde kalıyordu.
+#
+# Yalnızca YAZMA çağrıları sayılır (RegPut, RegPutStr, RegPutDefault). RegGet
+# burada yok: okunan bir değeri geri yüklemek, uygulamanın hiç yazmadığı bir
+# değere yönetici olarak dokunmak demek olurdu.
+$pairs = New-Object System.Collections.Generic.List[object]
+
+function Add-Pair([int]$cat, [int]$idx, [string]$key, [string]$name) {
+    if (-not $key) { return }
+    $found = $null
+    foreach ($p in $pairs) {
+        if ($p.cat -eq $cat -and $p.idx -eq $idx -and $p.key -eq $key) { $found = $p; break }
+    }
+    if (-not $found) {
+        $found = [pscustomobject]@{ cat = $cat; idx = $idx; key = $key; names = @() }
+        $pairs.Add($found)
+    }
+    if ($found.names -notcontains $name) { $found.names += $name }
+}
+
+# Dize literali ya da sabit değişken adı ayrımını iki yerde de kullanacağız.
+function Get-KeyArg([string]$raw, [hashtable]$vars) {
+    if ($raw -like 'L"*"') { return Unesc-Lit ($raw.Substring(2, $raw.Length - 3)) }
+    if ($vars.ContainsKey($raw)) { return $vars[$raw] }
+    return $null
+}
+
+# Anahtar yolları ayrica toplanir: bunlar build\obj\tweak_keys.h dosyasini uretir,
 # yani uygulama uygulamadan once hangi anahtarlari yedekleyecegini buradan ogrenir.
 $keyRows = @{}
 
@@ -202,6 +240,18 @@ foreach ($fn in $funcs.Keys) {
         $idx = [int]$c.Groups[1].Value
         $txt = $c.Groups[2].Value
 
+        # Dosya/scope düzeyindeki anahtar sabitleri:  const wchar_t* kCtx = L"Software\\...";
+        # Bu çağrılar literal vermiyor, değişken veriyor; değişkeni çözmeden hedef
+        # anahtar bilinemez (bir dönem RegPutDefault hiç eşleşmediği için sessizce
+        # yedek kapsamı dışına çıkıyordu).
+        $vars = @{}
+        foreach ($vm in [regex]::Matches($tweakText, 'const\s+wchar_t\*\s*(k\w+)\s*=\s*L"((?:[^"\\]|\\.)*)"')) {
+            $vars[$vm.Groups[1].Value] = Unesc-Lit $vm.Groups[2].Value
+        }
+        foreach ($vm in [regex]::Matches($txt, 'const\s+wchar_t\*\s*(k\w+)\s*=\s*L"((?:[^"\\]|\\.)*)"')) {
+            $vars[$vm.Groups[1].Value] = Unesc-Lit $vm.Groups[2].Value
+        }
+
         $loc = @()
         $keys = @()
         foreach ($r in [regex]::Matches($txt, 'Reg(?:Put|Get|GetStrIs)\s*\(\s*(HKCU|HKLM)\s*,\s*(k\w+|L"([^"]*)")')) {
@@ -213,6 +263,29 @@ foreach ($fn in $funcs.Keys) {
             $keys += $full
         }
         if ($keys.Count -gt 0) { $keyRows["$cat,$idx"] = $keys }
+
+        # Yazma hedefleri: (root, anahtar, deger adi) üçlüsü. Üçüncü argüman
+        # dize adı olduğu için çağrı satır boyunca dağılabiliyor; Singleline şart.
+        foreach ($w in [regex]::Matches($txt,
+                        'Reg(Put|PutStr)\s*\(\s*(HKCU|HKLM)\s*,\s*(L"(?:[^"\\]|\\.)*"|k\w+)\s*,\s*L"((?:[^"\\]|\\.)*)"',
+                        'Singleline')) {
+            $root = if ($w.Groups[2].Value -eq 'HKCU') { 'HKCU' } else { 'HKLM' }
+            $keyRaw = $w.Groups[3].Value
+            $key = if ($keyRaw -like 'L*') { Unesc-Lit ($keyRaw.Substring(2, $keyRaw.Length - 3)) }
+                   else { Get-KeyArg $keyRaw $vars }
+            if (-not $key) { throw "$fn case $idx icinde cozulemeyen anahtar: $keyRaw" }
+            Add-Pair $cat $idx ($root + '\' + $key) (Unesc-Lit $w.Groups[4].Value)
+        }
+        # Varsayılan değer: adı boş. RegPutDefault anahtarın "@" değerini yazar,
+        # yani yedekte (anahtar, "") çifti olarak durmalı.
+        foreach ($w in [regex]::Matches($txt,
+                        'RegPutDefault\s*\(\s*(HKCU|HKLM)\s*,\s*(L"(?:[^"\\]|\\.)*"|k\w+)',
+                        'Singleline')) {
+            $root = if ($w.Groups[1].Value -eq 'HKCU') { 'HKCU' } else { 'HKLM' }
+            $key = Get-KeyArg $w.Groups[2].Value $vars
+            if (-not $key) { throw "$fn case $idx icinde cozulemeyen varsayilan anahtar: $($w.Groups[2].Value)" }
+            Add-Pair $cat $idx ($root + '\' + $key) ''
+        }
         foreach ($v in [regex]::Matches($txt, 'Reg(?:Put|Get)\w*\s*\([^,]+,\s*[^,]+,\s*L"([^"]*)"')) {
             $loc += '    deger: ' + $v.Groups[1].Value
         }
@@ -243,8 +316,10 @@ foreach ($an in $arrays.Keys) {
     # hemen ardından ham metin işaretçisi geliyor:  R"(Windows Registry Editor ...
     # .NET regex \R'yi tanımıyor, bu yüzden satır sonu için \r?\n yazıldı.
     # Gövde kapanışı  )",  yani  satir sonu + ) + " + ,   -- parantez kaçışı şart.
+    # İki gövde birden okunuyor: kapalı gövde, açık gövdenin yazmadığı bir değeri
+    # silebiliyor ("Affinity"=-); yedek o değeri de geri getirebilmeli.
     $elems = [regex]::Matches($mi.Groups[1].Value,
-                '\{\s*//\s*(\d+)\s*-\s*(.*?)\r?\n\s*R"\((.*?)\r?\n\)"\s*,', 'Singleline')
+                '\{\s*//\s*(\d+)\s*-\s*(.*?)\r?\n\s*R"\((.*?)\r?\n\)"\s*,\s*R"\((.*?)\r?\n\)"', 'Singleline')
     foreach ($e in $elems) {
         $idx = [int]$e.Groups[1].Value
         $body = $e.Groups[3].Value
@@ -264,6 +339,26 @@ foreach ($an in $arrays.Keys) {
         }
         if ($loc.Count -eq 0) { $loc += '    (yok)' }
         $regRows["$cat,$idx"] = $loc
+
+        # Yazma hedefleri: satır satır yürü, [HKEY_...] bölümünün altındaki her
+        # değer satırı bir (anahtar,değer) çiftidir. Silme biçimi ("X"=-) de aynı
+        # çifti verir: uygulamanın o değere dokunduğunun kanıtıdır.
+        foreach ($gb in @($e.Groups[3].Value, $e.Groups[4].Value)) {
+            $cur = $null
+            foreach ($ln in ($gb -split "\r?\n")) {
+                $t = $ln.Trim()
+                if ($t.StartsWith('[')) {
+                    $k2 = $t.TrimStart('[').TrimEnd(']')
+                    if ($k2 -notmatch '^HKEY_(CURRENT_USER|LOCAL_MACHINE)\\') { $cur = $null; continue }
+                    $cur = ($k2 -replace '^HKEY_CURRENT_USER', 'HKCU') -replace '^HKEY_LOCAL_MACHINE', 'HKLM'
+                    continue
+                }
+                if (-not $cur) { continue }
+                if ($t.StartsWith('@=')) { Add-Pair $cat $idx $cur ''; continue }
+                $m2 = [regex]::Match($t, '^"([^"]+)"\s*=')
+                if ($m2.Success) { Add-Pair $cat $idx $cur $m2.Groups[1].Value }
+            }
+        }
     }
 }
 
@@ -310,32 +405,50 @@ Write-Output ("    kaynak tablo yazildi: {0}  ({1} ayar, {2} eksik)" -f $outPath
 $hdr = New-Object System.Text.StringBuilder
 [void]$hdr.AppendLine('// tools/make_tweak_table.ps1 tarafindan uretilir -- elle duzenleme.')
 [void]$hdr.AppendLine('//')
-[void]$hdr.AppendLine('// Her ayarin dokundugu registry anahtarlari. src\core\backup.cpp bunu okuyarak')
-[void]$hdr.AppendLine('// uygulama oncesi yedek alir; elle tutulan bir liste olsaydi yedek kapsami')
-[void]$hdr.AppendLine('// ayarlarin gercekten yazdigi yerlerden ayrilabilirdi.')
+[void]$hdr.AppendLine('// Her ayarin DOKUNDUGU (anahtar, deger adi) ciftleri. src\core\backup.cpp')
+[void]$hdr.AppendLine('// uygulamadan once bu ciftlerin mevcut degerlerini disa aktarir; geri alma')
+[void]$hdr.AppendLine('// yalnizca buradaki ciftlere yazabilir. Kapsam deger adina kadar iniyor,')
+[void]$hdr.AppendLine('// cunku yukseltme anahtar adinda degil deger adinda duruyor:')
+[void]$hdr.AppendLine('// HKLM\SYSTEM\CurrentControlSet\Control meşru bir yedek anahtarıdır ama')
+[void]$hdr.AppendLine('// icindeki Session Manager\BootExecute SYSTEM kodekosumu demekti.')
+[void]$hdr.AppendLine('//')
+[void]$hdr.AppendLine('// Elle tutulan bir liste olsaydi yedek kapsami ayarlarin gercekten')
+[void]$hdr.AppendLine('// yazdigi yerlerden ayrilabilirdi.')
 [void]$hdr.AppendLine()
 [void]$hdr.AppendLine('namespace tweakkeys')
 [void]$hdr.AppendLine('{')
-[void]$hdr.AppendLine('    struct Entry { int cat; int idx; const wchar_t* path; };')
+[void]$hdr.AppendLine('    // values: nullptr ile biten deger adi listesi. Bos liste olamaz;')
+[void]$hdr.AppendLine('    // varsayilan degerin adi bos dizedir, nullptr ile karistirilmaz.')
+[void]$hdr.AppendLine('    struct Entry { int cat; int idx; const wchar_t* path;')
+[void]$hdr.AppendLine('                   const wchar_t* const* values; };')
 [void]$hdr.AppendLine()
-[void]$hdr.AppendLine('    static const Entry kEntries[] =')
-[void]$hdr.AppendLine('    {')
 
-$uniq = New-Object System.Collections.Generic.HashSet[string]
-$entryCount = 0
+# Deger adi listeleri: her (kategori,sira,anahtar) cifti kendi dizisini aliyor.
+# (Bu degiskenin adi yukaridaki $arrays eslemesinden ayri olmali: ayni ada atamak
+# regpack yorum-dizisi eslemesini sessizce ezerdi.)
+$valueArrays = New-Object System.Text.StringBuilder
+$lines = New-Object System.Collections.Generic.List[string]
+$v = 0
 for ($c = 0; $c -lt $catCount; $c++) {
     for ($i = 0; $i -lt $rowsPerCat; $i++) {
-        $key = "$c,$i"
-        if (-not $keyRows.ContainsKey($key)) { continue }
-        foreach ($p in $keyRows[$key]) {
-            # Ayni anahtar birden fazla ayarda geciyorsa bir kez yeter; yedek tekrarli olmaz.
-            if (-not $uniq.Add($p)) { continue }
-            $esc = $p.Replace('\', '\\')
-            [void]$hdr.AppendLine("        { $c, $i, L`"$esc`" },")
-            $entryCount++
+        foreach ($p in @($pairs | Where-Object { $_.cat -eq $c -and $_.idx -eq $i })) {
+            $names = @($p.names)
+            if ($names.Count -eq 0) { continue }
+            $esc = $p.key.Replace('\', '\\')
+            $list = New-Object System.Collections.Generic.List[string]
+            foreach ($nm in $names) { $list += 'L"' + $nm.Replace('\', '\\') + '"' }
+            [void]$valueArrays.AppendLine("    static const wchar_t* const kVals$v[] = { " + ($list -join ', ') + ', nullptr };')
+            $lines.Add("        { $c, $i, L`"$esc`", kVals$v },")
+            $v++
         }
     }
 }
+$entryCount = $v
+
+[void]$hdr.AppendLine($valueArrays.ToString())
+[void]$hdr.AppendLine('    static const Entry kEntries[] =')
+[void]$hdr.AppendLine('    {')
+foreach ($l in $lines) { [void]$hdr.AppendLine($l) }
 
 [void]$hdr.AppendLine('    };')
 [void]$hdr.AppendLine()

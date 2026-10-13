@@ -157,6 +157,35 @@ namespace lang
             "The close button hides the window; the app keeps running in the tray",
             "Show window", "Go to page", "Exit",
 
+            // ---- Disk analyzer ----
+            "Disk Analyzer", "See what fills your drive",
+            "Pick a target and start the scan", "Browse folder...", "MFT fast scan", "Parallel walk",
+            "Run as admin for instant MFT scans",
+            "Scanning", "files", "on disk", "total",
+            "cancelled", "scan failed",
+            "Map", "List", "Types", "Duplicates",
+            "Back", "Other", "Largest files here", "File types",
+            "Recycle", "Delete forever", "Show in Explorer", "Open",
+            "Save scan", "Load last scan",
+            "Delete %d item(s)?", "%d item(s) moved to the Recycle Bin", "%d item(s) deleted", "Delete failed",
+            "System folder", "loaded from cache",
+            "Find duplicates", "Hashing files...", "No duplicates found", "%d groups", "wasted",
+            "Keep one, recycle rest", "Stop", "DRIVES",
+            "%u with unreadable size", "compressed", "sparse", "encrypted",
+            "link", "offline", "+stream", "hard link", "size unknown",
+            "owner", "name unresolved",
+            "MFT reader threads",
+
+            // ---- Medya adası ----
+            "Media Island", "A floating player that follows your music",
+            "Show the island", "A bar floats above the desktop with the current track",
+            "Island theme", "Only on desktop", "Stay hidden while another window is in front",
+            "Synced lyrics", "Lyrics are looked up online as the song plays",
+            "Player is closed", "Open Spotify",
+            "Loading lyrics...", "No synced lyrics",
+            "INSERT - show / hide", "Hover - expand, wheel - volume",
+            "Desktop mode", "ON", "OFF",
+
             // ---- TweakNames: 10 kategori x 8 satır ----
             // Performans
             "Ultimate power plan", "Disable background apps", "Optimize visual effects",
@@ -443,6 +472,35 @@ namespace lang
             "Kapatınca arka planda çalışmaya devam et",
             "Kapat düğmesi pencereyi gizler; uygulama tepside çalışmayı sürdürür",
             "Pencereyi aç", "Sayfaya git", "Çık",
+
+            // ---- Disk analizörü ----
+            "Disk Analizörü", "Diskini neyin doldurduğunu gör",
+            "Hedefi seç ve taramayı başlat", "Klasör seç...", "MFT hızlı tarama", "Paralel gezi",
+            "Anında MFT taraması için yönetici olarak çalıştır",
+            "Taranıyor", "dosya", "diskte", "toplam",
+            "iptal edildi", "tarama başarısız",
+            "Harita", "Liste", "Türler", "Yinelenenler",
+            "Geri", "Diğer", "Buradaki en büyük dosyalar", "Dosya türleri",
+            "Çöpe at", "Kalıcı sil", "Explorer'da göster", "Aç",
+            "Taramayı kaydet", "Son taramayı yükle",
+            "%d öğe silinsin mi?", "%d öğe Geri Dönüşüm Kutusu'na taşındı", "%d öğe silindi", "Silme başarısız",
+            "Sistem klasörü", "önbellekten yüklendi",
+            "Yinelenenleri bul", "Dosyalar adresleniyor...", "Yinelenen bulunamadı", "%d grup", "boşa giden",
+            "Birini tut, gerisini çöpe at", "Durdur", "SÜRÜCÜLER",
+            "%u dosyanın boyutu okunamadı", "sıkıştırılmış", "seyrek", "şifreli",
+            "bağ", "çevrimdışı", "+veri akışı", "sert bağlantı", "boyutu bilinmiyor",
+            "sahip", "ad çözülemedi",
+            "MFT okuma iş parçacığı",
+
+            // ---- Medya adası ----
+            "Medya Adası", "Müziğini takip eden yüzen oynatıcı",
+            "Adayı göster", "Çalan parça, masaüstünün üstünde yüzen bir çubukta",
+            "Ada teması", "Yalnızca masaüstünde", "Başka bir pencere öndeyken gizli kal",
+            "Senkronize sözler", "Sözler parça çalınırken çevrimiçi aranır",
+            "Oynatıcı kapalı", "Spotify'ı aç",
+            "Sözler yükleniyor...", "Senkronize söz yok",
+            "INSERT - göster / gizle", "Üzerine gel - genişlet, tekerlek - ses",
+            "Masaüstü modu", "AÇIK", "KAPALI",
 
 
             // ---- TweakNames: 10 kategori x 8 satır ----

@@ -5,7 +5,8 @@ namespace tweaks
     bool Read(int category, int index);
     bool Apply(int category, int index, bool enable);
 
-    // 4-6. kategoriler .reg gövdesi olarak gelir; birini uygulamak tek reg.exe geçişi demektir.
+    // 4-9. kategoriler gömülü gövde olarak gelir; birini uygulamak tek çözümleme
+    // ve tek yazma geçişi demektir (regpack::Import).
     bool IsRegPack(int category);
 
     // Bazı registry değerleri birden çok anahtar tarafından sahiplenilir

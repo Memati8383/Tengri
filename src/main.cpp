@@ -13,8 +13,10 @@
 #include "core/notify.hpp"
 #include "core/update.hpp"
 #include "core/sample_data.hpp"
+#include "core/island.hpp"
 #include <d3d11.h>
 #include <dwmapi.h>
+#include "core/selfgate.hpp"
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "d3d11.lib")
@@ -108,6 +110,83 @@ static void ShowFromTray(HWND hwnd)
     ::SetForegroundWindow(hwnd);
 }
 
+// ---- çökme kaydı ------------------------------------------------------------
+// Yakalanmayan bir istisna (0xC0000005 erişim ihlali en sık olanı) uygulamayı
+// sessizce kapatır: kullanıcı yalnızca "siyah ekran, sonra kapandı" görür,
+// nedenini ise Windows Olay Görüntüleyicisi'nde sadece ham bir adres olarak
+// bulur. Burada RIP, hata kodu ve yığındaki dönüş adresleri TEMP'e yazılır;
+// exe RVA'sı bir sonraki derlemenin haritasıyla eşleştirilip gerçek satır
+// bulunabilir.
+static void WriteCrashReport(EXCEPTION_POINTERS* ep)
+{
+    wchar_t path[MAX_PATH] = {};
+    if (!::GetTempPathW(MAX_PATH, path)) return;
+    wcscat_s(path, L"tengri_crash.log");
+
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, path, L"w, ccs=UTF-8") != 0 || !f) return;
+
+    EXCEPTION_RECORD* r  = (ep && ep->ExceptionRecord) ? ep->ExceptionRecord : nullptr;
+    CONTEXT*           cx = (ep && ep->ContextRecord) ? ep->ContextRecord : nullptr;
+    if (!cx) return;
+    const unsigned long long rip = (unsigned long long)cx->Rip;
+
+    // exe taban adresi: RVA = RIP - taban
+    HMODULE self = ::GetModuleHandleW(nullptr);
+    const unsigned long long base = (unsigned long long)self;
+
+    fwprintf(f, L"TENGRI crash\n");
+    fwprintf(f, L"exception code : 0x%08X\n", r ? r->ExceptionCode : 0);
+    fwprintf(f, L"exception flags: 0x%08X\n", r ? r->ExceptionFlags : 0);
+    if (r && r->ExceptionRecord)
+        fwprintf(f, L"inner          : 0x%08X\n", r->ExceptionRecord->ExceptionCode);
+    // ExceptionInformation sayısı bir bit alanıdır; yalnızca anlamlı olan kodda
+    // okunur (erişim ihlali / ihlal-dışı): [0]=okuma/yazma, [1]=adres.
+    if (r && r->ExceptionCode == EXCEPTION_ACCESS_VIOLATION)
+        fwprintf(f, L"fault          : %s, address 0x%016llX\n",
+                 r->ExceptionInformation[0] ? L"WRITE" : L"READ",
+                 (unsigned long long)r->ExceptionInformation[1]);
+    if (r && r->ExceptionCode == EXCEPTION_ILLEGAL_INSTRUCTION)
+        fwprintf(f, L"fault          : illegal instruction 0x%016llX\n",
+                 (unsigned long long)r->ExceptionInformation[0]);
+    fwprintf(f, L"rip            : 0x%016llX\n", rip);
+    fwprintf(f, L"image base     : 0x%016llX\n", base);
+    if (self)
+        fwprintf(f, L"exe RVA        : 0x%08llX\n", rip - base);
+
+    // Yığın: RBP zinciri. /Oyse /O2'de her zaman geçerli değildir ama çökmeyi
+    // daraltmak için elde ne varsa yazar.
+    unsigned long long* frame = (unsigned long long*)cx->Rbp;
+    const unsigned long long rsp = cx->Rsp;
+    fwprintf(f, L"rsp            : 0x%016llX\n", rsp);
+    fwprintf(f, L"rbp            : 0x%016llX\n", cx->Rbp);
+    for (int i = 0; i < 32 && frame; ++i)
+    {
+        unsigned long long* slot = frame + 1;
+        if ((unsigned long long)slot < rsp) break;
+        unsigned long long ret = *slot;
+        fwprintf(f, L"  frame[%2d] ret=0x%016llX rva=0x%08llX\n",
+                 i, ret, self ? ret - base : 0);
+        frame = (unsigned long long*)(*frame);
+        if ((unsigned long long)frame < rsp || ((unsigned long long)frame & 7)) break;
+    }
+    fclose(f);
+}
+
+static LONG WINAPI CrashFilter(EXCEPTION_POINTERS* ep)
+{
+    // Yalnızca gerçek erişim ihlali/ihlal-dışı kodlar kaydedilir; işlenmiş
+    // hatalarda (SEH kullanılan DLL'ler) gürültü üretmesin.
+    const DWORD code = ep->ExceptionRecord->ExceptionCode;
+    if (code == 0xC0000005 || code == 0xC000001D || code == 0xC0000374 ||
+        code == 0xC00000FD || code == 0xC0000139 || code == 0xC0000135 ||
+        code == 0xE06D7363)
+    {
+        WriteCrashReport(ep);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
 // ---- tek örnek kilidi -------------------------------------------------------
 // Windows bildirimlerindeki düğmeler uygulamayı YENİDEN başlatır; Windows'un
 // tek yapabildiği budur. Bu exe kendi başına ikinci bir pencere açtığında
@@ -152,13 +231,54 @@ static std::wstring SingleMutexName()
     return L"Local\\TENGRI_" + leaf;
 }
 
-static bool ForwardToRunningInstance(const wchar_t* args)
+// ---- WM_COPYDATA gondereninin kimligi ---------------------------------------
+// WM_COPYDATA, ayni oturumdaki HER surecin bize acabildigi bir kanaldir; UIPI
+// yalnizca daha Dusuk bileskelik seviyesindeki gonderenleri engeller. Gonderenin
+// kimligi iki adimda belirleniyor: wParam'deki pencerenin pid'si, sonra o pid'in
+// bizim exemiz olup olmadigi (selfgate.hpp).
+static bool SenderIsOurs(HWND from)
+{
+    if (!from || !::IsWindow(from)) return false;
+    DWORD pid = 0;
+    ::GetWindowThreadProcessId(from, &pid);
+    return selfgate::IsSelf(pid);
+}
+
+// Iletim penceresi: WM_COPYDATA'da gonderen imzasi wParam'deki penceredir. Ikinci
+// orneğin kendi adina kayitli bir penceresi olmazsa gonderen ya alicinin kendi
+// penceresini (yani alicinin pid'sini) yazar - ki hicbir sey kanitlamaz - ya da
+// kimliksiz kaldigi icin reddedilir.
+static const wchar_t* kForwardClass = L"TENGRI.Forward";
+
+static HWND CreateForwardWindow(HINSTANCE instance)
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        WNDCLASSEXW wc = { sizeof(wc) };
+        wc.lpfnWndProc   = ::DefWindowProcW;
+        wc.hInstance     = instance;
+        wc.lpszClassName = kForwardClass;
+        if (!::RegisterClassExW(&wc) && ::GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
+            return nullptr;
+        registered = true;
+    }
+    // HWND_MESSAGE: mesaj-only pencere; ekranda hicbir sey gorunmez.
+    return ::CreateWindowExW(0, kForwardClass, L"TENGRI", 0, 0, 0, 0, 0,
+                             HWND_MESSAGE, nullptr, instance, nullptr);
+}
+
+static bool ForwardToRunningInstance(HINSTANCE instance, const wchar_t* args)
 {
     if (!g_singleMutex)
         return false;
 
     HWND hwnd = ::FindWindowW(brand::kWindowClass, nullptr);
     if (!hwnd)
+        return false;
+
+    HWND self = CreateForwardWindow(instance);
+    if (!self)
         return false;
 
     const std::wstring payload = args ? args : L"";
@@ -171,8 +291,9 @@ static bool ForwardToRunningInstance(const wchar_t* args)
     // Zaman aşımı: alıcı bir kare boyunca yanıt vermezse (kilitli, donmuş)
     // gönderen sonsuza kadar beklememeli; kendisi yeni örnek olur.
     DWORD_PTR ok = 0;
-    ::SendMessageTimeoutW(hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&cds,
+    ::SendMessageTimeoutW(hwnd, WM_COPYDATA, (WPARAM)self, (LPARAM)&cds,
                           SMTO_ABORTIFHUNG, 2000, &ok);
+    ::DestroyWindow(self);
     return true;
 }
 
@@ -188,9 +309,11 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
     case WM_COPYDATA:
     {
-        // Başka bir örnekten gelen bildirim komutu.
+        // Başka bir örnekten gelen bildirim komutu. SenderIsOurs: ayni kullanicinin
+        // ayni exe'sinden gelmeyen komut yok sayilir (aciklamasi yukarida).
         const COPYDATASTRUCT* cds = (const COPYDATASTRUCT*)lParam;
-        if (cds && cds->dwData == WM_USER + 1 && cds->lpData && cds->cbData >= sizeof(wchar_t))
+        if (cds && cds->dwData == WM_USER + 1 && cds->lpData && cds->cbData >= sizeof(wchar_t)
+            && SenderIsOurs((HWND)wParam))
         {
             const std::wstring args((const wchar_t*)cds->lpData, cds->cbData / sizeof(wchar_t) - 1);
 
@@ -268,6 +391,19 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 {
+    // Ayar yuklenmeden once: bundan sonra yapilacak her ad-yuklemesi (gecikmeli
+    // baglar dahil) yalnizca System32'den cozulsun. Varsayilan arama sirasi
+    // uygulamanin kendi klasoruyle o anki calisma klasorunden baslar ve ikisi de
+    // ayni kullanicinin yazabildigi yerler. Olculdu: uygulama klasoruna konan
+    // ihracatsiz ayni adli DLL, gecikmeli baglari bayraksiz kosumda devraliyordu
+    // (process 0xC0000139 ile sonlaniyordu); bayrakla dortü de SYSTEM32'den acildi.
+    SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+    // Sessiz kapanmaları teşhis edilebilir kılmak için: yakalanmayan istisna
+    // TEMP\tengri_crash.log'a yazılır. İlk satırda (hiçbir pencere açılmadan
+    // önce) kurulur, çökme arayüz kurulurken de olsa kaydedilir.
+    ::SetUnhandledExceptionFilter(CrashFilter);
+
     // Yükseltilmiş yeniden başlatma: kullanıcı bir yazan iş istedi, süreç "runas" ile
     // bu exe'yi yüksek yetkiyle yeniden açtı ve bekleyen işi komut satırında taşıdı.
     // Burada hiçbir arayüz oluşturmadan iş uygulanır ve süreç çıkar. Normal açılışta
@@ -327,7 +463,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
             if (alreadyRunning)
             {
                 // Komut varsa çalışan örneğe ilet, yoksa yalnızca öne getir.
-                if (ForwardToRunningInstance(launchArgs.empty() ? nullptr : launchArgs.c_str()))
+                if (ForwardToRunningInstance(hInstance, launchArgs.empty() ? nullptr : launchArgs.c_str()))
                 {
                     LocalFree(argv);
                     return 0;
@@ -453,7 +589,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
     io.LogFilename = nullptr;
-
     theme::Init(scale);
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_device, g_context);
@@ -461,6 +596,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     // Marka dokusu, arayüz ilk kez çizilmeden önce hazır olmalı: hazır değilse
     // DrawLogo yedeğe düşer ve bir sonraki karede dokunmayı denemez.
     logo::Init(g_device);
+
+    // Medya adası kendi karesini BU cihaz üzerinde çizer: kendi bir D3D11
+    // cihazı ve kendi bir ImGui bağlamı YOK. İkisi de ayrı olsaydı iki yüzey
+    // aynı anda yaşayamazdı — imgui_impl_dx11'in vertex buffer'ları tek bir
+    // cihaza aittir, ikinci bir cihazda RenderDrawData geçersiz adreslere
+    // yazar, ana pencere siyah kalır ve ada kapatılınca uygulama 0xC0000005
+    // ile çöker. Paylaşım app::Init'ten ÖNCE olmalı: app::Init ada
+    // ayarlarını okuyup pencereyi ilk karede kuruyor.
+    island::SetSharedD3D(g_device, g_context);
 
     app::Init(hwnd, corner);
     tray::Init(hwnd, hInstance);
@@ -470,7 +614,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     ::ShowWindow(hwnd, SW_SHOWNOACTIVATE);
     ::SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 #else
-    ::ShowWindow(hwnd, SW_SHOWDEFAULT);
+    // SW_SHOWDEFAULT, STARTUPINFO'daki wShowWindow'a bakar. O alan ShellExecute /
+    // Start-Process ile açılışta 0 (SW_HIDE) kalabiliyor; bu durumda pencere
+    // "gösterilmiş" sayılır ama gerçekte görünmez — uygulama siyah ekranda
+    // kalıp kayboluyor. Düzeltme yolu her zaman büyük harf SW_SHOWNORMAL'dır.
+    ::ShowWindow(hwnd, SW_SHOWNORMAL);
 #endif
     ::UpdateWindow(hwnd);
 
@@ -525,6 +673,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
                 ShowFromTray(hwnd);
             }
             tray::Tick();
+            // Kare atlanan yolda ada yine çizilmeli; aksi hâlde tepsideyken ya
+            // da pencere örtülüyken donmuş kalır.
+            island::Frame();
             ::Sleep(16);
             continue;
         }
@@ -551,6 +702,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 
         const HRESULT hr = g_swapChain->Present(1, 0); // dikey eşitleme
         g_occluded = (hr == DXGI_STATUS_OCCLUDED);
+
+        // Ada UYGULAMANIN KARESİNDEN SONRA çizilir. Ada artık kendi ImGui
+        // karesini açmıyor (paylaşılan bağlamda ikinci NewFrame(), ana
+        // pencerenin pencerelerinin WasActive/ActiveId defterini sıfırlar ve
+        // arayüzün hiçbir yerine tıklanamaz hâle getirirdi); kendi ImDrawList
+        // ve ImDrawData'sını doğrudan DX11 backend'ine verir. Yazı tipi
+        // atlasını bu turun ilk yarısı yüklediği için sıra burada önemli.
+        island::Frame();
 
         if (app::WantsQuit())
             done = true;

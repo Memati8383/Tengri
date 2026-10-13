@@ -20,9 +20,12 @@
 #include "core/sample_data.hpp"
 #include "core/services.hpp"
 #include "core/update.hpp"
+#include "core/diskanalyzer.hpp"
+#include "core/island.hpp"
 #include "tray.hpp"
 #include "brand.hpp"
 #include <shellapi.h>
+#include <shobjidl.h>
 #include "imgui_internal.h"
 #include <string>
 #include <vector>
@@ -31,10 +34,12 @@
 #include <mutex>
 #include <atomic>
 #include <random>
+#include <unordered_set>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <algorithm>
+#include <ctime>   // DiskDateText: localtime_s
 
 #pragma comment(lib, "version.lib")
 
@@ -136,16 +141,60 @@ namespace app
         std::vector<cleaner::ScanResult> g_scanResults;
         double     g_freedReal = 0.0;
 
-        // Temizleyici %TEMP% içini recursive olarak siler, regpack ise import .reg dosyasını
-// oraya yazar. Aynı anda bir temizlik çalışırsa reg.exe'in okuduğu dosya silinir. Bu
-// bayrak ikisini karşılıklı olarak birbirini dışlayan hale getirir.
+        // Temizlik ve ayar uygulama ayni anda kosmaz. Eskiden bunun sebebi
+        // regpack'in import dosyasini %TEMP%'e yazmasi ve temizleyicinin orayi
+        // silmesiydi; artik govdeler dosyaya yazilmadi. Bayraklar yine de kaliyor:
+        // ikisi de kullaniciya "istemcide ne oluyor" mesajini veren uzun isiqlar ve
+        // birisi bitmeden digerinin baslamamasi arayuzde tek bir mesgul gorunumu
+        // demek.
         std::atomic<bool> g_cleaning{ false };
         std::atomic<bool> g_applyingReg{ false };
 
+        // ---- disk analizi durumu -------------------------------------------------
+        // Ağaç tek paylaşılabilir durum; Scanner kendi kilidiyle korunur (Lock/
+        // Unlock). Silme işi IFileOperation kullandığı için STA işçi thread'inde
+        // koşar; kapanışta JoinAll() bekler.
+        disk::Scanner g_disk;
+
+        struct DiskJob
+        {
+            std::thread worker;
+            std::mutex  mtx;
+            bool busy = false, done = false, ok = false, recycle = true;
+            int  attempted = 0;
+            std::wstring err;
+        };
+        DiskJob g_diskJob;
+
+        // JoinAll disk nesnelerinden sonra tanimli: hepsini birden bekliyor,
+        // dolayisiyla hicbiri bildirilmeden kullanilamaz.
         void JoinAll()
         {
             if (g_scanJob.worker.joinable())  g_scanJob.worker.join();
             if (g_cleanJob.worker.joinable()) g_cleanJob.worker.join();
+            g_disk.Join();
+            if (g_diskJob.worker.joinable())  g_diskJob.worker.join();
+        }
+
+        void StartDiskDelete(std::vector<std::wstring> paths, bool recycle)
+        {
+            if (g_diskJob.busy) return;
+            if (g_diskJob.worker.joinable()) g_diskJob.worker.join();
+            g_diskJob.busy    = true;
+            g_diskJob.done    = false;
+            g_diskJob.recycle = recycle;
+            g_diskJob.worker  = std::thread([paths, recycle] {
+                disk::Scanner::DeleteResult r;
+                bool ok = disk::Scanner::DeletePaths(paths, recycle, r);
+                std::lock_guard<std::mutex> lk(g_diskJob.mtx);
+                g_diskJob.done = true; g_diskJob.ok = ok; g_diskJob.attempted = r.attempted;
+                g_diskJob.err  = std::move(r.error);
+            });
+        }
+
+        std::string WideToUtf8(const std::wstring& w)
+        {
+            return disk::Utf16ToUtf8(w.data(), (int)w.size());
         }
 
         struct CatKey { S::Key nameKey, descKey; };
@@ -262,6 +311,12 @@ namespace app
         // kurmaktan kurtarır. Bayrak yoksa düğme hiç üretilmez.
         bool     g_hasRetry    = false;
         elevate::Pending g_retry;
+
+        // Bildirimden gelen "Tekrar dene" kisa bir sure boyunca yinelenemez: her
+        // kabul yeni bir UAC kapisi acar. Kullanici reddettiyse ikinci soru da ayni
+        // cevabi verecek; ard arda acilan kapilar yanilgi dogurur (prompt fatigue).
+        constexpr ULONGLONG kRetryCooldownMs = 10000;
+        ULONGLONG g_lastRetryTick = 0;
 
         void CollectPendingFromPages(elevate::Pending& p)
         {
@@ -391,10 +446,10 @@ void NotifyDelegating(const elevate::Pending& p);
                       notify::TargetSettings);
         }
 
-        constexpr int kTabCount = 9;
-        const Icon kTabIcons[] = { Icon::Dashboard, Icon::Cleaner, Icon::Tweaks, Icon::Network, Icon::Monitor, Icon::Settings, Icon::Info, Icon::Bolt, Icon::Chip };
-        const S::Key kTabNameKeys[] = { S::Dashboard, S::Cleaner, S::Tweaks, S::Network, S::SystemInfo, S::Settings, S::About, S::Startup, S::Services };
-        const S::Key kTabSubKeys[]  = { S::DashOverview, S::CleanDesc, S::TweakDesc, S::NetDesc, S::SysInfoDesc, S::SettDesc, S::AboutDesc, S::StartupDesc, S::ServicesDesc };
+        constexpr int kTabCount = 10;
+        const Icon kTabIcons[] = { Icon::Dashboard, Icon::Cleaner, Icon::Tweaks, Icon::Network, Icon::Monitor, Icon::Settings, Icon::Info, Icon::Bolt, Icon::Chip, Icon::Disk };
+        const S::Key kTabNameKeys[] = { S::Dashboard, S::Cleaner, S::Tweaks, S::Network, S::SystemInfo, S::Settings, S::About, S::Startup, S::Services, S::Disk };
+        const S::Key kTabSubKeys[]  = { S::DashOverview, S::CleanDesc, S::TweakDesc, S::NetDesc, S::SysInfoDesc, S::SettDesc, S::AboutDesc, S::StartupDesc, S::ServicesDesc, S::DiskDesc };
 
         // Sekmeye geç. Ana ekran açıksa değişim hemen yapılır; giriş/lisans
         // ekranlarında yalnızca hedef kaydedilir, ana ekrana dönülünce
@@ -671,7 +726,7 @@ void NotifyDelegating(const elevate::Pending& p);
 
         void StartClean()
         {
-            if (g_applyingReg.load()) return;   // şu anda bir tweak import'u %TEMP% üzerinde sahip
+            if (g_applyingReg.load()) return;   // ayar uygulaması sürüyor
             g_cleaning.store(true);
             g_freed = 0.0f;
             for (Category& c : g_cats)
@@ -1182,8 +1237,7 @@ void NotifyDelegating(const elevate::Pending& p);
                 }
 
                 int on = 0, fail = 0, written = 0;
-                // Uygulama boyunca tutulur: regpack import .reg dosyasını %TEMP% altına yazar,
-                // çalışan bir temizleyici bu dosyayı reg.exe'in elinden siler.
+                // Uygulama boyunca tutulur: temizleyici bu surede calismaz.
                 g_applyingReg.store(true);
 
                 if (g_dirtyAny[c])
@@ -1612,8 +1666,7 @@ void NotifyDelegating(const elevate::Pending& p);
             const float bw1 = px(112), bw2 = px(132), bh = px(40);
 
             ImGui::SetCursorScreenPos(ImVec2(p.x + cw - px(22) - bw2 - px(10) - bw1, p.y + px(24)));
-            // Bir tweak import'u çalışırken %TEMP% üzerinde sahip; temizleyici bu yüzden
-            // .reg dosyasını içeri aktarma sırasında silmek yerine uygulama bitene kadar pasif kalır.
+            // Bir ayar uygulamasi surerken temizlik baslatilamaz.
             const bool cleanerBlocked = cleaning || g_applyingReg.load();
 
             ImGui::SetCursorScreenPos(ImVec2(p.x + cw - px(22) - bw2 - px(10) - bw1, p.y + px(24)));
@@ -1810,7 +1863,7 @@ void NotifyDelegating(const elevate::Pending& p);
             std::vector<Tweak>& list = g_tweaks[g_tweakCat];
             const float bh = px(38), bwA = px(112), bwR = px(96);
             ImGui::SetCursorScreenPos(ImVec2(p.x + cw - bwA, p.y));
-            // Uygulama %TEMP% içine bir import .reg yazar, bu yüzden ikisi birbirini dışlar.
+            // Temizlik calisirken ayar uygulanamaz (ikisi birden mesgul gorunur).
             ImGui::BeginDisabled(!g_dirtyAny[g_tweakCat] || g_applying || g_cleaning.load());
             if (ui::Button(g_dirtyAny[g_tweakCat] ? L(ApplyChanges) : L(NoChanges),
                            ImVec2(bwA, bh), ButtonStyle::Primary, Icon::Check, g_applying))
@@ -2295,6 +2348,48 @@ void NotifyDelegating(const elevate::Pending& p);
                 ui::ToggleCard(L(RememberLicense), nullptr, &g_remember, w, false);
             }
             ui::EndCard();
+
+            // Medya adası. Kendi kartı olmasının nedeni ayar sayısı: açık/
+            // kapalı, tema, masaüstü modu ve sözler tek bir yerde toplanınca
+            // "genel" kartı dağılmadan okunur. Anahtar değişimi anında etkir,
+            // yeniden başlatma gerekmez.
+            ui::BeginCard("##island", colw, L(IslandHeading), L(IslandDesc));
+            {
+                const float w = ImGui::GetContentRegionAvail().x;
+
+                const bool prevIsland = island::enabled;
+                ui::ToggleCard(L(IslandEnabled), L(IslandEnabledDesc), &island::enabled, w, false);
+                if (island::enabled != prevIsland)
+                    island::Save();
+
+                if (island::enabled)
+                {
+                    const bool prevDesk = island::desktopOnly;
+                    const bool prevLyr  = island::lyrics;
+
+                    ui::ToggleCard(L(IslandDesktopOnly), L(IslandDesktopOnlyDesc), &island::desktopOnly, w, false);
+                    ui::ToggleCard(L(IslandLyrics), L(IslandLyricsDesc), &island::lyrics, w, false);
+                    if (island::desktopOnly != prevDesk || island::lyrics != prevLyr)
+                        island::Save();
+
+                    ImGui::Dummy(ImVec2(0, px(2)));
+                    ui::SectionLabel(L(IslandTheme));
+                    // Ada adları modülün kendisinden okunur. Burada ikinci bir
+                    // liste tutsaydı yeni bir tema eklendiğinde ayar sayfası
+                    // sessizce eskiden kalırdı.
+                    static const char* islandThemes[8] = {};
+                    for (int i = 0; i < island::ThemeCount() && i < 8; ++i)
+                        islandThemes[i] = island::ThemeName(i);
+
+                    int themeIdx = island::theme;
+                    if (ui::Segmented("##islandTheme", islandThemes, island::ThemeCount(), &themeIdx, w))
+                    {
+                        island::theme = themeIdx;
+                        island::Save();
+                    }
+                }
+            }
+            ui::EndCard();
             ImGui::EndGroup();
 
             ImGui::SameLine(0, gap);
@@ -2467,7 +2562,7 @@ void NotifyDelegating(const elevate::Pending& p);
             // ---- 3. yetenek ızgarası --------------------------------------------
             // Sekmelerin adı ve açıklaması zaten çevrili; burada yeniden yazılmıyor,
             // aynı tablo gezinme olarak kullanılıyor.
-            static const int kCaps[] = { 1, 2, 3, 8, 7, 4 };
+            static const int kCaps[] = { 1, 9, 2, 3, 8, 7, 4 };
             const int   nCaps = (int)(sizeof(kCaps) / sizeof(kCaps[0]));
             const int   nRows = (nCaps + 1) / 2;
             const float colGap = px(28);
@@ -2852,6 +2947,1010 @@ void NotifyDelegating(const elevate::Pending& p);
             if (wantRefresh) RefreshServices();
         }
 
+        // ================================================================== disk analizi
+        // Ağaç canlı paylaşımdır; her okuma g_disk kilidi altında. Tarama sürerken
+        // MFT yayınları indeksleri yeniden kurduğu için dizin yığını/seçim yalnız
+        // Durum=Done üzerinde kalıcıdır; tarama sırasında kök çocukları gösterilir.
+        int                     g_diskView  = 0;          // 0 Harita 1 Liste 2 Türler 3 Yinelenen
+        // MFT okuma dilim sayısı; yalnız bir tarama BAŞLARKEN motora yazılır,
+        // çalışan tarama kendi sayısıyla biter. Varsayılan mantıksal çekirdek
+        // sayısı (1-8 arası): ölçülen 8 dilim 1,27 GB $MFT'yi 1,5 s'de okuyor.
+        int                     g_diskThreads = disk::DefaultMftThreadCount();
+        std::vector<int>        g_diskDrill;              // [0]=kök ... şu anki klasör
+        std::unordered_set<int> g_diskSel;
+        std::vector<disk::Source> g_diskSources;
+        double                  g_diskSourcesAt = -100.0;
+        int                     g_diskSrcSel    = -1;
+        std::wstring            g_diskFolderPicked;
+        bool                    g_diskCacheHinted = false;
+        bool                    g_diskCacheLoaded = false;
+        int                     g_diskCtxNode     = -1;
+        int                     g_diskConfirmKind = -1;   // -1 yok 0 çöp 1 kalıcı
+        std::vector<std::wstring> g_diskConfirmPaths;
+        std::vector<int>        g_diskBigFiles;
+        int                     g_diskBigFor = -2;
+        bool                    g_diskAutoSaved = false;   // Done'a geçince bir kez
+
+        std::string DiskSizeText(uint64_t bytes)
+        {
+            double x = (double)bytes; const char* u = "B";
+            if (x >= 1024.0) { x /= 1024.0; u = "KB"; }
+            if (x >= 1024.0) { x /= 1024.0; u = "MB"; }
+            if (x >= 1024.0) { x /= 1024.0; u = "GB"; }
+            if (x >= 1024.0) { x /= 1024.0; u = "TB"; }
+            char b[40];
+            snprintf(b, sizeof b, x >= 100.0 ? "%.0f %s" : "%.1f %s", x, u);
+            return b;
+        }
+
+        // Düğüm bayrakları (disk::NodeFlag) tek satırlık not olur: "sıkıştırılmış ·
+        // +veri akışı". Boyutu okunamayan dosya burada da, özet satırında da
+        // görünür — 0'ı gerçek sanma riski yok.
+        std::string DiskFlagNote(uint16_t flags)
+        {
+            if (!flags) return {};
+            static const struct { uint16_t bit; S::Key key; } kNote[] = {
+                { disk::kFlagCompressed,  S::DiskFlagCompressed  },
+                { disk::kFlagSparse,      S::DiskFlagSparse      },
+                { disk::kFlagEncrypted,   S::DiskFlagEncrypted   },
+                { disk::kFlagReparse,     S::DiskFlagReparse     },
+                { disk::kFlagOffline,     S::DiskFlagOffline     },
+                { disk::kFlagAds,         S::DiskFlagAds         },
+                { disk::kFlagHardLink,    S::DiskFlagHardLink    },
+                { disk::kFlagSizeUnknown, S::DiskFlagSizeUnknown },
+            };
+            std::string s;
+            for (const auto& e : kNote)
+                if (flags & e.bit) { if (!s.empty()) s += " \xC2\xB7 "; s += lang::Get(e.key); }
+            return s;
+        }
+
+        // Unix saniye → YYYY-AA-GG. Sayısal biçim dil tarafsız olduğu için
+        // yerelleştirme anahtarı gerektirmez; 0 = zaman okunamadı.
+        std::string DiskDateText(uint32_t epochSeconds)
+        {
+            if (!epochSeconds) return {};
+            time_t t = (time_t)epochSeconds;
+            struct tm tmv;
+            if (localtime_s(&tmv, &t) != 0) return {};
+            char b[16];
+            snprintf(b, sizeof b, "%04d-%02d-%02d", tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday);
+            return b;
+        }
+
+        // Uzantıya göre kararlı renk tonu: aynı uzantı her zaman aynı renk.
+        ImU32 ExtColor(const std::string& ext)
+        {
+            uint32_t h = 2166136261u;
+            for (char c : ext) { h ^= (unsigned char)c; h *= 16777619u; }
+            float hue = (float)(h % 360) / 359.0f;
+            float r, g, b;
+            ImGui::ColorConvertHSVtoRGB(hue, 0.58f, 0.78f, r, g, b);
+            return IM_COL32((int)(r * 255), (int)(g * 255), (int)(b * 255), 255);
+        }
+
+        bool DiskPickFolder(std::wstring& out)
+        {
+            HRESULT ci = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+            bool ok = false;
+            IFileOpenDialog* dlg = nullptr;
+            if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&dlg))))
+            {
+                dlg->SetOptions(FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
+                if (SUCCEEDED(dlg->Show(g_hwnd)))
+                {
+                    IShellItem* si = nullptr;
+                    if (SUCCEEDED(dlg->GetResult(&si)))
+                    {
+                        PWSTR p = nullptr;
+                        if (SUCCEEDED(si->GetDisplayName(SIGDN_FILESYSPATH, &p)))
+                        { out = p; CoTaskMemFree(p); ok = true; }
+                        si->Release();
+                    }
+                }
+                dlg->Release();
+            }
+            if (ci == S_OK) CoUninitialize();
+            return ok;
+        }
+
+        int DiskCurNode() { return g_diskDrill.empty() ? g_disk.Root() : g_diskDrill.back(); }
+
+        struct DiskCell
+        {
+            int         id    = -1;      // -1: "Diğer" yığını
+            std::string name;
+            uint64_t    bytes = 0;
+            ImU32       col   = 0;
+            bool        dir   = false;
+            bool        prot  = false;
+            uint16_t    flags = 0;       // disk::NodeFlag bitleri
+            uint32_t    mtime = 0;       // unix saniye, 0 = okunamadı
+        };
+
+        // İmleç kutusunun sahip satırı: düğümün security-id'si $SDS sözlüğünden
+        // ham SID'e çevrilir, SID→ad çözümünü arka plan işçisi yapar (bkz.
+        // Scanner::OwnerOfLocked). Yürüyüş motorunda sahip hiç okunmaz ve MFT
+        // kaydında id yoksa da 0'dır: her iki durumda dürüst değer '-'.
+        std::string DiskOwnerText(int node)
+        {
+            if (node < 0) return {};
+            std::string label;
+            disk::OwnerState st;
+            g_disk.Lock();
+            st = g_disk.OwnerOfLocked(node, label);
+            g_disk.Unlock();
+            switch (st)
+            {
+            case disk::kOwnerResolved: return label;
+            case disk::kOwnerPending:  return label;   // ham SID; ad gelir gelmez değişir
+            case disk::kOwnerFailed:   return label + " \xC2\xB7 " + L(DiskOwnerUnresolved);
+            case disk::kOwnerNone:     return "-";
+            }
+            return {};
+        }
+
+        // İmleç kutusunun ikinci satırı: değişim tarihi ve bayrak notu. İkisi de
+        // yoksa hiçbir şey çizilmez — uydurma satır yok.
+        void DiskDrawCellMeta(const DiskCell& c)
+        {
+            const auto& F = theme::fonts;
+            std::string o = DiskOwnerText(c.id);
+            std::string d = DiskDateText(c.mtime);
+            std::string n = DiskFlagNote(c.flags);
+            if (!o.empty()) ui::Label(F.regular, theme::size::Meta, 0.65f, (std::string(L(DiskOwnerLabel)) + ": " + o).c_str());
+            if (!d.empty()) ui::Label(F.regular, theme::size::Meta, 0.5f, d.c_str());
+            if (!n.empty()) ui::Label(F.regular, theme::size::Meta, 0.75f, n.c_str());
+        }
+
+        // Bir düğümün çocuklarını boyuta göre azalan toplar. cap aşılırsa kalan
+        // boyut otherBytes'a katılır ve çağırana "-1" hücresi olarak çizdirilir.
+        void DiskGatherCells(int node, size_t cap, std::vector<DiskCell>& out, uint64_t* otherBytes)
+        {
+            out.clear();
+            if (otherBytes) *otherBytes = 0;
+            g_disk.Lock();
+            const auto& nodes = g_disk.Nodes();
+            const auto& pool  = g_disk.Pool();
+            const auto& exts  = g_disk.Exts();
+            if (node < 0 || node >= (int)nodes.size()) { g_disk.Unlock(); return; }
+            std::vector<int> kids;
+            for (int c = nodes[node].firstChild; c >= 0; c = nodes[c].nextSib) kids.push_back(c);
+            std::sort(kids.begin(), kids.end(),
+                      [&](int a, int b) { return nodes[a].alloc > nodes[b].alloc; });
+            const size_t n = kids.size() < cap ? kids.size() : cap;
+            out.reserve(n + 1);
+            for (size_t i = 0; i < n; ++i)
+            {
+                const disk::Node& nd = nodes[kids[i]];
+                DiskCell c;
+                c.id    = kids[i];
+                c.dir   = nd.dir != 0;
+                c.prot  = nd.protectedDir != 0;
+                c.flags = nd.flags;
+                c.mtime = nd.mtime;
+                c.bytes = nd.alloc ? nd.alloc : nd.size;
+                c.name  = std::string(pool.data() + nd.nameOff, nd.nameLen);
+                if (c.dir)      c.col = IM_COL32(96, 108, 132, 255);
+                else if (nd.ext >= 0 && nd.ext < (int)exts.size()) c.col = ExtColor(exts[nd.ext].ext);
+                else            c.col = IM_COL32(120, 120, 128, 255);
+                out.push_back(std::move(c));
+            }
+            if (otherBytes)
+                for (size_t i = n; i < kids.size(); ++i) *otherBytes += nodes[kids[i]].alloc;
+            g_disk.Unlock();
+        }
+
+        // Alt ağacın en büyük 100 dosyası; düğüm değişince yeniden hesaplanır.
+        void DiskEnsureBigFiles(int node)
+        {
+            if (node == g_diskBigFor) return;
+            g_diskBigFor = node;
+            g_diskBigFiles.clear();
+            g_disk.Lock();
+            const auto& nodes = g_disk.Nodes();
+            if (node >= 0 && node < (int)nodes.size())
+            {
+                std::vector<int> stack{ node }, top;
+                auto byAlloc = [&](int a, int b) { return nodes[a].alloc > nodes[b].alloc; }; // min-yığın
+                size_t visited = 0;
+                while (!stack.empty() && visited < 3000000)
+                {
+                    int i = stack.back(); stack.pop_back(); ++visited;
+                    const disk::Node& nd = nodes[i];
+                    if (!nd.dir)
+                    {
+                        top.push_back(i);
+                        std::push_heap(top.begin(), top.end(), byAlloc);
+                        if (top.size() > 100) { std::pop_heap(top.begin(), top.end(), byAlloc); top.pop_back(); }
+                    }
+                    for (int c = nd.firstChild; c >= 0; c = nodes[c].nextSib) stack.push_back(c);
+                }
+                std::sort(top.begin(), top.end(), [&](int a, int b) { return nodes[a].alloc > nodes[b].alloc; });
+                g_diskBigFiles = std::move(top);
+            }
+            g_disk.Unlock();
+        }
+
+        void DiskPollJob()
+        {
+            if (!g_diskJob.busy) return;
+            bool ok = false, recycle = true;
+            int  attempted = 0;
+            std::wstring err;
+            {
+                std::lock_guard<std::mutex> lk(g_diskJob.mtx);
+                if (!g_diskJob.done) return;
+                ok = g_diskJob.ok; recycle = g_diskJob.recycle;
+                attempted = g_diskJob.attempted; err = g_diskJob.err;
+                g_diskJob.done = false;
+            }
+            g_diskJob.busy = false;
+            if (g_diskJob.worker.joinable()) g_diskJob.worker.join();
+            char buf[192];
+            if (ok)
+            {
+                const char* fmt   = recycle ? L(DiskRecycledFmt) : L(DiskPermDeletedFmt);
+                const char* title = recycle ? L(RecycleBin) : L(DiskPermBtn);
+                snprintf(buf, sizeof buf, fmt, attempted);
+                ui::Notify(Toast::Success, title, buf);
+            }
+            else
+            {
+                std::string e = WideToUtf8(err);
+                ui::Notify(Toast::Error, L(DiskDeleteFailed), e.empty() ? "" : e.c_str());
+            }
+        }
+
+        // Seçili düğümlerin yollarını toplar; kök ve sistem klasörleri elenir.
+        std::vector<std::wstring> DiskSelPaths()
+        {
+            std::vector<std::wstring> v;
+            g_disk.Lock();
+            const auto& nodes = g_disk.Nodes();
+            for (int n : g_diskSel)
+                if (n >= 0 && n < (int)nodes.size() && !nodes[n].protectedDir && n != g_disk.Root())
+                {
+                    std::wstring p;
+                    if (g_disk.BuildPathLocked(n, p)) v.push_back(std::move(p));
+                }
+            g_disk.Unlock();
+            return v;
+        }
+
+        void DiskAskConfirm(int kind, std::vector<std::wstring> paths)
+        {
+            if (paths.empty()) return;
+            g_diskConfirmKind  = kind;
+            g_diskConfirmPaths = std::move(paths);
+            ImGui::OpenPopup("diskconfirm");
+        }
+
+        void DiskDrawConfirmModal()
+        {
+            if (g_diskConfirmKind < 0) return;
+            ImGui::SetNextWindowSize(ImVec2(px(360), 0));
+            if (ImGui::BeginPopupModal("diskconfirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+            {
+                char msg[96];
+                snprintf(msg, sizeof msg, L(DiskDeleteConfirmFmt), (int)g_diskConfirmPaths.size());
+                ui::Label(theme::fonts.regular, theme::size::Body, 0.9f, msg);
+                ImGui::Spacing();
+                const float bw = (px(360) - px(64)) * 0.5f;
+                bool recycle = g_diskConfirmKind == 0;
+                if (ui::Button(recycle ? L(DiskRecycleBtn) : L(DiskPermBtn), ImVec2(bw, px(32)),
+                               ButtonStyle::Primary))
+                {
+                    StartDiskDelete(g_diskConfirmPaths, recycle);
+                    g_diskConfirmPaths.clear(); g_diskConfirmKind = -1; g_diskSel.clear();
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
+                if (ui::Button(L(Close), ImVec2(bw, px(32)), ButtonStyle::Ghost))
+                {
+                    g_diskConfirmPaths.clear(); g_diskConfirmKind = -1;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+            if (g_diskConfirmKind >= 0 && !ImGui::IsPopupOpen("diskconfirm"))
+                g_diskConfirmKind = -1;   // dışarı tıklama: onaysız kapat
+        }
+
+        void DiskDrawContextPopup()
+        {
+            if (g_diskCtxNode < 0 || !ImGui::BeginPopup("diskctx")) return;
+            int n = g_diskCtxNode;
+            bool prot = false;
+            std::wstring path;
+            g_disk.Lock();
+            const auto& nodes = g_disk.Nodes();
+            if (n >= 0 && n < (int)nodes.size())
+            {
+                prot = nodes[n].protectedDir != 0;
+                g_disk.BuildPathLocked(n, path);
+            }
+            g_disk.Unlock();
+            if (!path.empty())
+            {
+                if (ImGui::MenuItem(L(DiskOpenBtn)))    disk::Scanner::OpenPath(path);
+                if (ImGui::MenuItem(L(DiskExplorerBtn))) disk::Scanner::ShowInExplorer(path);
+                ImGui::Separator();
+                if (prot || n == g_disk.Root())
+                {
+                    if (ImGui::MenuItem(L(DiskProtectedNote), nullptr, false, false)) {}
+                }
+                else
+                {
+                    std::vector<std::wstring> one{ path };
+                    if (ImGui::MenuItem(L(DiskRecycleBtn)))  DiskAskConfirm(0, one);
+                    if (ImGui::MenuItem(L(DiskPermBtn)))     DiskAskConfirm(1, one);
+                }
+            }
+            ImGui::EndPopup();
+        }
+
+        void PageDisk(float cw)
+        {
+            const auto& F = theme::fonts;
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+
+            DiskPollJob();
+
+            disk::Progress pr; g_disk.GetProgress(pr);
+            static disk::State lastSt = disk::State::Idle;
+            disk::State st = pr.state;
+            if (st != lastSt)
+            {
+                if (st == disk::State::Done && !g_diskAutoSaved)
+                {
+                    g_disk.SaveCache(disk::Scanner::DefaultCachePath());
+                    g_diskAutoSaved = true;
+                }
+                if (st == disk::State::Scanning) g_diskAutoSaved = false;
+                g_diskDrill.clear(); g_diskSel.clear(); g_diskBigFor = -2;
+                g_diskCacheLoaded = (st == disk::State::Done) ? g_diskCacheLoaded : false;
+                lastSt = st;
+            }
+            // ilk açılışta son taramayı önbellekten geri yükle
+            if (st == disk::State::Idle && !g_diskCacheHinted)
+            {
+                g_diskCacheHinted = true;
+                std::wstring cp = disk::Scanner::DefaultCachePath();
+                // Oturum başına bir kez: v1/v2 dosyası sessizce atılır, taramayla
+                // yeniden doğar. Bozuk v3 ve yabancı imzalı dosya yerinde kalır.
+                disk::Scanner::PurgeIncompatibleCache(cp);
+                if (GetFileAttributesW(cp.c_str()) != INVALID_FILE_ATTRIBUTES && g_disk.LoadCache(cp))
+                {
+                    g_diskCacheLoaded = true;
+                    st = lastSt = g_disk.GetState();
+                    pr.state = st;
+                }
+            }
+
+            // ------------------------------------------------------------ hedef ----
+            ui::BeginCard("##disktarget", cw, L(DiskDrives), nullptr);
+            if (g_diskSources.empty() || ImGui::GetTime() - g_diskSourcesAt > 20.0)
+            {
+                g_diskSources   = disk::ListSources();
+                g_diskSourcesAt = ImGui::GetTime();
+                if (g_diskSrcSel < 0 && !g_diskSources.empty()) g_diskSrcSel = 0;
+            }
+            for (size_t i = 0; i < g_diskSources.size(); ++i)
+            {
+                if (i) ImGui::SameLine(0.0f, px(6));
+                std::string lab = WideToUtf8(g_diskSources[i].label);
+                ImVec2 ts = ui::TextSize(F.medium, theme::size::Caption, lab.c_str());
+                bool sel = g_diskFolderPicked.empty() && g_diskSrcSel == (int)i;
+                if (ui::Button(lab.c_str(), ImVec2(ts.x + px(24), px(30)),
+                               sel ? ButtonStyle::Primary : ButtonStyle::Ghost))
+                { g_diskSrcSel = (int)i; g_diskFolderPicked.clear(); }
+            }
+            ImGui::SameLine(0.0f, px(6));
+            if (ui::Button(L(DiskBrowse), ImVec2(px(130), px(30)),
+                           g_diskFolderPicked.empty() ? ButtonStyle::Ghost : ButtonStyle::Primary))
+                DiskPickFolder(g_diskFolderPicked);
+            if (!g_diskFolderPicked.empty())
+            {
+                std::string p = WideToUtf8(g_diskFolderPicked);
+                ui::Label(F.regular, theme::size::Caption, 0.62f,
+                          ClipLine(F.regular, theme::size::Caption, p.c_str(), cw - px(24)).c_str());
+            }
+            ui::EndCard();
+            ImGui::Spacing();
+
+            // ------------------------------------------------------------ denetim --
+            bool busy = (st == disk::State::Scanning);
+            if (busy)
+            {
+                if (ui::Button(L(DiskStopBtn), ImVec2(px(110), px(32)), ButtonStyle::Secondary))
+                    g_disk.Cancel();
+            }
+            else
+            {
+                std::wstring target = g_diskFolderPicked;
+                if (target.empty() && g_diskSrcSel >= 0 && g_diskSrcSel < (int)g_diskSources.size())
+                    target = g_diskSources[g_diskSrcSel].path;
+                bool rescan = (st == disk::State::Done);
+                if (!target.empty() &&
+                    ui::Button(rescan ? L(Rescan) : L(Scan), ImVec2(px(150), px(32)), ButtonStyle::Primary, Icon::Disk))
+                {
+                    g_diskCacheLoaded = false;
+                    // Dilim sayısı bir taramalığına geçerli: çalışan taramanın
+                    // iş parçacıkları yolda değiştirilmez.
+                    g_disk.SetMftThreads(g_diskThreads);
+                    if (!g_disk.Start(target))
+                        ui::Notify(Toast::Error, L(DiskFailedBadge), WideToUtf8(target).c_str());
+                }
+            }
+            ImGui::SameLine(0.0f, px(8));
+            {
+                const char* eng = "";
+                if (st == disk::State::Done || busy)
+                    eng = pr.engine == disk::Engine::Mft ? L(DiskEngineMft) : L(DiskEngineWalk);
+                ui::Label(F.medium, theme::size::Caption, 0.55f, eng);
+            }
+            if (st == disk::State::Done)
+            {
+                ImGui::SameLine(0.0f, px(8));
+                if (ui::Button(L(DiskSaveBtn), ImVec2(px(120), px(26)), ButtonStyle::Ghost))
+                    g_disk.SaveCache(disk::Scanner::DefaultCachePath());
+            }
+            if (!busy)
+            {
+                ImGui::SameLine(0.0f, px(6));
+                std::wstring cp = disk::Scanner::DefaultCachePath();
+                bool have = GetFileAttributesW(cp.c_str()) != INVALID_FILE_ATTRIBUTES;
+                if (have && ui::Button(L(DiskLoadBtn), ImVec2(px(130), px(26)), ButtonStyle::Ghost))
+                {
+                    g_diskCacheLoaded = g_disk.LoadCache(cp);
+                    g_diskDrill.clear(); g_diskSel.clear(); g_diskBigFor = -2;
+                    st = lastSt = g_disk.GetState();
+                    if (g_diskCacheLoaded) g_diskAutoSaved = true;   // yüklenen ağacı geri yazma
+                }
+            }
+
+            // Dilim sayısı: tarama başladığında motora yazılır, o yüzden yalnız
+            // boşta iken gösterilir (ölçülen: 8 dilim 1,27 GB $MFT'yi 1,7 s'de okuyor).
+            if (!busy)
+            {
+                ImGui::Spacing();
+                ui::SliderInt(L(DiskThreadsLabel), &g_diskThreads, 1, 8, cw);
+            }
+
+            // ilerleme / durum satırı
+            if (busy)
+            {
+                if (pr.bytesTotal > 0)
+                    ui::ProgressBar("##diskscan", (float)((double)pr.bytesRead / (double)pr.bytesTotal),
+                                    ImVec2(cw, px(10)));
+                else
+                {
+                    ImVec2 p = ImGui::GetCursorScreenPos();
+                    ui::Spinner(dl, ImVec2(p.x + px(9), p.y + px(9)), px(8), px(2), White(0.85f));
+                    ImGui::Dummy(ImVec2(px(24), px(18)));
+                    ImGui::SameLine();
+                }
+                char line[256];
+                snprintf(line, sizeof line, "%llu %s", (unsigned long long)pr.items, L(DiskFilesCount));
+                std::string cur = WideToUtf8(pr.current);
+                if (!cur.empty())
+                    line[strlen(line)] = 0, snprintf(line + strlen(line), sizeof(line) - strlen(line),
+                                                     " · %s", ClipLine(F.regular, theme::size::Caption,
+                                                                      cur.c_str(), cw * 0.5f).c_str());
+                ui::Label(F.regular, theme::size::Caption, 0.6f, line);
+            }
+            else if (st == disk::State::Done)
+            {
+                uint64_t rootAlloc = 0;
+                g_disk.Lock();
+                if (g_disk.Root() >= 0 && g_disk.Root() < (int)g_disk.Nodes().size())
+                    rootAlloc = g_disk.Nodes()[g_disk.Root()].alloc;
+                g_disk.Unlock();
+                char line[256];
+                snprintf(line, sizeof line, "%s %s \xC2\xB7 %llu %s",
+                         DiskSizeText(rootAlloc).c_str(), L(DiskTotal),
+                         (unsigned long long)pr.items, L(DiskFilesCount));
+                if (g_diskCacheLoaded)
+                    snprintf(line + strlen(line), sizeof(line) - strlen(line), " \xC2\xB7 %s", L(DiskCachedNote));
+                // MFT kaydında boyut taşımayan dosyalar ağaçta 0 görünür; sayı
+                // burada açıklanır ki 0 gerçek sanılmasın.
+                const uint64_t unk = g_disk.UnknownSizeFiles();
+                if (unk)
+                {
+                    char unkTxt[96];
+                    snprintf(unkTxt, sizeof unkTxt, L(DiskUnknownSizeFmt), (unsigned)unk);
+                    snprintf(line + strlen(line), sizeof(line) - strlen(line),
+                             " \xC2\xB7 %s", unkTxt);
+                }
+                ui::Label(F.regular, theme::size::Meta, 0.75f, line);
+                if (pr.engine == disk::Engine::Walk)
+                {
+                    std::wstring rp;
+                    g_disk.Lock(); rp = g_disk.RootPathLocked(); g_disk.Unlock();
+                    if (rp.size() == 3 && rp[1] == L':')
+                        ui::Label(F.regular, theme::size::Caption, 0.5f, L(DiskAdminHint));
+                }
+            }
+            else if (st == disk::State::Failed || st == disk::State::Cancelled)
+            {
+                ui::Label(F.regular, theme::size::Meta, 0.6f,
+                          st == disk::State::Cancelled ? L(DiskCancelledBadge) : L(DiskFailedBadge));
+            }
+            else
+            {
+                bool emptyTree = false;
+                g_disk.Lock(); emptyTree = g_disk.Nodes().empty(); g_disk.Unlock();
+                if (emptyTree)   // Idle ve önbellek yok
+                {
+                    ImGui::Spacing();
+                    ui::Label(F.regular, theme::size::Body, 0.5f, L(DiskEmpty));
+                }
+            }
+
+            if (st != disk::State::Done && !busy) { DiskDrawContextPopup(); DiskDrawConfirmModal(); return; }
+
+            // ------------------------------------------------------------ görünüm --
+            const char* views[] = { L(DiskMap), L(DiskList), L(DiskTypes), L(DiskDup) };
+            ImGui::Spacing();
+            ui::Segmented("##diskview", views, 4, &g_diskView, cw);
+            ImGui::Spacing();
+
+            const bool live = (st == disk::State::Scanning);
+            // Canlı taramada MFT yayınları indeksleri yeniden kurar; dizin yığını
+            // ve seçim yalnız tarama bittiğinde anlam taşır. O zamana dek kök
+            // çocukları gösterilir, dokunuşlar etkisizdir.
+            if (live) { g_diskDrill.clear(); g_diskSel.clear(); }
+            int cur = DiskCurNode();
+            if (cur < 0) cur = 0;
+
+            // iç içe geçme yolu (Harita + Liste için ortak)
+            if (g_diskView == 0 || g_diskView == 1)
+            {
+                if (g_diskDrill.empty() && cur >= 0) g_diskDrill.push_back(cur);
+                if (g_diskDrill.size() > 1)
+                {
+                    if (ui::Button(L(DiskBack), ImVec2(px(74), px(26)), ButtonStyle::Ghost))
+                    { g_diskDrill.pop_back(); g_diskSel.clear(); g_diskBigFor = -2; }
+                    ImGui::SameLine(0.0f, px(8));
+                    std::string trail;
+                    g_disk.Lock();
+                    std::wstring rp = g_disk.RootPathLocked();
+                    for (int n : g_diskDrill)
+                    { trail += (n == g_disk.Root() ? WideToUtf8(rp) : g_disk.NodeNameLocked(n));
+                      if (n != g_diskDrill.back()) trail += " > "; }
+                    g_disk.Unlock();
+                    ui::Label(F.regular, theme::size::Caption, 0.62f,
+                              ClipLine(F.regular, theme::size::Caption, trail.c_str(), cw - px(110)).c_str());
+                    ImGui::Spacing();
+                }
+            }
+
+            // ---- HARITA ----
+            if (g_diskView == 0)
+            {
+                const float mapH = px(300);
+                ImGui::BeginChild("##treemap", ImVec2(cw, mapH));
+                ImVec2 o  = ImGui::GetWindowPos();
+                ImVec2 sz = ImGui::GetWindowSize();
+                ImDrawList* mdl = ImGui::GetWindowDrawList();
+
+                std::vector<DiskCell> cells;
+                uint64_t otherBytes = 0;
+                DiskGatherCells(cur, 1500, cells, &otherBytes);
+                std::vector<uint64_t> sizes;
+                sizes.reserve(cells.size() + 1);
+                for (auto& c : cells) sizes.push_back(c.bytes);
+                const bool hasOther = otherBytes > 0;
+                if (hasOther) sizes.push_back(otherBytes);
+
+                std::vector<disk::Tile> tiles;
+                disk::LayoutTreemap(sizes, (double)sz.x, (double)sz.y, tiles);
+
+                const ImGuiIO& io = ImGui::GetIO();
+                int hover = -1;   // tiles/hücre indeksi
+                const bool winHov = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup);
+                if (winHov)
+                    for (size_t i = 0; i < tiles.size(); ++i)
+                        if (io.MousePos.x >= o.x + tiles[i].x && io.MousePos.x < o.x + tiles[i].x + tiles[i].w &&
+                            io.MousePos.y >= o.y + tiles[i].y && io.MousePos.y < o.y + tiles[i].y + tiles[i].h)
+                        { hover = (int)i; break; }
+
+                mdl->PushClipRect(o, o + sz, true);
+                for (size_t i = 0; i < tiles.size() && i < sizes.size(); ++i)
+                {
+                    const disk::Tile& t = tiles[i];
+                    if (t.w < 1.0 || t.h < 1.0) continue;
+                    const bool isOther = hasOther && i + 1 == sizes.size();
+                    const DiskCell* cell = isOther ? nullptr : &cells[i];
+                    ImVec2 mn(o.x + (float)t.x, o.y + (float)t.y);
+                    ImVec2 mx(mn.x + (float)t.w, mn.y + (float)t.h);
+
+                    ImU32 fill = isOther ? IM_COL32(58, 60, 68, 255) : cell->col;
+                    mdl->AddRectFilled(mn, mx, fill);
+                    if (i == (size_t)hover) mdl->AddRectFilled(mn, mx, White(0.09f));
+                    mdl->AddRect(mn, mx, theme::Black(0.55f), 0.0f, 0, ImMax(1.0f, px(1)));
+                    if (!isOther && g_diskSel.count(cell->id))
+                        mdl->AddRect(mn + ImVec2(1, 1), mx - ImVec2(1, 1), White(0.92f),
+                                     0.0f, 0, ImMax(1.5f, px(1.5f)));
+
+                    // etiket: kutu yeterince büyükse ad + boyut
+                    if (!isOther && t.w > 56.0 && t.h > 24.0)
+                    {
+                        std::string nm = ClipLine(F.medium, theme::size::Caption,
+                                                  cell->name.c_str(), (float)t.w - px(10));
+                        ui::Text(mdl, F.medium, theme::size::Caption,
+                                 ImVec2(mn.x + px(5), mn.y + px(3)), White(0.94f), nm.c_str());
+                        if (t.h > 40.0)
+                        {
+                            std::string s = DiskSizeText(cell->bytes);
+                            ui::Text(mdl, F.regular, theme::size::Meta,
+                                     ImVec2(mn.x + px(5), mn.y + px(3) + theme::size::Caption * 1.25f),
+                                     White(0.62f), s.c_str());
+                        }
+                    }
+                    else if (isOther && t.w > 56.0 && t.h > 20.0)
+                    {
+                        ui::Text(mdl, F.medium, theme::size::Caption,
+                                 ImVec2(mn.x + px(5), mn.y + px(3)), White(0.75f), L(DiskOther));
+                    }
+                }
+                mdl->PopClipRect();
+
+                // dokunuş: "Diğer" hücresi etkisizdir.
+                if (hover >= 0 && !live && (size_t)hover < cells.size())
+                {
+                    const DiskCell& c = cells[hover];
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                    { g_diskSel.clear(); g_diskSel.insert(c.id); }
+                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && c.dir)
+                    { g_diskDrill.push_back(c.id); g_diskSel.clear(); g_diskBigFor = -2; }
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                    { g_diskCtxNode = c.id; ImGui::OpenPopup("diskctx"); }
+                }
+                ImGui::EndChild();
+
+                if (hover >= 0)
+                {
+                    const bool isOther = hasOther && (size_t)hover == sizes.size() - 1 &&
+                                         (size_t)hover >= cells.size();
+                    ImGui::BeginTooltip();
+                    if (isOther)
+                        ui::Label(F.medium, theme::size::Caption, 0.8f,
+                                  (std::string(L(DiskOther)) + " · " + DiskSizeText(otherBytes)).c_str());
+                    else
+                    {
+                        const DiskCell& c = cells[hover];
+                        ui::Label(F.medium, theme::size::Caption, 0.95f, c.name.c_str());
+                        std::string s = DiskSizeText(c.bytes);
+                        s += " "; s += L(DiskOnDisk);
+                        if (c.prot) s += " · "; s += L(DiskProtectedNote);
+                        ui::Label(F.regular, theme::size::Meta, 0.65f, s.c_str());
+                        DiskDrawCellMeta(c);
+                    }
+                    ImGui::EndTooltip();
+                }
+            }
+
+            // ---- LİSTE ----
+            if (g_diskView == 1)
+            {
+                std::vector<DiskCell> cells;
+                uint64_t otherBytes = 0;
+                DiskGatherCells(cur, 4000, cells, &otherBytes);
+
+                ImGui::BeginChild("##disklist", ImVec2(cw, px(340)));
+                ImDrawList* ldl = ImGui::GetWindowDrawList();
+                const float lws = ImGui::GetWindowSize().x;
+                const float rh  = px(30);
+                int listHover = -1;          // imleç altındaki hücre (bilgi kutusu)
+                for (size_t i = 0; i <= cells.size(); ++i)
+                {
+                    const bool isOther = (i == cells.size());
+                    if (isOther && otherBytes == 0) break;
+                    const DiskCell* cell = isOther ? nullptr : &cells[i];
+                    ImGui::PushID((int)i);
+                    ImVec2 rp = ImGui::GetCursorScreenPos();
+                    bool alive = false;
+                    if (!isOther)
+                    {
+                        ImGui::InvisibleButton("row", ImVec2(lws, rh));
+                        alive = true;
+                        const bool hov = ImGui::IsItemHovered();
+                        const bool sel = g_diskSel.count(cell->id) != 0;
+                        if (sel) ldl->AddRectFilled(rp, rp + ImVec2(lws, rh), White(0.06f));
+                        if (hov && !sel)
+                            ldl->AddRectFilled(rp, rp + ImVec2(lws, rh), White(0.03f));
+                        if (hov) listHover = (int)i;
+                    }
+                    else
+                    {
+                        ldl->AddRectFilled(rp, rp + ImVec2(lws, rh), IM_COL32(58, 60, 68, 90));
+                    }
+                    DiskCell draw;
+                    if (isOther) { draw.name = L(DiskOther); draw.bytes = otherBytes;
+                                   draw.col = IM_COL32(58, 60, 68, 255); }
+                    else draw = *cell;
+                    ldl->AddRectFilled(rp + ImVec2(px(8), rh * 0.5f - px(5)),
+                                       rp + ImVec2(px(8) + px(10), rh * 0.5f + px(5)), draw.col, px(2));
+                    std::string nm = ClipLine(F.regular, theme::size::Body, draw.name.c_str(),
+                                              lws - px(150));
+                    if (draw.dir) nm += "  \xE2\x96\xAA";   // klasör işareti
+                    ui::Text(ldl, F.regular, theme::size::Body,
+                             ImVec2(rp.x + px(24), rp.y + (rh - theme::size::Body) * 0.5f),
+                             draw.prot ? White(0.45f) : White(0.92f), nm.c_str());
+                    std::string szTxt = DiskSizeText(draw.bytes);
+                    ImVec2 ss = ui::TextSize(F.medium, theme::size::Caption, szTxt.c_str());
+                    ui::Text(ldl, F.medium, theme::size::Caption,
+                             ImVec2(rp.x + lws - ss.x - px(10), rp.y + (rh - ss.y) * 0.5f),
+                             White(0.6f), szTxt.c_str());
+                    if (alive && !live)
+                    {
+                        if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+                        {
+                            if (g_diskSel.count(cell->id)) g_diskSel.erase(cell->id);
+                            else                            g_diskSel.insert(cell->id);
+                        }
+                        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && cell->dir)
+                        { g_diskDrill.push_back(cell->id); g_diskSel.clear(); g_diskBigFor = -2; }
+                        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                        { g_diskCtxNode = cell->id; ImGui::OpenPopup("diskctx"); }
+                    }
+                    ImGui::PopID();
+                }
+                ImGui::EndChild();
+                // Satır bilgi kutusu: ad + boyut satırının altında sahip, tarih ve
+                // bayrak notu. Tarama sürerken hücreler her karede değiştiği
+                // için gösterilmez.
+                if (listHover >= 0 && !live && (size_t)listHover < cells.size())
+                {
+                    const DiskCell& c = cells[(size_t)listHover];
+                    ImGui::BeginTooltip();
+                    ui::Label(F.medium, theme::size::Caption, 0.95f, c.name.c_str());
+                    std::string s = DiskSizeText(c.bytes);
+                    s += " "; s += L(DiskOnDisk);
+                    if (c.prot) s += " · "; s += L(DiskProtectedNote);
+                    ui::Label(F.regular, theme::size::Meta, 0.65f, s.c_str());
+                    DiskDrawCellMeta(c);
+                    ImGui::EndTooltip();
+                }
+            }
+
+            // ---- TÜRLER ----
+            if (g_diskView == 2)
+            {
+                struct Row { std::string ext; uint64_t alloc = 0; uint64_t files = 0; };
+                std::vector<Row> rows; uint64_t rootAlloc = 0;
+                g_disk.Lock();
+                {
+                    const auto& exts = g_disk.Exts();
+                    rows.reserve(exts.size());
+                    for (const auto& e : exts) rows.push_back({ e.ext, e.alloc, e.files });
+                    if (g_disk.Root() >= 0 && g_disk.Root() < (int)g_disk.Nodes().size())
+                        rootAlloc = g_disk.Nodes()[g_disk.Root()].alloc;
+                }
+                g_disk.Unlock();
+                std::sort(rows.begin(), rows.end(),
+                          [](const Row& a, const Row& b) { return a.alloc > b.alloc; });
+                uint64_t otherAlloc = 0, otherFiles = 0;
+                std::vector<Row> top;
+                for (size_t i = 0; i < rows.size(); ++i)
+                {
+                    if (i < 24) top.push_back(rows[i]);
+                    else { otherAlloc += rows[i].alloc; otherFiles += rows[i].files; }
+                }
+                ui::BeginCard("##disktypes", cw, L(DiskTypeStats), nullptr);
+                char idbuf[32];
+                for (size_t i = 0; i < top.size(); ++i)
+                {
+                    snprintf(idbuf, sizeof idbuf, "##dt%zu", i);
+                    const float frac = rootAlloc ? (float)((double)top[i].alloc / (double)rootAlloc) : 0.0f;
+                    ui::ProgressBar(idbuf, frac, ImVec2(cw - px(320), px(8)));
+                    ImGui::SameLine();
+                    ImVec2 rp = ImGui::GetCursorScreenPos();
+                    ImDrawList* tdl = ImGui::GetWindowDrawList();
+                    tdl->AddRectFilled(rp + ImVec2(0, px(1)), rp + ImVec2(px(9), px(9) + px(1)),
+                                       ExtColor(top[i].ext.empty() ? " " : top[i].ext), px(2));
+                    ImGui::Dummy(ImVec2(px(14), px(10)));
+                    ImGui::SameLine();
+                    std::string nm = top[i].ext.empty() ? std::string("(\xC2\xB7)") : top[i].ext;
+                    ui::Label(F.medium, theme::size::Caption, 0.9f, nm.c_str());
+                    ImGui::SameLine();
+                    char cnt[48];
+                    snprintf(cnt, sizeof cnt, "%s · %llu",
+                             DiskSizeText(top[i].alloc).c_str(), (unsigned long long)top[i].files);
+                    ui::Label(F.regular, theme::size::Caption, 0.55f, cnt);
+                }
+                if (otherAlloc)
+                {
+                    char cnt[64];
+                    snprintf(cnt, sizeof cnt, "%s · %s · %llu",
+                             DiskSizeText(otherAlloc).c_str(), L(DiskOther),
+                             (unsigned long long)otherFiles);
+                    ui::Label(F.regular, theme::size::Caption, 0.45f, cnt);
+                }
+                ui::EndCard();
+            }
+
+            // ---- YİNELENEN ----
+            if (g_diskView == 3)
+            {
+                disk::DupState ds = g_disk.GetDupState();
+                static disk::DupState lastDup = disk::DupState::Idle;
+                if (ds != lastDup)
+                {
+                    if (ds == disk::DupState::Done)
+                    {
+                        char nb[64];
+                        int cnt = 0;
+                        g_disk.Lock(); cnt = (int)g_disk.Dups().size(); g_disk.Unlock();
+                        snprintf(nb, sizeof nb, cnt ? L(DiskDupGroupsFmt) : L(DiskDupNone), cnt);
+                        ui::Notify(Toast::Info, L(DiskDup), nb);
+                    }
+                    lastDup = ds;
+                }
+
+                if (ds == disk::DupState::Running)
+                {
+                    ImVec2 p = ImGui::GetCursorScreenPos();
+                    ui::Spinner(ImGui::GetWindowDrawList(),
+                                ImVec2(p.x + px(9), p.y + px(9)), px(8), px(2), White(0.85f));
+                    ImGui::Dummy(ImVec2(px(24), px(18)));
+                    ImGui::SameLine();
+                    char line[96];
+                    const unsigned long long dd = (unsigned long long)g_disk.DupDone();
+                    const unsigned long long dt = (unsigned long long)g_disk.DupTotal();
+                    snprintf(line, sizeof line, "%s (%u/3)  %llu/%llu",
+                             L(DiskDupRunning), g_disk.DupPhase(), dd, dt);
+                    ui::Label(F.regular, theme::size::Caption, 0.65f, line);
+                    ImGui::SameLine(0.0f, px(10));
+                    if (ui::Button(L(DiskStopBtn), ImVec2(px(100), px(26)), ButtonStyle::Ghost))
+                        g_disk.CancelDuplicates();
+                }
+                else
+                {
+                    if (ui::Button(L(DiskDupBtn), ImVec2(px(190), px(32)), ButtonStyle::Primary))
+                        g_disk.StartDuplicates();
+                }
+
+                std::vector<disk::DupGroup> groups;
+                {
+                    g_disk.Lock();
+                    const auto& nodes = g_disk.Nodes();
+                    for (const auto& g : g_disk.Dups())
+                        if (!g.nodes.empty() && g.nodes[0] >= 0 && g.nodes[0] < (int)nodes.size())
+                        { disk::DupGroup cp = g; groups.push_back(std::move(cp)); }
+                    g_disk.Unlock();
+                }
+                if (ds == disk::DupState::Done)
+                {
+                    char line[96];
+                    snprintf(line, sizeof line, L(DiskDupGroupsFmt), (int)groups.size());
+                    ui::Label(F.medium, theme::size::Meta, 0.7f, line);
+                }
+                if (ds == disk::DupState::Done && groups.empty())
+                    ui::Label(F.regular, theme::size::Body, 0.5f, L(DiskDupNone));
+
+                if (!groups.empty())
+                {
+                    ImGui::BeginChild("##diskdups", ImVec2(cw, px(300)));
+                    ImDrawList* ddl = ImGui::GetWindowDrawList();
+                    const float dws = ImGui::GetWindowSize().x;
+                    int shown = 0;
+                    for (const auto& g : groups)
+                    {
+                        if (++shown > 300) break;
+                        std::string first;
+                        g_disk.Lock();
+                        {
+                            std::wstring wp;
+                            if (g_disk.BuildPathLocked(g.nodes[0], wp)) first = WideToUtf8(wp);
+                        }
+                        g_disk.Unlock();
+                        char line[64];
+                        snprintf(line, sizeof line, "%u x %s", (unsigned)g.nodes.size(),
+                                 DiskSizeText(g.size).c_str());
+                        ui::Label(F.medium, theme::size::Caption, 0.85f, line);
+                        ImGui::SameLine();
+                        ui::Label(F.regular, theme::size::Caption, 0.55f,
+                                  ClipLine(F.regular, theme::size::Caption, first.c_str(),
+                                           dws - px(300)).c_str());
+                        ImGui::SameLine();
+                        char wbuf[64];
+                        snprintf(wbuf, sizeof wbuf, "%s %s", DiskSizeText(g.wasted).c_str(),
+                                 L(DiskDupWasted));
+                        ui::Label(F.regular, theme::size::Caption, 0.45f, wbuf);
+                        if (g.nodes.size() > 1)
+                        {
+                            ImGui::SameLine();
+                            if (ui::Button(L(DiskDupKeepRest), ImVec2(px(150), px(24)), ButtonStyle::Ghost))
+                            {
+                                std::vector<std::wstring> paths;
+                                g_disk.Lock();
+                                for (size_t k = 1; k < g.nodes.size(); ++k)
+                                {
+                                    std::wstring wp;
+                                    if (g_disk.BuildPathLocked(g.nodes[k], wp)) paths.push_back(std::move(wp));
+                                }
+                                g_disk.Unlock();
+                                DiskAskConfirm(0, paths);
+                            }
+                        }
+                        ddl->AddLine(ImVec2(ImGui::GetCursorScreenPos().x, ImGui::GetCursorScreenPos().y + px(2)),
+                                     ImVec2(ImGui::GetCursorScreenPos().x + dws, ImGui::GetCursorScreenPos().y + px(2)),
+                                     White(0.06f));
+                        ImGui::Spacing();
+                    }
+                    ImGui::EndChild();
+                }
+            }
+
+            // ---- EN BÜYÜK DOSYALAR (Harita + Liste) ----
+            if ((g_diskView == 0 || g_diskView == 1) && !live)
+            {
+                DiskEnsureBigFiles(cur);
+                if (!g_diskBigFiles.empty())
+                {
+                    ImGui::Spacing();
+                    ui::Label(F.medium, theme::size::Meta, 0.75f, L(DiskLargestFiles));
+                    std::vector<std::pair<std::string, uint64_t>> big;
+                    g_disk.Lock();
+                    {
+                        const auto& nodes = g_disk.Nodes();
+                        for (size_t i = 0; i < g_diskBigFiles.size() && i < 12; ++i)
+                        {
+                            int n = g_diskBigFiles[i];
+                            if (n < 0 || n >= (int)nodes.size()) continue;
+                            big.push_back({ g_disk.NodeNameLocked(n), nodes[n].alloc });
+                        }
+                    }
+                    g_disk.Unlock();
+                    for (auto& b : big)
+                    {
+                        ui::Label(F.regular, theme::size::Caption, 0.7f,
+                                  ClipLine(F.regular, theme::size::Caption, b.first.c_str(),
+                                           cw - px(110)).c_str());
+                        ImGui::SameLine();
+                        std::string s = DiskSizeText(b.second);
+                        ImVec2 ss = ui::TextSize(F.regular, theme::size::Caption, s.c_str());
+                        ImGui::SameLine(cw - ss.x - px(8));
+                        ui::Label(F.regular, theme::size::Caption, 0.5f, s.c_str());
+                    }
+                }
+            }
+
+            // ---- SEÇİM EYLEM ÇUBUĞU ----
+            if (!g_diskSel.empty() && !live)
+            {
+                bool anyProt = false;
+                g_disk.Lock();
+                {
+                    const auto& nodes = g_disk.Nodes();
+                    for (int n : g_diskSel)
+                        if (n >= 0 && n < (int)nodes.size() && nodes[n].protectedDir) anyProt = true;
+                }
+                g_disk.Unlock();
+                ImGui::Spacing();
+                std::vector<std::wstring> paths = DiskSelPaths();
+                if (ui::Button(L(DiskRecycleBtn), ImVec2(px(150), px(30)), ButtonStyle::Primary, Icon::Cleaner))
+                    DiskAskConfirm(0, paths);
+                ImGui::SameLine(0.0f, px(6));
+                if (ui::Button(L(DiskPermBtn), ImVec2(px(160), px(30)), ButtonStyle::Secondary))
+                    DiskAskConfirm(1, paths);
+                ImGui::SameLine(0.0f, px(6));
+                if (!paths.empty() && ui::Button(L(DiskExplorerBtn), ImVec2(px(140), px(30)), ButtonStyle::Ghost))
+                    disk::Scanner::ShowInExplorer(paths[0]);
+                ImGui::SameLine(0.0f, px(6));
+                if (!paths.empty() && ui::Button(L(DiskOpenBtn), ImVec2(px(110), px(30)), ButtonStyle::Ghost))
+                    disk::Scanner::OpenPath(paths[0]);
+                if (anyProt)
+                    ui::Label(F.regular, theme::size::Caption, 0.45f, L(DiskProtectedNote));
+            }
+
+            DiskDrawContextPopup();
+            DiskDrawConfirmModal();
+        }
+
         // ------------------------------------------------------------------ ana iskelet
         void DrawSidebar(const ImVec2& ds, float sbw)
         {
@@ -2972,6 +4071,7 @@ void NotifyDelegating(const elevate::Pending& p);
                 case 6: PageAbout(cw);      break;
                 case 7: PageStartup(cw);    break;
                 case 8: PageServices(cw);   break;
+                case 9: PageDisk(cw);       break;
                 }
                 ImGui::Dummy(ImVec2(0, px(4)));
             }
@@ -3011,6 +4111,10 @@ void NotifyDelegating(const elevate::Pending& p);
         g_ramPick = ram::CurrentPreset();
 
         network::StartLatencyProbe();
+
+        // Medya adası: tercihler okunur, pencere ilk karede kurulur. Ayar
+        // kapatılmışsa hiçbir iş parçacığı başlamaz.
+        island::Startup(theme::scale);
 
         wchar_t exePath[MAX_PATH] = {};
         ::GetModuleFileNameW(nullptr, exePath, MAX_PATH);
@@ -3180,8 +4284,14 @@ void NotifyDelegating(const elevate::Pending& p);
         case notify::CmdRetry:
             // ApplyOrDelegate yetki yoksa kendi devretme kararını verir;
             // çağıran yalnızca aynı işi bir kez daha istemektedir.
-            if (g_hasRetry)
-                elevate::ApplyOrDelegate(g_retry);
+            if (!g_hasRetry) break;
+            {
+                const ULONGLONG now = ::GetTickCount64();
+                if (g_lastRetryTick != 0 && now - g_lastRetryTick < kRetryCooldownMs)
+                    break;      // ayni isin ikinci istegi kisitlama penceresi icinde
+                g_lastRetryTick = now;
+            }
+            elevate::ApplyOrDelegate(g_retry);
             break;
 
         case notify::CmdDownload:
@@ -3200,6 +4310,9 @@ void NotifyDelegating(const elevate::Pending& p);
 
     void Shutdown()
     {
+        // Ada, uygulamanın kendi ImGui bağlamı yok edilmeden önce kapatılır:
+        // iki bağlam aynı iş parçacığında sırayla kullanılıyor.
+        island::Shutdown();
         // Önce güncelleme: iş parçacığı yalnızca kendi modülünün statiklerine
         // dokunuyor, ama yarım kalan bir indirme kapanışta dosya bırakmamalı.
         update::Shutdown();

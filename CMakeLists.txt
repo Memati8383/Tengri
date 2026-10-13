@@ -80,6 +80,8 @@ add_executable(TENGRI WIN32
 src/core/notify.cpp
 src/core/sysinfo_wmi.cpp
 src/core/update.cpp
+src/core/diskanalyzer.cpp
+    src/core/island.cpp
     src/tray.cpp
     res/tengri.rc
     ${VERSION_HEADER}
@@ -100,11 +102,22 @@ set_target_properties(TENGRI PROPERTIES LINK_FLAGS "/MANIFEST:NO")
 
 target_include_directories(TENGRI PRIVATE src res ${IMGUI_DIR} ${IMGUI_DIR}/backends ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_compile_definitions(TENGRI PRIVATE UNICODE _UNICODE IMGUI_DEFINE_MATH_OPERATORS TENGRI_HAS_VERSION_H TENGRI_HAS_TWEAK_KEYS)
-target_compile_options(TENGRI PRIVATE /utf-8 /W4)
+target_compile_options(TENGRI PRIVATE /utf-8 /W4 /guard:cf)
+# /DELAYLOAD + /guard:cf: build.bat'te açıklandı; iki derleme sistemi aynı
+# sertleştirmeyi uygulamalı, aksi halde CMake ile üretilen exe ekime açık kalır.
+# Gecikmeli yapılan 8 bağ, ölçülekle seçilen 8'dir: süreç başlangıcında yüklenmediği
+# için adla aranıp uygulama klasöründen okunabiliyorlardı.
+target_link_options(TENGRI PRIVATE
+    /guard:cf
+    /DELAYLOAD:d3d11.dll /DELAYLOAD:dxgi.dll /DELAYLOAD:d3dcompiler_47.dll /DELAYLOAD:dwmapi.dll
+    /DELAYLOAD:iphlpapi.dll /DELAYLOAD:version.dll /DELAYLOAD:winhttp.dll /DELAYLOAD:bcrypt.dll)
 # windowscodecs: gömülü marka PNG'sini çözer (gui\logo.cpp)
 # ole32: WIC fabrikasını kullanan CoCreateInstance
 # winhttp: sürüm denetiminin tek HTTP istemi (core\update.cpp) — WinINet değil,
 #          çünkü WinINet kullanıcı arayüzüne bağlıdır ve arka plan iş parçağında
 #          oturum kapandığında takılabilir.
 # bcrypt:  indirilen exe'nin SHA-256 doğrulaması
-target_link_libraries(TENGRI PRIVATE d3d11 dxgi d3dcompiler dwmapi user32 gdi32 advapi32 shell32 iphlpapi comctl32 version windowscodecs ole32 windowsapp propsys wbemuuid winhttp bcrypt)
+# core\island.cpp yalnızca Core Audio COM arayüzlerini (IAudioSessionManager2,
+# ISimpleAudioVolume) kullanıyor; çağırdığı tek dış nokta CoCreateInstance,
+# o da ole32'de. Bu yüzden mmdevapi.lib BAĞLANMAZ: gereksiz bir yük bağımlılığı.
+target_link_libraries(TENGRI PRIVATE delayimp d3d11 dxgi d3dcompiler dwmapi user32 gdi32 advapi32 shell32 iphlpapi comctl32 version windowscodecs ole32 windowsapp propsys wbemuuid winhttp bcrypt)

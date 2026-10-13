@@ -15,23 +15,26 @@
 //
 // Asla cagrilmayan yollar:
 //   - backup::Restore() yalnizca .reg icermeyen klasorler ya da tabloya karsilik
-//     gelmeyen adlar uzerinde denenir. Restore icine aktarimi reg.exe IMPORT ile
-//     yazar; bu gercek registry'ye dokunur. Bu test calastirisi tweak_keys.h ILE
-//     derleniyor (build.bat /DTENGRI_HAS_TWEAK_KEYS veriyor), yani tablodaki bir
-//     (kategori,sira) ciftine uyan ad + gecen icerik = gercek import olurdu.
-//     Testler o yuzden ya hicbir cifti olmayan adlar kullaniyor (99-99.reg gibi)
-//     ya da icerik denetimini bilerek dusen dosyalar; import yolu hic calismaz.
+//     gelmeyen adlar uzerinde denenir. Icine aktarim artik reg.exe ile degil
+//     RegSetValueExW ile yapiliyor (regtext + regwrite), ama sonuc degismez: gercek
+//     registry'ye dokunur. Bu test calastirisi tweak_keys.h ILE derleniyor (build.bat
+//     /DTENGRI_HAS_TWEAK_KEYS veriyor), yani tablodaki bir (kategori,sira) ciftine
+//     uyan ad + gecen icerik = gercek yazim olurdu. Testler o yuzden ya hicbir cifti
+//     olmayan adlar kullaniyor (99-99.reg gibi) ya da icerik denetimini bilerek
+//     dusen dosyalar; yazim yolu hic calismaz.
 //   - Icerik denetiminin kendisi (regtext.hpp) saf islevlerde, dosya uzerinde
 //     kosuluyor: registry'ye hic yaklasmiyor, bu yuzden ici rahatca buyutulabilir.
 //   - cleaner kategori 3 (Geri Donusum Kutusu) cagrilmaz: SHEmptyRecycleBinW gercek
 //     kutuyu bosaltir. Test yalnizca kategori 0 (TEMP) ve shader onbellegini kullanir.
-//   - ExportForCategories gercek anahtarlari disa aktarir: reg.exe EXPORT yalnizca
-//     OKUR, registry'de hicbir sey degistirmez; yazdigi tek yer izole LOCALAPPDATA
-//     altindaki gecici klasor ve test sonunda DeleteTree ile silinir.
+//   - ExportForCategories gercek anahtarlari okur ve disa aktarir: okuma tarafi
+//     RegQueryValueExW'dir, registry'de hicbir sey degistirmez; yazdigi tek yer
+//     izole LOCALAPPDATA altindaki gecici klasor ve test sonunda DeleteTree ile
+//     silinir.
 
 #include "../src/core/cleaner.hpp"
 #include "../src/core/backup.hpp"
 #include "../src/core/regtext.hpp"
+#include "../src/core/selfgate.hpp"
 
 // build.bat bu derlemeyi /DTENGRI_HAS_TWEAK_KEYS /I build\obj ile insa ediyor:
 // test, gercek uretilmis tabloyu gorur. Ayni tablo backup.cpp'nin de okudugu,
@@ -324,8 +327,25 @@ static void Test_Backup_Paths()
     // Latest(): ada gore en buyuk (alfabetik = kronolojik) secilmeli.
     Check(backup::Latest() == dNew, "Latest() en yeni zamandamgasi dondurdu");
 
+    // Sahte ama alfabetik olarak en buyuk klasor adlari secilmemeli. Yedek
+    // kopyalari kullanici-yazilabilir bir yerde durdugu icin biri en-taze-yedek
+    // secimini ele gecirmek için boyle bir ad koyabilir; Restore icerigi reddeder
+    // ama kullanicinin "geri al"i bosuna calisirdi. Bicim denetimi bunu keser.
+    const std::wstring junk1 = root + L"\\9999999999";
+    const std::wstring junk2 = root + L"\\20991332-999999";   // ay 13, gun 32, saat 99
+    const std::wstring junk3 = root + L"\\20991231-235959";   // bicim olarak gecerli
+    CreateDirectoryW(junk1.c_str(), nullptr);
+    CreateDirectoryW(junk2.c_str(), nullptr);
+    CreateDirectoryW(junk3.c_str(), nullptr);
+    Check(backup::Latest() == junk3,
+          "Latest() bicimsiz adlari eliyor, gecerli olanini ekiyor");
+    Check(!backup::Restore(junk1), "Restore(bicimsiz ad) false");
+    RemoveDirectoryW(junk1.c_str());
+    RemoveDirectoryW(junk2.c_str());
+    RemoveDirectoryW(junk3.c_str());
+
     // ExportForCategories gercek tweak anahtarlarini disa aktarir. Bu YALNIZCA
-    // OKUMA islemidir (reg.exe export); registry'yi DEGISTIRMEZ. Disa aktarimin
+    // OKUMA islemidir (kendi disa aktarim ureticimiz); registry'yi DEGISTIRMEZ. Disa aktarimin
     // yazdigi tek sey izole LOCALAPPDATA altindaki gecici yedek klasorudur ve test sonunda
     // DeleteTree ile silinir. Makineden makineye gecerli anahtar kumesi degisebilir
     // (bir ayar henuz uygulanmamis olabilir), bu yuzden sonuc kosullu dogrulanir:
@@ -350,24 +370,17 @@ static void Test_Backup_Paths()
         int regFiles = 0;
         if (h != INVALID_HANDLE_VALUE) { do { ++regFiles; } while (FindNextFileW(h, &fd)); FindClose(h); }
         Check(regFiles >= 1, "yedekte en az bir .reg dosyasi var");
-        // Disa aktarim yalnizca okudu: geri alma (reg.exe import) hic cagrilmadi.
+        // Disa aktarim yalnizca okudu: geri alma (regwrite::Apply) hic cagrilmadi.
         Check(backup::Latest() == outDir, "yeni yedek Latest() oldu (zaman damgasi en taze)");
 
 #ifdef TENGRI_HAS_TWEAK_KEYS
-        // Uretilen HER yedek dosyasi denetim kapindan gecmek zorunda. Bu, gercek
-        // reg.exe ciktilari uzerinde kosan tek denetim: alt anahtar satirlari
-        // (bazi anahtarlarin disa aktarimi 14000+ satir alt anahtar tasir) ya da
-        // ayni ayarin birden fazla anahtari kapiya takilirsa geri alma sessizce
-        // hicbir sey yapmaz ve kimse fark etmez. Import YAPILMIYOR: dosyalar yalnizca
-        // okunup denetleniyor, registry'ye hic dokunulmuyor.
-        auto expandKey = [](const wchar_t* abbrev) {
-            std::wstring p(abbrev);
-            // Dort harfli kisaltma degistirilir, ayraç çizgisi oldugu gibi kalir.
-            if (p.rfind(L"HKCU\\", 0) == 0)       p.replace(0, 4, L"HKEY_CURRENT_USER");
-            else if (p.rfind(L"HKLM\\", 0) == 0)  p.replace(0, 4, L"HKEY_LOCAL_MACHINE");
-            return p;
-        };
-        int gateRejected = 0, gateChecked = 0;
+        // Uretilen HER yedek dosyasi geri yukleme kapindan gecmek zorunda. Bu, gercek
+        // ciktilar uzerinde kosan tek denetim: tablonun bir (kategori,sira) cifti
+        // icin tanidigi deger adlarindan birini disa aktarim yanlis serilerse ya da
+        // cozucu kendi cikardisini okuyamaz hale gelirse geri alma sessizce hicbir
+        // sey yapmaz ve kimse fark etmez. IMPORT YAPILMIYOR: dosyalar yalnizca
+        // okunup cozumleniyor, registry'ye hic dokunulmuyor.
+        int gateRejected = 0, gateChecked = 0, records = 0;
         WIN32_FIND_DATAW gf;
         HANDLE gh = FindFirstFileW((outDir + L"\\*.reg").c_str(), &gf);
         if (gh != INVALID_HANDLE_VALUE)
@@ -377,24 +390,78 @@ static void Test_Backup_Paths()
                 ++gateChecked;
                 int cat = -1, idx = -1;
                 if (!regtext::ParseBackupName(gf.cFileName, &cat, &idx)) { ++gateRejected; continue; }
-                std::vector<std::wstring> keys;
+
+                // backup.cpp::AllowedFor ile ayni liste: izin, o ciftin tablodaki
+                // (anahtar,deger) ciftlerinin kendisi.
+                std::vector<regtext::Allowed> allow;
                 for (int i = 0; i < tweakkeys::kCount; ++i)
-                    if (tweakkeys::kEntries[i].cat == cat && tweakkeys::kEntries[i].idx == idx)
-                        keys.push_back(expandKey(tweakkeys::kEntries[i].path));
-                if (keys.empty()) { ++gateRejected; continue; }   // uretilen ad tabloda yok
+                {
+                    const tweakkeys::Entry& e = tweakkeys::kEntries[i];
+                    if (e.cat != cat || e.idx != idx) continue;
+                    for (const wchar_t* const* v = e.values; v && *v; ++v)
+                        allow.push_back({ e.path, *v });
+                }
+                if (allow.empty()) { ++gateRejected; continue; }   // uretilen ad tabloda yok
+
                 std::wstring text;
                 if (!regtext::ReadRegText(outDir + L"\\" + gf.cFileName, &text)) { ++gateRejected; continue; }
-                if (!regtext::ContentMatchesKeys(text, keys)) ++gateRejected;
+                std::vector<regtext::Record> recs;
+                if (!regtext::ParseRegText(text, &allow, &recs) || recs.empty()) { ++gateRejected; continue; }
+                records += (int)recs.size();
+
+                // Disa aktarilan deger, tablonun o cifti icin tanidigi degerlerle
+                // birebir ayni olmali: cozulen kayit sayisi, dosyadaki deger
+                // satirlarinin sayisina esit ise kapinin "gecerli" dedigi sey
+                // gercekten tablonun kendisi.
+                for (const regtext::Record& r : recs)
+                {
+                    bool known = false;
+                    for (const regtext::Allowed& a : allow)
+                    {
+                        const std::wstring k = regtext::ExpandKey(a.key);
+                        if (_wcsicmp(k.c_str(), r.key.c_str()) == 0 && r.name == a.name)
+                        { known = true; break; }
+                    }
+                    if (!known) { ++gateRejected; break; }
+                }
             } while (FindNextFileW(gh, &gf));
             FindClose(gh);
         }
         CheckEq(gateChecked, regFiles, "yedekteki her dosya denetlendi");
-        CheckEq(gateRejected, 0, "uretilen hicbir yedek icerik kapisina takilmadi");
-        // Gecen dosya sayisi kalici olarak yazdiriliyor: "kapi doğru ama gerçek
-        // ciktiya hic uygulanmadi" ile "gercek cikti kapidan gecmiyor" ayrimi
-        // ancak ölçüyle secilebiliyor.
-        std::printf("  (%d gercek yedek dosyasi icerik kapisindan gecti)\n",
-                    gateChecked - gateRejected);
+        CheckEq(gateRejected, 0, "uretilen hicbir yedek geri yukleme kapina takilmadi");
+        Check(records > 0, "yedekten en az bir deger kaydi cozuldu");
+        // Gecen dosya ve kayit sayisi kalici olarak yazdiriliyor: "kapi doğru ama
+        // gerçek ciktiya hic uygulanmadi" ile "gercek cikti kapidan gecmiyor"
+        // ayrimi ancak olcuyle secilebiliyor.
+        std::printf("  (%d yedek dosyasi, %d deger kaydi kapindan gecti)\n",
+                    gateChecked - gateRejected, records);
+
+        // Tablonun deger adlarini gercekten tasidigi dogrulanir: kapsamin
+        // daralmasinin tek kaniti ureticinin dogru calismasidir. BootExecute,
+        // Debugger, ServiceDll gibi yukseltme tasiyen adlardan hicbiri listede
+        // olmamali.
+        {
+            int suspicious = 0;
+            for (int i = 0; i < tweakkeys::kCount; ++i)
+            {
+                const tweakkeys::Entry& e = tweakkeys::kEntries[i];
+                for (const wchar_t* const* v = e.values; v && *v; ++v)
+                {
+                    if (!_wcsicmp(*v, L"BootExecute") || !_wcsicmp(*v, L"Debugger") ||
+                        !_wcsicmp(*v, L"ServiceDll") || !_wcsicmp(*v, L"Shell") ||
+                        !_wcsicmp(*v, L"CommandLineShell") ||
+                        !_wcsicmp(*v, L"devicestoragepath"))
+                        ++suspicious;
+                }
+            }
+            CheckEq(suspicious, 0, "izin listesinde yukseltme tasiyan deger adi yok");
+            // Kayitlarin deger adi listesi bos olmamali: bos liste, o ayarin
+            // hicbir seyin yedeklenmemesi demek.
+            int emptyValueLists = 0;
+            for (int i = 0; i < tweakkeys::kCount; ++i)
+                if (!tweakkeys::kEntries[i].values || !*tweakkeys::kEntries[i].values) ++emptyValueLists;
+            CheckEq(emptyValueLists, 0, "hicbir tablo satiri bos deger listesi tasimiyo");
+        }
 #endif
     }
     else
@@ -454,31 +521,37 @@ static bool MakeUtf8File(const std::wstring& path, const std::string& body)
 
 static void Test_RegText_Reading()
 {
-    std::printf("yedek: kodlama cozumu ve icerik kapisi (dosya uzerinde)\n");
+    std::printf("yedek: kodlama cozumu ve geri yukleme kapi (dosya uzerinde)\n");
 
     const std::wstring dir = g_root + L"\\regtext";
     const wchar_t* H = L"Windows Registry Editor Version 5.00";
     const std::wstring keyLine = L"[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]\r\n";
-    const std::vector<std::wstring> keys = { L"HKEY_CURRENT_USER\\Software\\TENGRI\\Probe" };
+    const std::wstring valLine = L"\"Deger\"=dword:00000001\r\n";
+    const std::vector<regtext::Allowed> allow = {
+        { L"HKCU\\Software\\TENGRI\\Probe", L"Deger" },
+    };
+    auto gatePasses = [&allow](const std::wstring& text) {
+        std::vector<regtext::Record> recs;
+        return regtext::ParseRegText(text, &allow, &recs) && !recs.empty();
+    };
 
     // 1) UTF-16LE + BOM: disa aktarimin standart bicimi.
     const std::wstring u16 = dir + L"\\u16.reg";
-    Check(MakeUtf16File(u16, std::wstring(H) + L"\r\n\r\n" + keyLine), "UTF-16LE dosya yazildi");
+    Check(MakeUtf16File(u16, std::wstring(H) + L"\r\n\r\n" + keyLine + valLine), "UTF-16LE dosya yazildi");
     std::wstring text;
     Check(regtext::ReadRegText(u16, &text), "UTF-16LE + BOM cozuldu");
-    Check(regtext::ContentMatchesKeys(text, keys), "UTF-16LE yedek kapiyi gecti");
+    Check(gatePasses(text), "UTF-16LE yedek kapiyi gecti");
 
     // 2) UTF-8 + BOM ve BOM'suz UTF-8: her ikisi de taniniyor.
     const std::string ascii = "Windows Registry Editor Version 5.00\r\n"
-                              "[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]\r\n";
+                              "[HKEY_CURRENT_USER\\Software\\TENGRI\\Probe]\r\n"
+                              "\"Deger\"=dword:00000001\r\n";
     const std::wstring u8b = dir + L"\\u8bom.reg";
     const std::wstring u8  = dir + L"\\u8.reg";
     const std::string bom3 = "\xEF\xBB\xBF" + ascii;
     Check(MakeUtf8File(u8b, bom3) && MakeUtf8File(u8, ascii), "UTF-8 dosyalar yazildi");
-    Check(regtext::ReadRegText(u8b, &text) && regtext::ContentMatchesKeys(text, keys),
-          "UTF-8 + BOM kapiyi gecti");
-    Check(regtext::ReadRegText(u8, &text) && regtext::ContentMatchesKeys(text, keys),
-          "BOM'suz UTF-8 kapiyi gecti");
+    Check(regtext::ReadRegText(u8b, &text) && gatePasses(text), "UTF-8 + BOM kapiyi gecti");
+    Check(regtext::ReadRegText(u8, &text) && gatePasses(text), "BOM'suz UTF-8 kapiyi gecti");
 
     // 3) BOM'suz ve gecersiz kodlamali veri reddedilmeli (MB_ERR_INVALID_CHARS).
     const std::wstring bad = dir + L"\\bad.reg";
@@ -490,7 +563,7 @@ static void Test_RegText_Reading()
     //    "kodlamayi varsayip icerik okuma" tuzaiginin testi.
     const std::wstring u16nb = dir + L"\\u16nobom.reg";
     std::vector<unsigned char> raw;
-    const std::wstring src = std::wstring(H) + L"\r\n" + keyLine;
+    const std::wstring src = std::wstring(H) + L"\r\n" + keyLine + valLine;
     for (wchar_t c : src)
     {
         raw.push_back((unsigned char)(c & 0xFF));
@@ -498,7 +571,7 @@ static void Test_RegText_Reading()
     }
     Check(MakeRawFile(u16nb, raw.data(), raw.size()), "BOM'suz UTF-16 yazildi");
     bool passed = false;
-    if (regtext::ReadRegText(u16nb, &text)) passed = regtext::ContentMatchesKeys(text, keys);
+    if (regtext::ReadRegText(u16nb, &text)) passed = gatePasses(text);
     Check(!passed, "BOM'suz UTF-16 icerik kapisindan gecemez");
 
     // 5) Bos dosya, olmayan yol ve klasor: ucunde de false.
@@ -512,12 +585,87 @@ static void Test_RegText_Reading()
     const std::wstring hostil = dir + L"\\hostil.reg";
     Check(MakeUtf16File(hostil, std::wstring(H) + L"\r\n"
           L"[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\notepad.exe]\r\n"
-          L"\"Debugger\"=L\"\\\\yabanci\\\\araci.exe\"\r\n"),
+          L"\"Debugger\"=\"\\\\yabanci\\\\araci.exe\"\r\n"),
           "IFEO icerikli sahte yedek yazildi");
     Check(regtext::ReadRegText(hostil, &text), "sahte yedek okundu");
-    Check(!regtext::ContentMatchesKeys(text, keys), "IFEO icerigi kapiyi gecemez");
+    Check(!gatePasses(text), "IFEO icerigi kapiyi gecemez");
 
     DeleteTree(dir);
+}
+
+// Kapi artik deger ADINA iniyor; bu, anahtar adinin tek basta oldugu surumdeki
+// asil acigin regresyon testi. Vaka backup.cpp'in gercek tablosundan secildi:
+// kategori 5, sira 6 "WaitToKillServiceTimeout" icin
+// HKLM\SYSTEM\CurrentControlSet\Control anahtarini yedekliyor -- anahtar adi
+// meşru. Eskiden bu anahtarin ALT AGACINA yazmak serbestti ve
+// Session Manager\BootExecute SYSTEM kodkoşumu demekti.
+//
+// VAKALAR YALNIZCA COZULUP DENETLENIR, backup::Restore() CAGRILMAZ. Restore
+// kapiyi astigi anda RegSetValueExW ile gercek HKLM'ye yazardi; bir testin
+// kendisi sisteme yazarak "kapi calisir" kaniti uretemez. Kapinin gercek
+// ciktiya uygulandigi kanit yukaridaki Test_Backup_Paths dosya-vakali denetimi.
+static void Test_ValueName_Gate()
+{
+    std::printf("yedek: deger adi kapisi (BootExecute senaryosu, yazma yok)\n");
+
+#ifdef TENGRI_HAS_TWEAK_KEYS
+    const wchar_t* H = L"Windows Registry Editor Version 5.00";
+
+    std::vector<regtext::Allowed> allow;
+    for (int i = 0; i < tweakkeys::kCount; ++i)
+    {
+        const tweakkeys::Entry& e = tweakkeys::kEntries[i];
+        if (e.cat != 5 || e.idx != 6) continue;
+        for (const wchar_t* const* v = e.values; v && *v; ++v)
+            allow.push_back({ e.path, *v });
+    }
+    Check(!allow.empty(), "5-6 ciftinin tablodan izin listesi var");
+    // Daraltmanin kendisi: anahtar listede ama tek izinli deger adi
+    // WaitToKillServiceTimeout.
+    CheckEq((int)allow.size(), 2, "5-6 cifti iki anahtar, iki deger adi taniyor");
+    for (const regtext::Allowed& a : allow)
+        Check(_wcsicmp(a.name, L"WaitToKillServiceTimeout") == 0,
+              "izin listesindeki tek deger adi bu");
+
+    auto rejected = [&](const std::wstring& body) {
+        std::vector<regtext::Record> recs;
+        return !regtext::ParseRegText(std::wstring(H) + L"\r\n" + body, &allow, &recs)
+               || !recs.empty();
+    };
+
+    // a) Ayni kategorinin anahtarinin ALT ANAHTARINA yazma denemesi.
+    Check(rejected(L"[HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager]\r\n"
+                   L"\"BootExecute\"=hex(7):73,00,79,00,73,00,74,00,65,00,6d,00,\r\n  63,00,6d,00,64,00,00,00,00,00\r\n"),
+          "Control'un alt anahtari BootExecute denemesi reddedildi");
+
+    // b) Tam beklenen anahtar, ama liste dışı deger adi. Anahtar denetimi bunu
+    //    yakalamazdi; yakalayan deger adi denetimi.
+    Check(rejected(L"[HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control]\r\n"
+                   L"\"BootExecute\"=hex(7):00,00\r\n"),
+          "beklenen anahtarda liste disi deger adi reddedildi");
+
+    // c) Beklenen anahtar + beklenen deger Adi: gecerli tek vaka.
+    {
+        std::vector<regtext::Record> recs;
+        Check(regtext::ParseRegText(std::wstring(H) + L"\r\n"
+              L"[HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control]\r\n"
+              L"\"WaitToKillServiceTimeout\"=hex(1):32,00,30,00,30,00,30,00,00,00\r\n",
+              &allow, &recs) && recs.size() == 1,
+              "meşru yedek kaydi ayni kapidan gecti");
+        if (!recs.empty()) {
+            Check(recs[0].type == REG_SZ, "hex(1) REG_SZ olarak cozuldu");
+            Check(recs[0].data.size() == 10, "baytlar oldugu gibi korundu");
+        }
+    }
+
+    // d) Kodlayici tuzagi: adinda tIRNAK olan satir cozucuyu sasirtamaz;
+    //    tIRNAK-kaçışsız bir ad zaten tablodaki bir cifte karsilik gelmez.
+    Check(rejected(L"[HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control]\r\n"
+                   L"\"Wait\"=\"x\"=dword:00000001\r\n"),
+          "bozuk tIRNAK kullananim reddedildi");
+#else
+    Check(true, "tweak_keys.h yok: deger adi kapisi denetlenemedi");
+#endif
 }
 
 // Restore'un ret dallari: bu dosyalarin HICBIRI ice aktarilmaz. Guvenlik iki
@@ -561,6 +709,44 @@ static void Test_Restore_Rejections()
     DeleteTree(g_root + L"\\yarici");
 }
 
+// Gonderen kimligi (selfgate.hpp) WM_COPYDATA yolunu denetliyor. Test yeni surec
+// baslatmiyor, registry'ye ya da kullanici verisine dokunmuyor: yalnizca zaten
+// calisan iki surecin (kendi testimiz ve kabuk) kimligi okunuyor.
+static void Test_SelfGate()
+{
+    std::printf("selfgate: gonderen bizim exemiz mi\n");
+
+    Check(selfgate::IsSelf(::GetCurrentProcessId()), "kendi pid'simiz kabul edildi");
+    Check(!selfgate::IsSelf(0), "pid 0 (gonderen belirsiz) reddedildi");
+    Check(!selfgate::IsSelf(0xFFFFFFFFu), "olmayan pid reddedildi");
+
+    // Negatif durumun DOGRU sebepten geldigini ayirt edin: kabuk sureci ayni
+    // kullaniciya ait ama baska bir exe. Erişilemiyorsa neden reddedildigi
+    // olculemuyor; bunu saklamadan yaziyoruz.
+    DWORD shellPid = 0;
+    HWND shell = ::GetShellWindow();
+    if (shell) ::GetWindowThreadProcessId(shell, &shellPid);
+    if (shellPid != 0 && shellPid != ::GetCurrentProcessId())
+    {
+        Check(!selfgate::IsSelf(shellPid), "kabuk sureci (ayni kullanici, baska exe) reddedildi");
+        HANDLE h = ::OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, shellPid);
+        if (h)
+        {
+            Check(!selfgate::SameImageAsCurrent(h), "red sebebi: exe yolu bizinkinden farkli");
+            Check(selfgate::SameUserAsCurrent(h), "kabuk ayni kullaniciyla calisiyor (red sebebi degil)");
+            ::CloseHandle(h);
+        }
+        else
+        {
+            std::printf("  NOT: kabuk sureci acilamadi, red sebebi dogrulanamadi\n");
+        }
+    }
+    else
+    {
+        std::printf("  NOT: kabuk pid'si alinamadi, negatif durum olculemedi\n");
+    }
+}
+
 int main()
 {
     std::printf("TENGRI guvenli yazma-yolu testleri\n\n");
@@ -579,7 +765,9 @@ int main()
     Test_Temp_RoundTrip();
     Test_Backup_Paths();
     Test_RegText_Reading();
+    Test_ValueName_Gate();
     Test_Restore_Rejections();
+    Test_SelfGate();
 
     ExitIsolation();
 

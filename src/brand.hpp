@@ -34,8 +34,6 @@ namespace brand
     constexpr const wchar_t* kAppDataFolder = L"TENGRI";     // %APPDATA%\TENGRI\*
     constexpr const char*    kAppDataFolderA = "TENGRI";     // dar hâli, std::string yolları için
     constexpr const wchar_t* kRunValueName  = L"TENGRI";     // HKCU\...\Run içindeki değer adı
-    constexpr const char*    kTempPrefix    = "tengri_";     // %TEMP%\tengri_<pid>_<rastgele>.reg
-    constexpr const wchar_t* kTempPrefixW   = L"tengri_";
     constexpr const char*    kPingPayload   = "tengri-latency-probe";
 
     // Makine parmak izine karıştırılan tuz. Tuz olmadan özet yalnızca makineyi
@@ -69,9 +67,9 @@ namespace brand
     // sürümü ikinci bir yere yazmak yerine çalışan dosyadan geri okuduğu için iki
     // değer birbirinden ayrılamaz.
     constexpr const char*    kVersionMajor  = "1";
-    constexpr const char*    kVersionMinor  = "7";
+    constexpr const char*    kVersionMinor  = "8";
     constexpr const char*    kVersionPatch  = "0";
-    constexpr const char*    kVersion       = "1.7.0";
+    constexpr const char*    kVersion       = "1.8.0";
     constexpr const char*    kPublisher     = "TENGRİ Project";
     constexpr const char*    kDescription   = "TENGRİ - System Optimizer";
 

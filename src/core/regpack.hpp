@@ -1,14 +1,16 @@
 #pragma once
 
-// Registry ayar gövdeleri, metin olarak gömülü. Diskten hiçbir şey okunmaz: ayar
-// gövdesini geçici bir dosyaya yazar, reg.exe'e verir, sonra siler.
+// Registry ayar gövdeleri, metin olarak gömülü. Diskten hiçbir şey okunmaz ve
+// diske hiçbir şey yazılmaz: gövde bellekte çözümlenip RegSetValueExW ile
+// uygulanıyor (regtext.hpp + regwrite.hpp).
 namespace regpack
 {
-    // `text` verisini %TEMP% altında UTF-16LE .reg dosyası olarak yazar, içe aktarır ve siler.
+    // Gömülü bir gövdeyi çözüp registry'ye uygular. Kötü biçim ya da yazma
+    // hatası varsa false.
     bool Import(const char* text);
 
-    // Birkaç gövdeyi tek .reg içinde birleştirir, böylece bir kategorinin tamamı tek
-    // içe aktarma maliyetinde olur.
+    // Birkaç gövdeyi tek metinde birleştirir, böylece bir kategorinin tamamı tek
+    // çözümleme/yazma geçişinde olur.
     bool ImportMany(const char* const* bodies, int count);
 
     // 4 (Oyunlar), 5 (FiveM), 6 (Gecikme), 7 (Valorant), 8 (CS2) ve 9 (Fortnite)
