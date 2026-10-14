@@ -35,6 +35,19 @@ Yazdığı her registry anahtarı kaynakta görünür: 80 ayarın dokunduğu 92 
 [docs/tweaks-registry.md](docs/tweaks-registry.md) içinde satır satır listelenir. Bu tablo kaynaktan üretilir,
 elle yazılmaz. İkna dosyasına güvenmek istemiyorsan kendin derle.
 
+## Yeni özellikler (v1.8.0)
+
+Bu sürümde kullanıcı yorumlarından gelen dört talep yerine getirildi:
+
+| Talep | Uygulama |
+|---|---|
+| **Tweak uygulamadan önce otomatik sistem geri yükleme noktası** | Ayarlar → Geri Yükleme → “Uygulama öncesi restore point oluştur” kapısı (`src/core/restore.cpp`, yeni). Varsayılan **kapalı**; açıkken yönetici isteği sırasında `srclient.dll` üzerinden `SRSetRestorePointW` çağrılır. Arka planda, zaman aşımı yok — UI beklemeden döner. |
+| **Her tweak için tek tek ‘geri al’ + hangi anahtarları/servisleri değiştirdiği** | Yedek picker modalı açıldığında her `.reg` yedeğinin adı, alındığı tarih ve içerdigi kategoriler gösterilir; geri alındığında tüm değerler doğrudan `RegSetValueExW` ile yazılır. Kart üzerindeki kompakt ipucu `kok\kuyruk · ilkDeğer (+X fazla)` formatında kaç değer olduğunu söyler; önizleme modali **tüm değiştirilen satırların** gerçek yolunu da açabilir. |
+| **Windows Update, Defender gibi kapatılan servislerin yanında net uyarı** | Hizmet kartı üç renk tonunda risk gösterir: `Primary .96` (Risk), `Secondary .62` (Dikkat), `Tertiary .52` (Güvenli). `INSERT` veya “İncele” düğmesiyle açılan onay modalı hizmetin adını, yeni başlatma türünü ve gerekçe metnini gösterir. “Devam et”e basmadan değişiklik yapılmaz. |
+| **Uygulanan tweak’leri dışa / içe aktar (profil paylaşımı)** | Profil dışa aktarma gerçek `.reg` dosyası üretir; içe aktarma aynı içerik kapısını kullanır — yalnızca izin listesindeki `(kategori, sıra)` çiftlerini tanıyan satırlar kabul edilir, yabancı anahtarlar reddedilir. Paylaşılabilir bir ayar başka birini de etkileyebilirse arayüz bunu not eder. |
+
+Detaylı not: [docs/release-notes/v1.8.0.md](docs/release-notes/v1.8.0.md).
+
 <details>
 <summary><b>İçindekiler</b></summary>
 

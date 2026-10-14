@@ -186,6 +186,31 @@ namespace lang
             "INSERT - show / hide", "Hover - expand, wheel - volume",
             "Desktop mode", "ON", "OFF",
 
+            // ---- Şeffaflık, geri alma seçimi, geri yükleme noktası, profiller ----
+            "+%d more", "Changed by a system tool - no backup possible",
+            "Changes about to be applied", "%d setting(s) will be written",
+            "Before writing, the current value of every key below is backed up",
+            "%d setting(s) change through system tools: they cannot be backed up or undone",
+            "System restore point: created first",
+            "System restore point: off",
+            "Cancel",
+            "Which backup to restore", "No backup found", "Undo from backup",
+            "Only the values this app wrote are restored",
+            "System restore point", "Creates a restore point before tweaks are applied",
+            "Restore point created", "Restore point failed: %s",
+            "Creating a system restore point...",
+            "System protection is off, so no point can be created",
+            "Restore point did not finish in time",
+            "Export profile", "Import profile", "Profile written to %s (%d setting(s))",
+            "%d setting(s) were left out (changed by system tools)",
+            "Profile could not be written",
+            "The file contains keys this app never writes",
+            "Not a TENGRI profile file", "No known setting in this file",
+            "Settings found in the profile",
+            "%d setting(s) stayed off: only part of their keys is in the file",
+            "A shared value can enable another tweak too",
+            "Disable this service?", "Re-enable it here or from services.msc",
+
             // ---- TweakNames: 10 kategori x 8 satır ----
             // Performans
             "Ultimate power plan", "Disable background apps", "Optimize visual effects",
@@ -501,6 +526,31 @@ namespace lang
             "Sözler yükleniyor...", "Senkronize söz yok",
             "INSERT - göster / gizle", "Üzerine gel - genişlet, tekerlek - ses",
             "Masaüstü modu", "AÇIK", "KAPALI",
+
+            // ---- Şeffaflık, geri alma seçimi, geri yükleme noktası, profiller ----
+            "+%d daha", "Sistem aracıyla değişir - yedeği alınamaz",
+            "Uygulanacak değişiklikler", "%d ayar yazılacak",
+            "Yazmadan önce aşağıdaki her anahtarın mevcut değeri yedeklenir",
+            "%d ayar sistem aracıyla değişiyor: yedeği alınamaz, geri alınamaz",
+            "Sistem geri yükleme noktası: önce oluşturulacak",
+            "Sistem geri yükleme noktası: kapalı",
+            "Vazgeç",
+            "Hangi yedekten geri alınsın", "Yedek bulunamadı", "Yedekten geri al",
+            "Yalnızca bu uygulamanın yazdığı değerler geri döner",
+            "Sistem geri yükleme noktası", "Ayarlar uygulanmadan önce geri yükleme noktası oluşturur",
+            "Geri yükleme noktası oluşturuldu", "Geri yükleme noktası oluşmadı: %s",
+            "Sistem geri yükleme noktası oluşturuluyor...",
+            "Sistem koruması kapalı, nokta oluşturulamaz",
+            "Geri yükleme noktası zamanında bitmedi",
+            "Profil dışa aktar", "Profil içe aktar", "Profil şu dosyaya yazıldı: %s (%d ayar)",
+            "%d ayar dışa aktarılamadı (sistem aracıyla değişiyor)",
+            "Profil yazılamadı",
+            "Dosya, bu uygulamanın hiç yazmadığı anahtarlar içeriyor",
+            "Bu bir TENGRI profil dosyası değil", "Dosyada tanınan ayar yok",
+            "Profilde bulunan ayarlar",
+            "%d ayar kapalı kaldı: anahtarlarının yalnızca bir kısmı dosyada",
+            "Paylaşılan bir değer başka bir ayarı da açabilir",
+            "Bu servis devre dışı bırakılsın mı?", "Buradan ya da services.msc ile yeniden açabilirsin",
 
 
             // ---- TweakNames: 10 kategori x 8 satır ----

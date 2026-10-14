@@ -1,4 +1,5 @@
 #include "restore.hpp"
+#include "brand.hpp"
 #include "syspath.hpp"
 
 #include <windows.h>
@@ -90,6 +91,50 @@ namespace restore
     }
 
     unsigned long long LastCreatedTick() { return g_lastCreatedTick; }
+
+    bool createBeforeApply = false;
+
+    namespace
+    {
+        // Dosya yoksa ilk çalıştırma: varsayılan korunur. Yazılamazsa (kısıtlı
+        // profil, dolu disk) sessiz geçilir — anahtar o oturum için çalışmaya
+        // devam eder, yalnızca kalıcılaşmaz.
+        std::wstring PrefPath()
+        {
+            wchar_t dir[MAX_PATH] = {};
+            if (!::GetEnvironmentVariableW(L"APPDATA", dir, MAX_PATH)) return {};
+            const std::wstring root = std::wstring(dir) + L"\\" + brand::kAppDataFolder;
+            ::CreateDirectoryW(root.c_str(), nullptr);
+            return root + L"\\restore.dat";
+        }
+    }
+
+    void Load()
+    {
+        const std::wstring p = PrefPath();
+        if (p.empty()) return;
+        HANDLE f = ::CreateFileW(p.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+                                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (f == INVALID_HANDLE_VALUE) return;
+        char b = '0';
+        DWORD n = 0;
+        const bool ok = ::ReadFile(f, &b, 1, &n, nullptr) && n == 1;
+        ::CloseHandle(f);
+        if (ok) createBeforeApply = b != '0';
+    }
+
+    void Save()
+    {
+        const std::wstring p = PrefPath();
+        if (p.empty()) return;
+        HANDLE f = ::CreateFileW(p.c_str(), GENERIC_WRITE, 0, nullptr,
+                                 CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (f == INVALID_HANDLE_VALUE) return;
+        const char b = createBeforeApply ? '1' : '0';
+        DWORD n = 0;
+        ::WriteFile(f, &b, 1, &n, nullptr);
+        ::CloseHandle(f);
+    }
 
     Result CreatePoint(const wchar_t* description)
     {

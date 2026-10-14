@@ -35,7 +35,12 @@ namespace ui
     bool Button(const char* label, const ImVec2& size, ButtonStyle style = ButtonStyle::Primary, Icon icon = Icon::None, bool loading = false);
     bool IconButton(const char* id, Icon icon, const ImVec2& size, float icon_size, bool danger = false);
     bool Tab(const char* label, Icon icon, bool selected, const ImVec2& size);
-    bool ToggleCard(const char* label, const char* desc, bool* v, float width, bool card = true);
+    // detail: açıklamanın altına eklenen tek satırlık ek bilgi (nullable); kart
+    // o satır kadar büyür. height > 0 ise yüksekliği çağıran verir: ızgarada yan
+    // yana iki kart farklı yükseklikte olursa satırın altındaki yerleşim kayar,
+    // bu yüzden satırın en yüksek kartı ikisine de yazılır.
+    bool ToggleCard(const char* label, const char* desc, bool* v, float width, bool card = true,
+                    const char* detail = nullptr, float height = 0.0f);
     bool CheckRow(const char* label, const char* desc, const char* right, bool* v, float width);
     bool InputField(const char* id, const char* hint, char* buf, size_t buf_size, Icon icon, bool* reveal, float width, int flags = 0);
     bool Slider(const char* label, float* v, float vmin, float vmax, const char* fmt, float width);

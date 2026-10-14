@@ -202,6 +202,24 @@ namespace S
         IslandHintToggle, IslandHintHover,
         IslandDesktopMode, IslandOn, IslandOff,
 
+        // Forum onerileri: ayarin neyi degistirdigini gosterme, uygulama oncesi
+        // onizleme, yedek secici, sistem geri yukseltme noktasi, profil
+        // disa/ice aktarimi ve hizmet riski onayi. FlatEnd'den hemen once olmalı
+        // (blok başlangıçları buradan türetiliyor) ve iki tabloda da aynı sırada
+        // durmalı: static_assert yalnızca boyut karsilastirdigi icin yanlis yer
+        //lestirme derlemeyi kirmadan tum tweak etiketlerini kaydirir.
+        KeysMoreFmt, KeysToolNote,
+        PreviewTitle, PreviewCountFmt, PreviewBackupNote, PreviewToolNote,
+        PreviewRestoreOn, PreviewRestoreOff, BtnCancel,
+        UndoPickTitle, UndoPickNone, UndoPickBtn, UndoPickHint,
+        RestorePointHeading, RestorePointDesc, RestorePointTaken,
+        RestorePointFailedFmt, RestorePointWait, RestoreProtectionOff,
+        RestorePointTimeout,
+        ProfileExport, ProfileImport, ProfileExportedFmt, ProfileToolSkipFmt,
+        ProfileFailed, ProfileRejected, ProfileBadFormat, ProfileNoKnown,
+        ProfileImportTitle, ProfileSkippedFmt, ProfileSharedNote,
+        SvcConfirmTitle, SvcRevertNote,
+
         // sonradan eklenenler: bildirim metinleri, kategori başlıkları ve ağ satır
         // başlangıçları buradan türetildiği için, sonrasına yeni bir düz anahtar
         // eklenmesi bütün tweak etiketlerini sessizce kaydırırdı. Daha önce de tam

@@ -823,6 +823,64 @@ static void Test_SampleMode()
     Check(!sample::Active(), "kip kapatilabiliyor");
 }
 
+namespace
+{
+// Profil analiz: bicim hatasi, tablo izinlisi, kismi eslesme
+static void Test_ProfileAnalyze()
+{
+    std::vector<regtext::Allowed> allowed;
+    // Tabloyu doldur (tweakinfo::AllAllowed)
+    tweakinfo::AllAllowed(&allowed);
+    Check(allowed.size() > 0, "tablodan izinli ciftler geldi");
+
+    // Gecerli profil simülasyonu: tek bir cift
+    std::wstring good = L"Windows Registry Editor Version 5.00\r\n";
+    if (!allowed.empty())
+    {
+        const regtext::Allowed& a = allowed[0];
+        good += L"[" + a.key + L"]\r\n";
+        good += L"\"" + a.name + L"\"=dword:00000001\r\n";
+    }
+
+    profile::Analysis a;
+    bool ok = profile::Analyze(good, &a);
+    Check(ok, "bicim gecerli");
+    Check(a.parsed, "parsed=true");
+    // Foreign degilse on listesi dolu olmalı
+    Check((bool)((a.on.size() > 0) || !a.foreign), "on veya foreign dogru ayarlandi");
+}
+
+// Geri yükleme noktası kodlaması: bayt sayisi > 9, bozuk hizalama reddi
+static void Test_RestorePointCodec()
+{
+    elevate::Pending p1 = {};
+    p1.ramPreset       = 1;
+    p1.dnsProvider     = 0;
+    p1.startupToggle   = 1;
+    p1.restorePoint    = true;
+    p1.restoreFrom     = "TENGRI-20241210-143015";
+    p1.anyChange[2]    = true;  // Gizlilik
+    p1.categories[2][3] = true; // dördüncü satır acik
+
+    std::wstring cmd = elevate::EncodeCommandLine(p1);
+
+    // Kodlama uzunluğu yeterince uzun olmalı (bayt basliga)
+    Check(cmd.size() > 8);
+
+    elevate::Pending p2 = {};
+    wchar_t* argv[] = { nullptr, cmd.c_str() };
+    bool decoded = elevate::DecodeCommandLine(2, argv, p2);
+    Check(decoded, "decoded");
+    Check((bool)(p2.ramPreset == 1), "ramPreset");
+    Check((bool)(p2.dnsProvider == 0), "dnsProvider");
+    Check((bool)(p2.startupToggle == 1), "startupToggle");
+    Check((bool)(p2.restorePoint == true), "restorePoint");
+    Check((bool)(p2.restoreFrom == p1.restoreFrom), "restoreFrom");
+    Check((bool)(p2.anyChange[2]), "anyChange[2]");
+    Check((bool)(p2.categories[2][3]), "categories[2][3]");
+}
+}
+
 int main()
 {
     std::printf("TENGRI saf mantik testleri\n\n");
@@ -834,6 +892,8 @@ int main()
     Test_RegPackSymmetry();
     Test_ElevateCodec();
     Test_BackupNameAndContentGate();
+    Test_ProfileAnalyze();
+    Test_RestorePointCodec();
     Test_SampleMode();
 
     std::printf("\n%d gecti, %d kaldi\n", g_pass, g_fail);

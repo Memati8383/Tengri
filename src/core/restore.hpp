@@ -44,4 +44,20 @@ namespace restore
     // 0 dönüşü "hiç oluşturulmamış". UI "Son nokta: 2 saat önce" göstermek
     // isterse.
     unsigned long long LastCreatedTick();
+
+    // Kullanıcı tercihi: ayarlar uygulanmadan önce geri yükleme noktası
+    // oluşturulsun mu? Varsayılan KAPALI. İki nedeni var: çağrı 10-30 saniye
+    // sürer (VSS) ve Sistem Koruma kapalıysa zaten hiçbir şey üretilemez. Her
+    // uygulamada kullanıcıyı bu kadar bekletmektense anahtarı kendisinin açması
+    // doğru; arayüz de bu yüzden önizleme penceresinde "noktası oluşturulacak"
+    // satırını gösteriyor.
+    //
+    // Tercihi yalnızca okumak yetmez: arayüz anahtarı bu değişkene bağlamalı,
+    // yoksa Ayarlar'daki anahtar ile uygulamanın yaptığı iş ayrışırdı.
+    extern bool createBeforeApply;
+
+    // %APPDATA%\TENGRI\restore.dat — tek bayrak, lisans ve dil tercihi gibi
+    // kendi küçücük dosyasında durur.
+    void Load();
+    void Save();
 }

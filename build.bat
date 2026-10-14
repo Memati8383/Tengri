@@ -43,7 +43,7 @@ set "IMGUI=third_party\imgui"
 rem --- kaynaklar: gruplar ayri tutulur, okunmasi ve diff'i kolay -------------
 set "SRC_APP=src\main.cpp src\app.cpp src\tray.cpp"
 set "SRC_GUI=src\gui\theme.cpp src\gui\fx.cpp src\gui\icons.cpp src\gui\brand_icons.cpp src\gui\logo.cpp src\gui\logo_data.cpp src\gui\font_data.cpp src\gui\widgets.cpp"
-set "SRC_CORE=src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\sysinfo_wmi.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\core\backup.cpp src\core\restore.cpp src\core\startup.cpp src\core\services.cpp src\core\notify.cpp src\core\update.cpp src\core\diskanalyzer.cpp src\core\island.cpp"
+set "SRC_CORE=src\core\license.cpp src\core\sysinfo.cpp src\core\sysinfo_detail.cpp src\core\sysinfo_wmi.cpp src\core\cleaner.cpp src\core\tweaks.cpp src\core\network.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\elevate.cpp src\core\backup.cpp src\core\restore.cpp src\core\startup.cpp src\core\services.cpp src\core\notify.cpp src\core\update.cpp src\core\diskanalyzer.cpp src\core\island.cpp src\core\tweakinfo.cpp src\core\profile.cpp"
 set "SRC_IMGUI=%IMGUI%\imgui.cpp %IMGUI%\imgui_draw.cpp %IMGUI%\imgui_tables.cpp %IMGUI%\imgui_widgets.cpp %IMGUI%\backends\imgui_impl_win32.cpp %IMGUI%\backends\imgui_impl_dx11.cpp"
 set "SOURCES=%SRC_APP% %SRC_GUI% %SRC_CORE% %SRC_IMGUI%"
 
@@ -119,7 +119,7 @@ set "PKGS=test_pure test_modules test_license test_write_paths test_update test_
 
 set "SHORT_test_pure=pure"
 set "LBL_test_pure=Test: saf mantik"
-set "SRC_test_pure=tests\test_pure.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\tweaks.cpp src\core\elevate.cpp src\core\backup.cpp src\core\network.cpp"
+set "SRC_test_pure=tests\test_pure.cpp src\core\lang.cpp src\core\ram.cpp src\core\regpack.cpp src\core\tweaks.cpp src\core\elevate.cpp src\core\backup.cpp src\core\network.cpp src\core\tweakinfo.cpp src\core\profile.cpp src\core\restore.cpp"
 set "LIB_test_pure=advapi32.lib shell32.lib iphlpapi.lib"
 set "KEY_test_pure=1"
 set "HINT_test_pure=test_pure derlenemedi ya da takildi; i18n tablo sirasi ve tweak sozlesmeleri bkz. docs\TEST-YUKSELTME.md"

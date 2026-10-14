@@ -4,6 +4,7 @@
 #include "ram.hpp"
 #include "network.hpp"
 #include "backup.hpp"
+#include "restore.hpp"
 
 #include <windows.h>
 #include <shellapi.h>
@@ -61,7 +62,7 @@ namespace elevate
     }
 
     // Bekleyen işi onaltılık bayt dizisine kodla:
-    //   [ram] [dns] [startup] [kategoriSayisi] ( [kategori] [durumMaskesi] )*
+    //   [ram] [dns] [startup] [bayraklar] [geriAlmaAdi] [kategoriSayisi] ( [kategori] [durumMaskesi] )*
     // FF, "bu iş yok" demektir. Her kategorinin 8 satırı bir bit maskesinde sığar.
     std::wstring EncodeCommandLine(const Pending& p)
     {
@@ -77,6 +78,11 @@ namespace elevate
         putOpt(body, p.ramPreset);
         putOpt(body, p.dnsProvider);
         putOpt(body, p.startupToggle);
+
+        // Bayrak baytı: bit 0 = geri yükleme noktası isteniyor. Şimdilik tek
+        // bayrak var ama bir sonraki için yer hazır; ayrıca "üç seçimin ardından
+        // bir bayt" kuralı çözücüde de aynı sırayla okunuyor.
+        AppendHex(body, p.restorePoint ? 1u : 0u);
 
         // Geri alma klasörü adı: önce uzunluk, sonra adın ASCII baytları.
         // Uzunluk konulmazsa çözücü nerede biteceğini bilemez.
@@ -127,7 +133,7 @@ namespace elevate
             bytes.push_back((hi << 4) | lo);
         }
         size_t p = 0;
-        if (bytes.size() < 8) return false;   // 3 seçim x 2 bayt + geri alma uzunluğu + kategori sayısı
+        if (bytes.size() < 9) return false;   // 3 seçim x 2 bayt + bayraklar + geri alma uzunluğu + kategori sayısı
 
         // Her seçim: varlık baytı (0 = yok, 1 = var), sonra değer.
         auto getOpt = [&](int& dst) -> bool {
@@ -140,6 +146,12 @@ namespace elevate
         if (!getOpt(out.ramPreset))     return false;
         if (!getOpt(out.dnsProvider))   return false;
         if (!getOpt(out.startupToggle)) return false;
+
+        // Bayraklar: bit 0 = geri yükleme noktası. Bilinmeyen bitler yok sayılır
+        // ama burada tam okunuyor; bir sonraki bayrak eklendiğinde eski bir komut
+        // satırı yeni bayrağı "yok" sayar.
+        if (p >= bytes.size()) return false;
+        out.restorePoint = (bytes[p++] & 1u) != 0;
 
         // Geri alma klasörü adı: uzunluk baytı, sonra ASCII baytlar.
         out.restoreFrom.clear();
@@ -194,6 +206,18 @@ namespace elevate
 
             return backup::Restore(root + L"\\" + ad);
         }
+
+        // Nokta yazmalardan ONCE olusmali: geri alinacak sey su andaki sistem
+        // durumu. Sonucu burada kimseye bildiremiyoruz: arayuz devirdigi icin
+        // kapanmis olur, yükseltilmis surecin kendisi de bildirim katmanini
+        // (AUMID kaydi, dil tablosu) tasimiyor. Bu yuzden arayuz yalnizca kendi
+        // yükseltilmis gecisinde sonucu soyluyor; devredilen geciste kullanici
+        // noktayi Sistem Geri Yukseltme ekraninda gorur.
+        //
+        // Aciklama ASCII: noktanin adi Windows'un listesine yaziliyor ve orada
+        // yanlis kodlanmis bir Turkce karakter kalici olur.
+        if (p.restorePoint)
+            restore::CreatePoint(L"TENGRI settings");
 
         for (int c = 0; c < Pending::kMaxCats; ++c)
         {

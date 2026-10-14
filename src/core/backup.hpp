@@ -32,6 +32,30 @@ namespace backup
     // ayrılabilirdi.
     bool ExportForCategories(const int* cats, int count, std::wstring* outDir);
 
+    // Seçili ayarların (kategori, sıra) dokunduğu (anahtar,değer) çiftlerinin
+    // CANLI değerlerini TEK bir .reg dosyasına yazar: profil dışa aktarımı.
+    // Yalnızca OKUMA yapar, yetki istemez.
+    //
+    // Aynı çifti birkaç ayar sahiplenebildiği için (bkz. tweaks::IsShared)
+    // kayıtlar tekil yazılır. Tabloda kaydı olmayan ayar — güç planı, hizmet
+    // durumu gibi komut aracıyla değişenler — dosyaya giremez; sayısı
+    // `toolOut`'ta döner, çünkü kullanıcıya "profil hepsini taşıdı" denemez.
+    bool ExportPairs(const std::vector<std::pair<int, int>>& sel,
+                     const std::wstring& file, int* pairsOut, int* toolOut);
+
+    // Bir yedek klasörünün arayüzde gösterilebilmesi için gerekenler.
+    struct Snapshot
+    {
+        std::wstring dir;          // tam yol
+        std::wstring leaf;         // zaman damgası klasör adı
+        std::vector<int> cats;     // içinde yedeği bulunan kategoriler (artan)
+    };
+
+    // Yedek klasörlerini yeniden eskige dogru listeler. Bicimi bozuk adlar
+    // (Latest'in de reddettigi) buraya da girmez: arayuz secilemeyen bir yedegi
+    // "var" diye gosteremez.
+    std::vector<Snapshot> Scan();
+
     // Mevcut yedekleri yeniden eskiden yeniye doğru sıralar (dizin adı zaman damgasıdır).
     std::vector<std::wstring> List();
 

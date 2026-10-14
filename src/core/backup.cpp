@@ -2,25 +2,16 @@
 #include "brand.hpp"
 #include "regtext.hpp"
 #include "regwrite.hpp"
+#include "tweak_keys.hpp"
 
 #include <windows.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cwchar>
 #include <string>
+#include <utility>
 #include <vector>
-
-#ifdef TENGRI_HAS_TWEAK_KEYS
-#include "tweak_keys.h"
-#else
-namespace tweakkeys
-{
-    struct Entry { int cat; int idx; const wchar_t* path;
-                   const wchar_t* const* values; };
-    static const Entry kEntries[] = {};
-    static const int kCount = 0;
-}
-#endif
 
 namespace backup
 {
@@ -43,12 +34,42 @@ namespace backup
             return &files.back();
         }
 
+        std::wstring* SectionLines(std::vector<Section>& secs, const std::wstring& key)
+        {
+            for (Section& s : secs)
+                if (_wcsicmp(s.key.c_str(), key.c_str()) == 0) return &s.lines;
+            secs.push_back({ key, {} });
+            return &secs.back().lines;
+        }
+
         std::wstring* FindSection(PendingFile& f, const std::wstring& key)
         {
-            for (Section& s : f.sections)
-                if (_wcsicmp(s.key.c_str(), key.c_str()) == 0) return &s.lines;
-            f.sections.push_back({ key, {} });
-            return &f.sections.back().lines;
+            return SectionLines(f.sections, key);
+        }
+
+        // Canlı bir değerin tek satırı. Açık anahtar kolu çağranın kendisininki
+        // olur, böylece bir anahtar için tek açılımla birkaç değer okunabilir.
+        //
+        // Üç atlama neden sessiz, neden zorunlu:
+        //   - değer yoksa geri alınacak bir şey yoktur (ayar ilk kez yazılıyor),
+        //   - tipi geri yüklenebilir değilse biz onu zaten yazamayız,
+        //   - tavanı aşan bir bayt, üçüncü bir programın oraya koyduğu ve
+        //     "eski ayar" sayılmayacak bir şeydir.
+        std::wstring LiveValueLine(HKEY key, const wchar_t* name)
+        {
+            DWORD type = 0, cb = 0;
+            if (::RegQueryValueExW(key, name, nullptr, &type, nullptr, &cb) != ERROR_SUCCESS)
+                return {};
+            if (!regtext::TypeRestorable(type)) return {};
+            if (cb > regtext::kMaxValueBytes) return {};
+
+            std::vector<unsigned char> data(cb ? cb : 1u, 0);
+            if (::RegQueryValueExW(key, name, nullptr, &type, data.data(), &cb) != ERROR_SUCCESS)
+                return {};
+
+            std::wstring line;
+            if (!regtext::SerializeValue(name, type, data.data(), cb, &line)) return {};
+            return line;
         }
 
         bool IsWanted(const int* cats, int count, int cat)
@@ -192,10 +213,10 @@ namespace backup
             return ok != FALSE;
         }
 
-        std::wstring FileText(const PendingFile& f)
+        std::wstring FileText(const std::vector<Section>& sections)
         {
             std::wstring t = L"Windows Registry Editor Version 5.00\r\n\r\n";
-            for (const Section& s : f.sections)
+            for (const Section& s : sections)
             {
                 // Bölgesi başlık satırı köşeli ayraçta durur; ayraç ya da satır
                 // sonu taşıyan bir anahtar adı metni bozardı. Tabloda böyle bir
@@ -254,20 +275,8 @@ namespace backup
 
             for (const wchar_t* const* vn = e.values; vn && *vn; ++vn)
             {
-                DWORD type = 0, cb = 0;
-                if (::RegQueryValueExW(k, *vn, nullptr, &type, nullptr, &cb) != ERROR_SUCCESS)
-                    continue;
-                if (!regtext::TypeRestorable(type)) continue;
-                if (cb > regtext::kMaxValueBytes) continue;
-
-                // Üçüncü bir programın oraya koyduğu, geri alınacak "eski ayar"
-                // sayılmayacak kadar büyük bir değeri atlıyoruz.
-                std::vector<unsigned char> data(cb ? cb : 1u, 0);
-                if (::RegQueryValueExW(k, *vn, nullptr, &type, data.data(), &cb) != ERROR_SUCCESS)
-                    continue;
-
-                std::wstring line;
-                if (!regtext::SerializeValue(*vn, type, data.data(), cb, &line)) continue;
+                const std::wstring line = LiveValueLine(k, *vn);
+                if (line.empty()) continue;
                 *FindSection(*FindFile(files, e.cat, e.idx), full) += line;
             }
             ::RegCloseKey(k);
@@ -280,7 +289,7 @@ namespace backup
             if (f.sections.empty()) continue;
             wchar_t path[MAX_PATH] = {};
             ::swprintf_s(path, L"%s\\%d-%d.reg", dir.c_str(), f.cat, f.idx);
-            if (WriteRegFile(path, FileText(f))) ++written;
+            if (WriteRegFile(path, FileText(f.sections))) ++written;
             else clean = false;
         }
 
@@ -307,6 +316,109 @@ namespace backup
 
         if (outDir) *outDir = dir;
         return true;
+    }
+
+    bool ExportPairs(const std::vector<std::pair<int, int>>& sel,
+                     const std::wstring& file, int* pairsOut, int* toolOut)
+    {
+        if (pairsOut) *pairsOut = 0;
+        if (toolOut)  *toolOut  = 0;
+        if (file.empty() || sel.empty()) return false;
+
+        std::vector<Section> secs;
+        std::vector<std::pair<std::wstring, std::wstring>> seen;
+        int values = 0, tools = 0;
+
+        for (const std::pair<int, int>& s : sel)
+        {
+            int rows = 0;
+            for (int i = 0; i < tweakkeys::kCount; ++i)
+            {
+                const tweakkeys::Entry& e = tweakkeys::kEntries[i];
+                if (e.cat != s.first || e.idx != s.second) continue;
+                ++rows;
+
+                const std::wstring full = regtext::ExpandKey(e.path);
+                HKEY rootKey = nullptr;
+                std::wstring sub;
+                if (!regtext::SplitRoot(full, &rootKey, &sub)) continue;
+
+                HKEY k = nullptr;
+                if (::RegOpenKeyExW(rootKey, sub.c_str(), 0, KEY_READ, &k) != ERROR_SUCCESS)
+                    continue;
+                for (const wchar_t* const* vn = e.values; vn && *vn; ++vn)
+                {
+                    const std::pair<std::wstring, std::wstring> id(full, *vn);
+                    bool dup = false;
+                    for (const std::pair<std::wstring, std::wstring>& p : seen)
+                        if (p == id) { dup = true; break; }
+                    if (dup) continue;
+                    seen.push_back(id);
+
+                    const std::wstring line = LiveValueLine(k, *vn);
+                    if (line.empty()) continue;
+                    *SectionLines(secs, full) += line;
+                    ++values;
+                }
+                ::RegCloseKey(k);
+            }
+            // Tabloda kaydı olmayan ayar komut araciyla degisiyor; profil
+            // onu tasiyamaz. Sayiyi geri dondurmek zorunlu, cunku arayuz
+            // "hepsi disa aktarildi" diyemez.
+            if (rows == 0) ++tools;
+        }
+
+        if (secs.empty()) return false;
+        if (!WriteRegFile(file, FileText(secs))) return false;
+
+        if (pairsOut) *pairsOut = values;
+        if (toolOut)  *toolOut  = tools;
+        return true;
+    }
+
+    std::vector<Snapshot> Scan()
+    {
+        std::vector<Snapshot> out;
+        const std::wstring root = RootDirectory();
+        if (root.empty()) return out;
+
+        for (const std::wstring& dir : List())
+        {
+            const size_t slash = dir.find_last_of(L'\\');
+            const std::wstring leaf = (slash == std::wstring::npos)
+                                        ? dir : dir.substr(slash + 1);
+            // Bicimi taninmayan klasor Listedeki gibi gorunur ama Latest ve
+            // Restore onu reddeder; arayuzde durmasi "secilebilir yedek" yalani
+            // olurdu.
+            if (!IsBackupLeafName(leaf)) continue;
+
+            Snapshot s;
+            s.dir  = dir;
+            s.leaf = leaf;
+
+            WIN32_FIND_DATAW fd = {};
+            HANDLE h = ::FindFirstFileW((dir + L"\\*.reg").c_str(), &fd);
+            if (h != INVALID_HANDLE_VALUE)
+            {
+                do
+                {
+                    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+                    int cat = -1, idx = -1;
+                    if (!regtext::ParseBackupName(fd.cFileName, &cat, &idx)) continue;
+                    bool have = false;
+                    for (int c : s.cats) if (c == cat) { have = true; break; }
+                    if (!have) s.cats.push_back(cat);
+                } while (::FindNextFileW(h, &fd));
+                ::FindClose(h);
+            }
+            std::sort(s.cats.begin(), s.cats.end());
+            out.push_back(std::move(s));
+        }
+
+        // Klasör adı zaman damgası: sözlüksel büyük olan yenidir.
+        std::sort(out.begin(), out.end(), [](const Snapshot& a, const Snapshot& b)
+                  { return a.leaf > b.leaf; });
+        return out;
     }
 
     std::vector<std::wstring> List()

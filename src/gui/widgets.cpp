@@ -339,14 +339,16 @@ namespace ui
         dl->AddCircleFilled(kc, kr, Gray(ImLerp(0.72f + 0.15f * hover, 0.05f, on)), 24);
     }
 
-    bool ToggleCard(const char* label, const char* desc, bool* v, float width, bool card)
+    bool ToggleCard(const char* label, const char* desc, bool* v, float width, bool card,
+                    const char* detail, float height)
     {
         ImGuiWindow* win = ImGui::GetCurrentWindow();
         if (win->SkipItems)
             return false;
 
         const ImGuiID id  = win->GetID(label);
-        const float   hgt = desc ? px(64) : px(44);
+        const float   base = (desc ? px(64) : px(44)) + (detail ? px(16) : 0.0f);
+        const float   hgt  = height > 0.0f ? height : base;
         const ImVec2  pos = win->DC.CursorPos;
         const ImRect  bb(pos, pos + ImVec2(width, hgt));
         ImGui::ItemSize(bb);
@@ -388,6 +390,9 @@ namespace ui
         {
             Text(dl, theme::fonts.medium,theme::size::Label, ImVec2(bb.Min.x + padX, bb.Min.y + px(12)), titleCol, label, end);
             Text(dl, theme::fonts.regular,theme::size::Body, ImVec2(bb.Min.x + padX, bb.Min.y + px(33)), Gray(0.48f), desc);
+            if (detail)
+                Text(dl, theme::fonts.regular,theme::size::Meta, ImVec2(bb.Min.x + padX, bb.Min.y + px(52)),
+                     Gray(0.40f), detail);
         }
         else
         {

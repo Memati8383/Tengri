@@ -40,6 +40,12 @@ namespace elevate
         // süreçte yeniden kurulur, böylece komut satırına kullanıcıdan gelen bir
         // yol sızmaz.
         std::string          restoreFrom;
+
+        // Ayarlar uygulanmadan önce Windows geri yükleme noktası oluşturulsun mu?
+        // Noktayı yükseltilmiş süreç kurar: SRSetRestorePointW yönetici ister.
+        // Ana süreç zaten yükseltilmişse bu bayrak KAPALI bırakılır ve arayüz
+        // noktayı kendisi oluşturur; yoksa aynı iş iki kez yapılmış olurdu.
+        bool                 restorePoint = false;
     };
 
     void  CacheExecutablePath();

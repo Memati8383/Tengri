@@ -14,6 +14,8 @@
 #include "core/ram.hpp"
 #include "core/elevate.hpp"
 #include "core/backup.hpp"
+#include "core/tweakinfo.hpp"
+#include "core/restore.hpp"
 #include "core/notify.hpp"
 #include "core/sysinfo_wmi.hpp"
 #include "core/startup.hpp"
@@ -22,6 +24,7 @@
 #include "core/update.hpp"
 #include "core/diskanalyzer.hpp"
 #include "core/island.hpp"
+#include "core/profile.hpp"
 #include "tray.hpp"
 #include "brand.hpp"
 #include <shellapi.h>
@@ -166,12 +169,42 @@ namespace app
         };
         DiskJob g_diskJob;
 
+        // Geri yükleme noktası: çağrı 10-30 saniye sürer (VSS), o yüzden iş
+        // parçacığında koşar ve yazma adımı bittiği ana kadar bekler. Nokta
+        // "uygulamadan önce" olmalı; yoksa geri alınacak bir şey kalmaz.
+        // Sonuç tek bir tamsayı olduğu için mutex yerine atomik.
+        struct RpJob
+        {
+            std::thread       worker;
+            std::atomic<bool> busy{false}, done{false};
+            std::atomic<int>  result{0};
+        };
+        RpJob g_rpJob;
+        bool  g_rpAttempted = false;
+        constexpr double kRestorePointWait = 60.0;
+
+        void StartRestorePoint()
+        {
+            if (g_rpJob.worker.joinable()) g_rpJob.worker.detach();
+            g_rpJob.busy   = true;
+            g_rpJob.done   = false;
+            g_rpJob.result = (int)restore::Result::Failed;
+            g_rpJob.worker = std::thread([] {
+                const restore::Result r = restore::CreatePoint(L"TENGRI settings");
+                g_rpJob.result = (int)r;
+                g_rpJob.done   = true;
+                g_rpJob.busy   = false;
+            });
+            g_rpAttempted = true;
+        }
+
         // JoinAll disk nesnelerinden sonra tanimli: hepsini birden bekliyor,
         // dolayisiyla hicbiri bildirilmeden kullanilamaz.
         void JoinAll()
         {
             if (g_scanJob.worker.joinable())  g_scanJob.worker.join();
             if (g_cleanJob.worker.joinable()) g_cleanJob.worker.join();
+            if (g_rpJob.worker.joinable())    g_rpJob.worker.join();
             g_disk.Join();
             if (g_diskJob.worker.joinable())  g_diskJob.worker.join();
         }
@@ -280,6 +313,27 @@ namespace app
         double g_tweakCatTime = 0.0;
         bool   g_applying     = false;
         double g_applyStart   = 0.0;
+
+        // Uygulama öncesi önizleme penceresi (PageTweaks'ın sonunda çiziliyor)
+        // ve yedek seçici; hangisinin açık olduğu tek birer bayrakla durur.
+        bool g_previewActive = false;
+        bool g_undoPickOpen  = false;
+
+        // Onaylanmış uygulamayı başlatır. Geri yükleme noktası burada, yani henüz
+        // hiçbir şey yazılmadan kuruyor; Frame'in gecikmeli yazma adımı bitene
+        // kadar iş parçacığında koşar ve yazma adımı onu bekler.
+        //
+        // Devredilen yolda (yetkisiz süreç) noktayı çocuk kurar: p.restorePoint
+        // bayrağı orada dolduruluyor. İkisi birden kurulsaydı Windows'un 24 saat
+        // kuralı ikincisini reddeder, kullanıcı "oluştu" sanırdı.
+        void BeginApply()
+        {
+            g_applying    = true;
+            g_applyStart  = ImGui::GetTime();
+            g_rpAttempted = false;
+            if (restore::createBeforeApply && elevate::IsElevated())
+                StartRestorePoint();
+        }
 
         // Son başarılı uygulamadan bu yana kullanıcının çevirdiği anahtarlar. Kategori
         // 4-6 tek bir birleşik .reg gövdesi olarak yazılır; dokunulmamış girdileri
@@ -407,7 +461,11 @@ void NotifyDelegating(const elevate::Pending& p);
         {
             g_retry     = p;          // "tekrar dene" bunu yeniden gönderir
             g_hasRetry  = true;
-            notify::PostProgress(L(WorkingOn), L(NeedAdmin));
+            // Nokta kurulacaksa bildirim bunu söylemeli: çocuk süreç 10-30 saniye
+            // VSS'de bekliyor, o sürede arayüz kapanmış olacak ve kullanıcı tek
+            // başına "çalışıyor" satırını uygulama takıldı sanabilirdi.
+            notify::PostProgress(L(WorkingOn),
+                                 p.restorePoint ? L(RestorePointWait) : L(NeedAdmin));
         }
 
         // Etiketler yine satır indeksinden lang::NetNameKey/NetDescKey ile gelir, tweak kategorileriyle aynı düzen.
@@ -1189,36 +1247,52 @@ void NotifyDelegating(const elevate::Pending& p);
                 }
             }
 
-            if (g_applying && now - g_applyStart > 1.4)
+            // Geri yükleme noktası yazma adımından önce bitmeli: nokta çağrısı
+            // 10-30 saniye sürer, animasyon beklemesinin (1.4 sn) üzerine çıkar.
+            // Üst sınır kRestorePointWait — koruma kapalıysa nokta hiç gelmeyecek
+            // ve beklemenin sonsuza dönmemesi gerekir.
+            const bool rpWaiting = g_rpAttempted && !g_rpJob.done.load()
+                                   && (now - g_applyStart) <= kRestorePointWait;
+
+            if (g_applying && now - g_applyStart > 1.4 && !rpWaiting)
             {
                 g_applying = false;
 
-                // Yalnızca kullanıcının o sırada baktığı kategoriye dokunulur. Tek bir
-                // düğmeden 56 ayarın tamamını uygulamak, arayüzün arkasından tüm
-                // registry kümesini yazıyor ve kimsenin çevirmediği anahtarları da geri alıyordu.
-                const int c = g_tweakCat;
+                // Önizleme modalı kullanıcıya tüm kategorilerin değişmiş satırlarını
+                // gösteriyor; onay bu kalemlerin tamamına verilmiş sayılır. Yalnızca
+                // bakılan kategoriyi yazmak, onaylanan listenin gerisini sessizce
+                // ertelemek olurdu.
+                int dirty[kTweakCats] = {};
+                int nd = 0;
+                for (int c = 0; c < kTweakCats; ++c)
+                    if (g_dirtyAny[c]) dirty[nd++] = c;
 
                 // Uygulamadan hemen once dokunulacak anahtarlar disa aktarilir.
                 // "Kapat" islemi kullanici degerini degil kodlanmis varsayilani geri
                 // yukler; bu yedek olmadan geri al dugmesi gercek bir geri alma
                 // sayilmaz. Yedekleme yalnizca OKUMA ister, yonetici gerekmez.
-                if (g_dirtyAny[c])
+                if (nd > 0)
                 {
-                    const int cats[1] = { c };
                     std::wstring yedek;
-                    if (backup::ExportForCategories(cats, 1, &yedek)) g_lastBackup = yedek;
+                    if (backup::ExportForCategories(dirty, nd, &yedek)) g_lastBackup = yedek;
                 }
 
                 // Süreç yükseltilmiş değilse, bekleyen iş "runas" ile yeni bir yükseltilmiş
                 // sürece devredilir ve bu arayüz kapanır. Kullanıcı UAC'i bir kez görür;
                 // ayarının uygulanmış olması gerektiğini o süreç yapar. Buradaki düğme
                 // basıldığı an sistem bilgisi okumak gibi işlemler için UAC hiç çıkmaz.
-                if (g_dirtyAny[c] && !elevate::IsElevated())
+                if (nd > 0 && !elevate::IsElevated())
                 {
                     elevate::Pending p;
-                    p.anyChange[c] = true;
-                    const int cnt = ImMin((int)g_tweaks[c].size(), 8);
-                    for (int i = 0; i < cnt; ++i) p.categories[c][i] = g_tweaks[c][i].on;
+                    for (int k = 0; k < nd; ++k)
+                    {
+                        const int c = dirty[k];
+                        p.anyChange[c] = true;
+                        const int cnt = ImMin((int)g_tweaks[c].size(), 8);
+                        for (int i = 0; i < cnt; ++i) p.categories[c][i] = g_tweaks[c][i].on;
+                    }
+                    // Noktayı çocuk süreç kuruyor (bkz. BeginApply).
+                    p.restorePoint = restore::createBeforeApply;
                     // Başka sayfalarda bekleyen işler varsa (RAM/DNS/başlangıç) aynı yükseltilmiş
                     // geçişte onlar da taşınsın; kullanıcı bir kez UAC görsün.
                     CollectPendingFromPages(p);
@@ -1226,8 +1300,13 @@ void NotifyDelegating(const elevate::Pending& p);
                     elevate::ApplyOrDelegate(p);
                     // ApplyOrDelegate devredildiyse süreci kapatır; buraya dönmez.
                     // UAC reddedildiyse bu satıra düşer ve ayar uygulanmamış olur.
-                    g_dirtyAny[c] = false;
-                    for (int i = 0; i < cnt; ++i) g_dirty[c][i] = false;
+                    for (int k = 0; k < nd; ++k)
+                    {
+                        const int c = dirty[k];
+                        g_dirtyAny[c] = false;
+                        const int cnt = ImMin((int)g_tweaks[c].size(), 8);
+                        for (int i = 0; i < cnt; ++i) g_dirty[c][i] = false;
+                    }
                     ui::Notify(Toast::Warning, L(TweaksApplied), L(NeedAdmin));
                     // Buraya yalnızca UAC reddedildiğinde düşülür; "tekrar dene"
                     // düğmesi bu yüzden burada anlamlıdır.
@@ -1240,8 +1319,9 @@ void NotifyDelegating(const elevate::Pending& p);
                 // Uygulama boyunca tutulur: temizleyici bu surede calismaz.
                 g_applyingReg.store(true);
 
-                if (g_dirtyAny[c])
+                for (int k = 0; k < nd; ++k)
                 {
+                    const int c = dirty[k];
                     const int cnt = ImMin((int)g_tweaks[c].size(), 16);
 
                     if (tweaks::IsRegPack(c))
@@ -1294,14 +1374,35 @@ void NotifyDelegating(const elevate::Pending& p);
                 else
                     snprintf(msg, sizeof(msg), L(RestartFmt), on);
                 g_applyingReg.store(false);
-                ui::Notify(fail > 0 ? Toast::Warning : Toast::Success, L(TweaksApplied), msg);
+
+                // Nokta sonucu aynı bildirimde taşınır: "ayarlar uygulandı" satırının
+                // yanında noktanın kurulduğunu (ya da kurulamadığını) görmek, kullanıcının
+                // geri yükleme tercihine güvenmesinin tek yolu. Zaman aşımı ayrı bir
+                // metin: iş parçacığı hâlâ koşuyor olabilir ve ResultText bunu bilmez.
+                std::string out = msg;
+                if (g_rpAttempted)
+                {
+                    g_rpAttempted = false;
+                    char rp[160];
+                    if (!g_rpJob.done.load())
+                        snprintf(rp, sizeof(rp), L(RestorePointTimeout));
+                    else if (g_rpJob.result.load() == (int)restore::Result::Created)
+                        snprintf(rp, sizeof(rp), L(RestorePointTaken));
+                    else
+                        snprintf(rp, sizeof(rp), L(RestorePointFailedFmt),
+                                 restore::ResultText((restore::Result)g_rpJob.result.load()));
+                    out += " \xC2\xB7 ";
+                    out += rp;
+                }
+
+                ui::Notify(fail > 0 ? Toast::Warning : Toast::Success, L(TweaksApplied), out.c_str());
                 // Kısmi başarıda "tekrar dene" anlamlıdır (yalnızca yazılamayanlar
                 // kaldı), tam başarıda "geri al" (yedek alındıysa).
                 if (fail > 0)
-                    NotifyWinFailed(notify::Level::Warning, L(TweaksApplied), msg,
+                    NotifyWinFailed(notify::Level::Warning, L(TweaksApplied), out.c_str(),
                                     notify::TargetTweaks);
                 else if (written > 0)
-                    NotifyWin(notify::Level::Success, L(TweaksApplied), msg,
+                    NotifyWin(notify::Level::Success, L(TweaksApplied), out.c_str(),
                               notify::TargetTweaks, /*canUndo=*/true);
             }
         }
@@ -1719,10 +1820,101 @@ void NotifyDelegating(const elevate::Pending& p);
             ImGui::EndDisabled();
         }
 
+        // ------------------------------------------------ ayarların dokunduğu yerler
+        //
+        // Kartta tek satır, uygulama öncesi önizleme modalında tam liste gösterilir.
+        // İkisi de aynı tablodan (tweakinfo) okur. Ayrı iki liste tutsaydık arayüzde
+        // "bunu değiştiriyoruz" görünen bir anahtar, yedek kapısının reddettiği bir
+        // anahtar olabilirdi; kullanıcıya gösterilen kapsama güvenilemezdi.
+        int ValueCount(const wchar_t* const* v)
+        {
+            int n = 0;
+            for (; v && *v; ++v) ++n;
+            return n;
+        }
+
+        int TweakPairCount(int cat, int idx)
+        {
+            tweakinfo::Item it = {};
+            int pairs = 0;
+            for (int i = 0; tweakinfo::Get(cat, idx, i, &it); ++i) pairs += ValueCount(it.valueNames);
+            return pairs;
+        }
+
+        // Kart altındaki satır: kok + anahtar kuyrugu + ilk deger adi. Tam yol
+        // kart genisligina sigmiyor (olculen en uzun yol 121 karakter), ama koku
+        // gosterilmek zorunda: HKLM yonetici ister, HKCU istemez. Kuyruk olarak
+        // son iki bilesen aliniyor; "PerfOptions" tek basina hangi oyun oldugunu
+        // soylemiyor, "VALORANT-Win64-Shipping.exe\PerfOptions" soyluyor.
+        // Tum liste onizleme modaliinda.
+        std::string TweakKeyHint(int cat, int idx)
+        {
+            tweakinfo::Item it = {};
+            if (!tweakinfo::Get(cat, idx, 0, &it))
+                return std::string(L(KeysToolNote));
+
+            const std::wstring yol(it.key ? it.key : L"");
+            const size_t kokSon = yol.find_first_of(L'\\');
+            const std::wstring kok = kokSon == std::wstring::npos
+                                       ? yol : yol.substr(0, kokSon);
+
+            const size_t p1 = yol.find_last_of(L'\\');
+            const size_t p2 = (p1 == std::wstring::npos || p1 == 0)
+                                ? std::wstring::npos : yol.find_last_of(L'\\', p1 - 1);
+            std::wstring kuyruk = p2 == std::wstring::npos
+                ? (p1 == std::wstring::npos ? yol : yol.substr(p1 + 1))
+                : yol.substr(p2 + 1);
+            if (kuyruk.size() > 42)
+                kuyruk = std::wstring(L"\x2026") + kuyruk.substr(kuyruk.size() - 42);
+
+            std::wstring s = kok + L"\\" + kuyruk;
+            if (it.valueNames && it.valueNames[0] && *it.valueNames[0])
+                s += std::wstring(L" \xB7 ") + it.valueNames[0];
+
+            std::string out = W2S(s);
+            const int extra = TweakPairCount(cat, idx) - 1;
+            if (extra > 0)
+            {
+                char more[40];
+                snprintf(more, sizeof more, L(KeysMoreFmt), extra);
+                out += "  ";
+                out += more;
+            }
+            return out;
+        }
+
+        // Onizleme modali satirlari: kisaltmasiz anahtar yolu ve altindaki her
+        // deger adi. Bizim bicimde varsayilan deger "@=" ile yaziliyor, o yuzden
+        // bos ad "@" olarak gosteriliyor; "deger adi bos" demek kullanici icin
+        // hiçbir şey görünmemesi olurdu.
+        std::vector<std::string> TweakKeyLines(int cat, int idx)
+        {
+            std::vector<std::string> out;
+            tweakinfo::Item it = {};
+            for (int i = 0; tweakinfo::Get(cat, idx, i, &it); ++i)
+            {
+                std::string s = W2S(std::wstring(it.key ? it.key : L""));
+                for (const wchar_t* const* v = it.valueNames; v && *v; ++v)
+                {
+                    s += " \xC2\xB7 ";
+                    s += **v ? W2S(std::wstring(*v)) : std::string("@");
+                }
+                out.push_back(std::move(s));
+            }
+            return out;
+        }
+
         void ToggleGrid(std::vector<Tweak>& list, int cat, float cw)
         {
             const float gap  = px(14);
             const float colw = floorf((cw - gap) * 0.5f);
+
+            // Tablosuz derlemede (test paketleri) satirin gösterilecek bir şeyi
+            // yok: "komut aracıyla değişir" demek, gerçekten komut aracıyla
+            // değişen ayarları tablesız bir derlemeden ayırt edemez kılardı.
+            const bool  showKeys = tweakinfo::EntryCount() > 0;
+            const float rowH     = showKeys ? px(80) : px(64);
+
             ImVec2 row;
             for (int i = 0; i < (int)list.size(); ++i)
             {
@@ -1731,9 +1923,11 @@ void NotifyDelegating(const elevate::Pending& p);
                     row = ImGui::GetCursorScreenPos();
                 ImGui::SetCursorScreenPos(row + ImVec2(col * (colw + gap), 0));
                 const bool prev = list[i].on;
+                const std::string hint = showKeys ? TweakKeyHint(cat, i) : std::string();
                 ui::ToggleCard(lang::Get(S::TweakNameKey(cat, i)),
                                lang::Get(S::TweakDescKey(cat, i)),
-                               &list[i].on, colw);
+                               &list[i].on, colw, true,
+                               hint.empty() ? nullptr : hint.c_str(), rowH);
                 if (list[i].on != prev && i < 16)
                 {
                     g_dirty[cat][i] = true;
@@ -1742,7 +1936,7 @@ void NotifyDelegating(const elevate::Pending& p);
                 if (col == 1 || i == (int)list.size() - 1)
                 {
                     ImGui::SetCursorScreenPos(row);
-                    ImGui::Dummy(ImVec2(cw, px(64)));
+                    ImGui::Dummy(ImVec2(cw, rowH));
                 }
             }
         }
@@ -1849,6 +2043,383 @@ void NotifyDelegating(const elevate::Pending& p);
             ImGui::Dummy(ImVec2(cw, ch));
         }
 
+        // ------------------------------------------------ profil ve yedek seçici
+
+        const char* TweakCatName(int c)
+        {
+            static const S::Key keys[] = { S::Performance, S::Gaming, S::Privacy, S::Visual, S::Games,
+                                           S::FiveM, S::Delay, S::Valorant, S::CS2, S::Fortnite };
+            if (c < 0 || c >= (int)(sizeof(keys) / sizeof(keys[0]))) return "";
+            return lang::Get(keys[c]);
+        }
+
+        // Yedek klasörü adı zaman damgası (yyyyMMdd-HHmmss); çıplak hali okunuyor
+        // ama taranarak okunuyor. Sekize bölünüp tarih biçimine çevriliyor; biçim
+        // bozuksa ad olduğu gibi gösterilir, çünkü Scan() zaten biçimi denetliyor.
+        std::string BackupLeafText(const std::wstring& leaf)
+        {
+            int y = 0, mo = 0, d = 0, hh = 0, mm = 0, ss = 0;
+            if (leaf.size() >= 15 && leaf[8] == L'-')
+            {
+                auto dig = [&leaf](size_t a, size_t n) {
+                    int v = 0;
+                    for (size_t i = 0; i < n; ++i)
+                    {
+                        const wchar_t c = leaf[a + i];
+                        if (c < L'0' || c > L'9') return -1;
+                        v = v * 10 + (c - L'0');
+                    }
+                    return v;
+                };
+                y = dig(0, 4); mo = dig(4, 2); d = dig(6, 2);
+                hh = dig(9, 2); mm = dig(11, 2); ss = dig(13, 2);
+            }
+            char buf[40];
+            if (y >= 0 && mo >= 0 && d >= 0 && hh >= 0 && mm >= 0 && ss >= 0)
+                snprintf(buf, sizeof buf, "%04d-%02d-%02d %02d:%02d:%02d", y, mo, d, hh, mm, ss);
+            else
+                snprintf(buf, sizeof buf, "%s", WideToUtf8(leaf).c_str());
+            return buf;
+        }
+
+        std::string SnapshotCatsText(const backup::Snapshot& s)
+        {
+            std::string out;
+            for (int c : s.cats)
+            {
+                if (!out.empty()) out += ", ";
+                out += TweakCatName(c);
+            }
+            return out;
+        }
+
+        std::vector<backup::Snapshot> g_undoSnaps;
+        int g_undoPick = 0;
+
+        // Liste modal açılırken taranıyor: Scan() dizin okuyan bir çağrı, her kare
+        // yinelemek 60 fps'te bir klasör tarama motoru demek olurdu.
+        void OpenUndoPicker()
+        {
+            g_undoSnaps = backup::Scan();
+            g_undoPick  = 0;
+            g_undoPickOpen = true;
+            ImGui::OpenPopup("undopick");
+        }
+
+        void DrawUndoPicker()
+        {
+            if (!g_undoPickOpen) return;
+            ImGui::SetNextWindowSize(ImVec2(px(460), 0));
+            if (ImGui::BeginPopupModal("undopick", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+            {
+                ui::Label(theme::fonts.medium, theme::size::Label, theme::ink::Primary, L(UndoPickTitle));
+                ImGui::Dummy(ImVec2(0, px(6)));
+
+                if (g_undoSnaps.empty())
+                {
+                    ui::Label(theme::fonts.regular, theme::size::Body, theme::ink::Secondary,
+                              L(UndoPickNone));
+                }
+                else
+                {
+                    ImGui::BeginChild("##undopicks", ImVec2(px(436), px(260)),
+                                      ImGuiChildFlags_Borders, 0);
+                    const float rowW = px(400);
+                    for (int k = 0; k < (int)g_undoSnaps.size(); ++k)
+                    {
+                        std::string lab = BackupLeafText(g_undoSnaps[k].leaf);
+                        const std::string cs = SnapshotCatsText(g_undoSnaps[k]);
+                        if (!cs.empty()) { lab += "  \xC2\xB7 "; lab += cs; }
+                        if (ui::Button(lab.c_str(), ImVec2(rowW, px(30)),
+                                       k == g_undoPick ? ButtonStyle::Secondary : ButtonStyle::Ghost))
+                            g_undoPick = k;
+                    }
+                    ImGui::EndChild();
+                    ImGui::Dummy(ImVec2(0, px(4)));
+                    ui::Label(theme::fonts.regular, theme::size::Meta, theme::ink::Tertiary,
+                              L(UndoPickHint));
+                }
+
+                ImGui::Dummy(ImVec2(0, px(8)));
+                const float bw = (px(436) - px(12)) * 0.5f;
+                ImGui::BeginDisabled(g_undoSnaps.empty());
+                if (ui::Button(L(UndoPickBtn), ImVec2(bw, px(34)), ButtonStyle::Primary, Icon::Refresh))
+                {
+                    if (g_undoPick >= 0 && g_undoPick < (int)g_undoSnaps.size())
+                        RunUndo(g_undoSnaps[g_undoPick].dir);
+                    g_undoPickOpen = false;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndDisabled();
+                ImGui::SameLine();
+                if (ui::Button(L(BtnCancel), ImVec2(bw, px(34)), ButtonStyle::Ghost))
+                {
+                    g_undoPickOpen = false;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+            if (g_undoPickOpen && !ImGui::IsPopupOpen("undopick"))
+                g_undoPickOpen = false;
+        }
+
+        // Dosya seçme kutusu. IFileOpenDialog STA iş parçacığı ister; disk sayfası
+        // da COM başlattığı için yalnızca kendimizin açtığı oturumu kapatıyoruz
+        // (ci == S_OK). Başka bir kullanıcının nesnelerini uçuran bir
+        // CoUninitialize'dan bunu ayırır.
+        bool PickProfileFile(bool save, std::wstring* out)
+        {
+            out->clear();
+            const HRESULT ci = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+            bool ok = false;
+
+            IFileDialog* dlg = nullptr;
+            const HRESULT cc = ::CoCreateInstance(save ? CLSID_FileSaveDialog : CLSID_FileOpenDialog,
+                                                  nullptr, CLSCTX_ALL, IID_PPV_ARGS(&dlg));
+            if (SUCCEEDED(cc) && dlg)
+            {
+                const char* titleUtf8 = save ? L(ProfileExport) : L(ProfileImport);
+                const std::wstring title = disk::Utf8ToUtf16(titleUtf8, (size_t)strlen(titleUtf8));
+                dlg->SetTitle(title.c_str());
+
+                if (save)
+                {
+                    dlg->SetOptions(FOS_OVERWRITEPROMPT | FOS_FORCEFILESYSTEM);
+                    dlg->SetDefaultExtension(L"reg");
+                    // Önerilen ad zaman damgası taşıyor: aynı klasöre ikinci profil
+                    // yazılırken üzerine yazma kararı kullanıcıya kalmasın.
+                    SYSTEMTIME st = {};
+                    ::GetLocalTime(&st);
+                    wchar_t nm[64] = {};
+                    swprintf_s(nm, L"tengri-profil-%04d%02d%02d-%02d%02d%02d.reg",
+                               st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+                    dlg->SetFileName(nm);
+                }
+                else
+                {
+                    dlg->SetOptions(FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST);
+                    static const COMDLG_FILTERSPEC kReg[] = { { L"REG", L"*.reg" },
+                                                              { L"All", L"*.*" } };
+                    dlg->SetFileTypes(2, kReg);
+                }
+
+                if (SUCCEEDED(dlg->Show(g_hwnd)))
+                {
+                    IShellItem* si = nullptr;
+                    if (SUCCEEDED(dlg->GetResult(&si)))
+                    {
+                        PWSTR p = nullptr;
+                        if (SUCCEEDED(si->GetDisplayName(SIGDN_FILESYSPATH, &p)))
+                        {
+                            out->assign(p);
+                            ::CoTaskMemFree(p);
+                            ok = !out->empty();
+                        }
+                        si->Release();
+                    }
+                }
+                dlg->Release();
+            }
+            if (ci == S_OK) CoUninitialize();
+            return ok;
+        }
+
+        // Profil dışa aktarımı: O AN AÇIK olan ayarların canlı değerleri tek .reg
+        // dosyasına yazılıyor. Kapalı ayarlar taşınmıyor — "kapalı" bizim için
+        // hiçbir şey yazmamak demek, dosyaya yazılacak bir değer yok.
+        void ExportProfile()
+        {
+            std::vector<std::pair<int, int>> sel;
+            for (int c = 0; c < kTweakCats; ++c)
+                for (int i = 0; i < (int)g_tweaks[c].size(); ++i)
+                    if (g_tweaks[c][i].on) sel.push_back({ c, i });
+
+            if (sel.empty())
+            {
+                ui::Notify(Toast::Warning, L(ProfileExport), L(NoChanges));
+                return;
+            }
+
+            std::wstring file;
+            if (!PickProfileFile(true, &file)) return;
+
+            int pairs = 0, tools = 0;
+            if (!backup::ExportPairs(sel, file, &pairs, &tools))
+            {
+                ui::Notify(Toast::Error, L(ProfileExport), L(ProfileFailed));
+                return;
+            }
+            char msg[224];
+            snprintf(msg, sizeof msg, L(ProfileExportedFmt), W2S(file).c_str(), pairs);
+            std::string m = msg;
+            // Profil ayarların bir kısmını taşıyamıyorsa bu söylenmeli: kullanıcı
+            // aldğı dosyayı "her şeyi içeriyor" sanarak başkasına verebilir.
+            if (tools > 0)
+            {
+                char skip[96];
+                snprintf(skip, sizeof skip, L(ProfileToolSkipFmt), tools);
+                m += " \xC2\xB7 ";
+                m += skip;
+            }
+            ui::Notify(Toast::Success, L(ProfileExport), m.c_str());
+        }
+
+        // Profil içe aktarımı: dosya okunur, ayarlar SEÇİLİ hale gelir; yazma
+        // adımı onaydan sonra ve önizleme modalından geçerek başlıyor. Bu sıra
+        // önemli: aktarılan profil, kullanıcının daha önce kurduğu ayarların
+        // üstüne yazabilir ve bunu görmeden yazmamalı.
+        void ImportProfile()
+        {
+            std::wstring file;
+            if (!PickProfileFile(false, &file)) return;
+
+            profile::Analysis a;
+            if (!profile::Analyze(file, &a))
+            {
+                ui::Notify(Toast::Error, L(ProfileImport),
+                           !a.parsed ? L(ProfileBadFormat) : L(ProfileRejected));
+                return;
+            }
+            if (a.on.empty())
+            {
+                ui::Notify(Toast::Warning, L(ProfileImport), L(ProfileNoKnown));
+                return;
+            }
+
+            for (const std::pair<int, int>& s : a.on)
+            {
+                if (s.first < 0 || s.first >= kTweakCats) continue;
+                if (s.second < 0 || s.second >= (int)g_tweaks[s.first].size()) continue;
+                g_tweaks[s.first][s.second].on = true;
+                g_dirty[s.first][s.second] = true;
+                g_dirtyAny[s.first] = true;
+            }
+
+            char msg[192];
+            snprintf(msg, sizeof msg, L(ProfileImportTitle), (int)a.on.size());
+            std::string m = msg;
+            if (!a.partial.empty())
+            {
+                char part[128];
+                snprintf(part, sizeof part, L(ProfileSkippedFmt), (int)a.partial.size());
+                m += " \xC2\xB7 "; m += part;
+            }
+            m += " \xC2\xB7 "; m += L(ProfileSharedNote);
+            ui::Notify(Toast::Info, L(ProfileImport), m.c_str());
+
+            g_previewActive = true;
+            ImGui::OpenPopup("applypreview");
+        }
+
+        // Uygulamadan hemen önce açılan önizleme. Kart altındaki satır kısaltılmış
+        // yolu gösteriyor; burada kısaltmasız liste var, çünkü yazılmadan önce
+        // bakılacak tek yer burası — yazıldıktan sonra anahtarı görmek için registry
+        // gezinmek gerekiyor.
+        //
+        // Liste g_dirty[] üzerinden kuruluyor, yani modalın gösterdiğiyle yazılacak
+        // olan aynı şey: ayrı bir "değişenler" listesi tutsaydık onay ile sonuç
+        // ayrılabilirdi.
+        void DrawApplyPreview()
+        {
+            if (!g_previewActive) return;
+
+            int rows = 0, tool = 0;
+            for (int c = 0; c < kTweakCats; ++c)
+                for (int i = 0; i < ImMin((int)g_tweaks[c].size(), 16); ++i)
+                {
+                    if (!g_dirty[c][i]) continue;
+                    ++rows;
+                    tweakinfo::Item it = {};
+                    if (!tweakinfo::Get(c, i, 0, &it)) ++tool;
+                }
+
+            ImGui::SetNextWindowSize(ImVec2(px(560), 0));
+            if (ImGui::BeginPopupModal("applypreview", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+            {
+                ui::Label(theme::fonts.medium, theme::size::Label, theme::ink::Primary, L(PreviewTitle));
+                ImGui::Dummy(ImVec2(0, px(6)));
+
+                char cnt[96];
+                snprintf(cnt, sizeof cnt, L(PreviewCountFmt), rows);
+                ui::Label(theme::fonts.regular, theme::size::Body, theme::ink::Secondary, cnt);
+
+                // Yedekleme okuma yapar ve yetki istemez; yine de "hepsi yedeklenir"
+                // denemez: komut aracıyla değişen ayarların registry değeri yoktur.
+                ui::Label(theme::fonts.regular, theme::size::Meta, theme::ink::Tertiary,
+                          L(PreviewBackupNote));
+                if (tool > 0)
+                {
+                    char tn[128];
+                    snprintf(tn, sizeof tn, L(PreviewToolNote), tool);
+                    ui::Label(theme::fonts.regular, theme::size::Meta, theme::ink::Tertiary, tn);
+                }
+
+                const bool rp = restore::createBeforeApply;
+                ui::Label(theme::fonts.regular, theme::size::Meta, theme::ink::Tertiary,
+                          rp ? L(PreviewRestoreOn) : L(PreviewRestoreOff));
+                // Tercih açık ama koruma kapalıysa modal bunu şimdiden söylemeli:
+                // noktayı denemenin bedeli uygulama sonrası çıkan bir uyarıydı.
+                if (rp && !restore::IsProtectionEnabled())
+                    ui::Label(theme::fonts.regular, theme::size::Meta, theme::ink::Tertiary,
+                              L(RestoreProtectionOff));
+
+                ImGui::Dummy(ImVec2(0, px(8)));
+                // Kategori başlığı: liste tek bir kategorinin bakılan sayfasını
+                // değil, başka sayfalarda da bekleyen değişimleri gösteriyor.
+                // Başlıksız bir listede ayar adını yanlış kategoriye yazardık.
+                const char* const catNames[kTweakCats] = { L(Performance), L(Gaming), L(Privacy),
+                    L(Visual), L(Games), L(FiveM), L(Delay), L(Valorant), L(CS2), L(Fortnite) };
+                // Uzun listede satırlar kısaltmasız anahtar yolları taşıyor; 56 ayarın
+                // hepsi bir ekrana sığmaz.
+                ImGui::BeginChild("##previewlist", ImVec2(px(536), px(260)),
+                                  ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar);
+                for (int c = 0; c < kTweakCats; ++c)
+                {
+                    bool catHead = false;
+                    for (int i = 0; i < ImMin((int)g_tweaks[c].size(), 16); ++i)
+                    {
+                        if (!g_dirty[c][i]) continue;
+                        if (!catHead)
+                        {
+                            if (c > 0) ImGui::Dummy(ImVec2(0, px(4)));
+                            ui::Label(theme::fonts.medium, theme::size::Meta, theme::ink::Secondary,
+                                      catNames[c]);
+                            catHead = true;
+                        }
+                        ui::Label(theme::fonts.regular, theme::size::Body, theme::ink::Primary,
+                                  lang::Get(S::TweakNameKey(c, i)));
+                        const std::vector<std::string> lines = TweakKeyLines(c, i);
+                        if (lines.empty())
+                            ui::Label(theme::fonts.regular, theme::size::Meta, theme::ink::Tertiary,
+                                      L(KeysToolNote));
+                        for (const std::string& ln : lines)
+                            ui::Label(theme::fonts.regular, theme::size::Meta, theme::ink::Tertiary,
+                                      ln.c_str());
+                        ImGui::Dummy(ImVec2(0, px(4)));
+                    }
+                }
+                ImGui::EndChild();
+
+                ImGui::Dummy(ImVec2(0, px(4)));
+                const float bw = (px(536) - px(12)) * 0.5f;
+                if (ui::Button(L(ApplyChanges), ImVec2(bw, px(34)), ButtonStyle::Primary, Icon::Check))
+                {
+                    g_previewActive = false;
+                    ImGui::CloseCurrentPopup();
+                    BeginApply();
+                }
+                ImGui::SameLine();
+                if (ui::Button(L(BtnCancel), ImVec2(bw, px(34)), ButtonStyle::Ghost))
+                {
+                    g_previewActive = false;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+            if (g_previewActive && !ImGui::IsPopupOpen("applypreview"))
+                g_previewActive = false;   // dışarı tıklama: onaysız kapat
+        }
+
         void PageTweaks(float cw)
         {
             const char* const cats[] = { L(Performance), L(Gaming), L(Privacy), L(Visual), L(Games), L(FiveM), L(Delay),
@@ -1862,14 +2433,23 @@ void NotifyDelegating(const elevate::Pending& p);
 
             std::vector<Tweak>& list = g_tweaks[g_tweakCat];
             const float bh = px(38), bwA = px(112), bwR = px(96);
+
+            // Yazma adımı artık tüm kategorilerin değişmiş satırlarını alıyor,
+            // düğmenin görünürlüğü de aynı kapsama bakmalı: yalnızca bakılan
+            // kategori kirliyse diğer sayfaların bekleyen değişimi düğmesiz kalırdı.
+            bool anyDirty = false;
+            for (int c = 0; c < kTweakCats; ++c) if (g_dirtyAny[c]) { anyDirty = true; break; }
+
             ImGui::SetCursorScreenPos(ImVec2(p.x + cw - bwA, p.y));
             // Temizlik calisirken ayar uygulanamaz (ikisi birden mesgul gorunur).
-            ImGui::BeginDisabled(!g_dirtyAny[g_tweakCat] || g_applying || g_cleaning.load());
-            if (ui::Button(g_dirtyAny[g_tweakCat] ? L(ApplyChanges) : L(NoChanges),
+            ImGui::BeginDisabled(!anyDirty || g_applying || g_cleaning.load());
+            if (ui::Button(anyDirty ? L(ApplyChanges) : L(NoChanges),
                            ImVec2(bwA, bh), ButtonStyle::Primary, Icon::Check, g_applying))
             {
-                g_applying   = true;
-                g_applyStart = now;
+                // Doğrudan yazmıyor: önce neyin yazılacağını gösteren önizleme
+                // açılıyor, uygulama onaydan sonra başlıyor.
+                g_previewActive = true;
+                ImGui::OpenPopup("applypreview");
             }
             ImGui::EndDisabled();
             ImGui::SetCursorScreenPos(ImVec2(p.x + cw - bwA - px(10) - bwR, p.y));
@@ -2344,6 +2924,17 @@ void NotifyDelegating(const elevate::Pending& p);
                 ui::ToggleCard(L(QuietMode), nullptr, &notify::quietMode, w, false);
                 if (notify::toastsEnabled != prevToasts || notify::quietMode != prevQuiet)
                     notify::Save();
+
+                // Geri yükleme noktası varsayılan olarak kapalı: çağrı 10-30 saniye
+                // sürer ve Home SKU'larda sistem koruma kapalı olabiliyor, yani birçok
+                // makinede hiç nokta üretmez — düğme her uygulamada "oluşmadı" diye
+                // uyarırdı. Kapalıyken de her uygulama öncesi değer yedeği alınıyor;
+                // bu anahtar üstüne ikinci bir güvenlik katmanı.
+                const bool prevRp = restore::createBeforeApply;
+                ui::ToggleCard(L(RestorePointHeading), L(RestorePointDesc),
+                               &restore::createBeforeApply, w, false);
+                if (restore::createBeforeApply != prevRp)
+                    restore::Save();
 
                 ui::ToggleCard(L(RememberLicense), nullptr, &g_remember, w, false);
             }
@@ -2858,6 +3449,72 @@ void NotifyDelegating(const elevate::Pending& p);
             }
         }
 
+        // Onay bekleyen "devre dışı bırak" isteği. Liste indeksi değil yazılacak
+        // ad ve modalda gösterilecek metinler saklanıyor: modal açıkken liste
+        // yeniden taranırsa indeks başka bir servise denk gelebilirdi ve onay
+        // metni yanlış hizmet için yazılmış olurdu.
+        struct SvcConfirm
+        {
+            std::wstring name;
+            std::string  title, severity, reason;
+            bool         active = false;
+        };
+        SvcConfirm g_svcConfirm;
+
+        void OpenSvcConfirm(const services::Entry& e, services::Severity sev)
+        {
+            g_svcConfirm.name     = e.serviceName;
+            g_svcConfirm.title    = W2S(e.displayName);
+            g_svcConfirm.severity = SeverityText(sev);
+            g_svcConfirm.reason   = e.policy ? W2S(e.policy->reason) : std::string();
+            g_svcConfirm.active   = true;
+            ImGui::OpenPopup("svcconfirm");
+        }
+
+        void SvcDrawConfirm()
+        {
+            if (!g_svcConfirm.active) return;
+            ImGui::SetNextWindowSize(ImVec2(px(400), 0));
+            if (ImGui::BeginPopupModal("svcconfirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+            {
+                ui::Label(theme::fonts.medium, theme::size::Label, theme::ink::Primary, L(SvcConfirmTitle));
+                ImGui::Dummy(ImVec2(0, px(4)));
+                ui::Label(theme::fonts.regular, theme::size::Body, theme::ink::Primary,
+                          g_svcConfirm.title.c_str());
+                // Risk etiketi modalda da yeniden yazılıyor: kartı kapatıp
+                // onaya bakan kullanıcı hangi seviyeyi onayladığını görsün.
+                std::string sev = g_svcConfirm.severity;
+                if (!g_svcConfirm.reason.empty()) { sev += " \xC2\xB7 "; sev += g_svcConfirm.reason; }
+                ImGui::PushTextWrapPos(ImGui::GetCursorScreenPos().x + px(364));
+                ui::Label(theme::fonts.regular, theme::size::Body, theme::ink::Secondary, sev.c_str());
+                ImGui::PopTextWrapPos();
+
+                ImGui::Dummy(ImVec2(0, px(4)));
+                ImGui::PushTextWrapPos(ImGui::GetCursorScreenPos().x + px(364));
+                ui::Label(theme::fonts.regular, theme::size::Meta, theme::ink::Tertiary, L(SvcRevertNote));
+                ImGui::PopTextWrapPos();
+                ImGui::Dummy(ImVec2(0, px(8)));
+
+                const float bw = (px(400) - px(64)) * 0.5f;
+                if (ui::Button(L(BtnDisable), ImVec2(bw, px(32)), ButtonStyle::Primary, Icon::EyeOff))
+                {
+                    services::SetStartType(g_svcConfirm.name, services::StartType::Disabled);
+                    g_svcConfirm.active = false;
+                    ImGui::CloseCurrentPopup();
+                    RefreshServices();
+                }
+                ImGui::SameLine();
+                if (ui::Button(L(BtnCancel), ImVec2(bw, px(32)), ButtonStyle::Ghost))
+                {
+                    g_svcConfirm.active = false;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+            if (g_svcConfirm.active && !ImGui::IsPopupOpen("svcconfirm"))
+                g_svcConfirm.active = false;   // dışarı tıklama: onaysız kapat
+        }
+
         void PageServices(float cw)
         {
             if (!g_servicesLoaded) RefreshServices();
@@ -2907,7 +3564,23 @@ void NotifyDelegating(const elevate::Pending& p);
                 meta += " \xC2\xB7 ";
                 meta += e.policy ? SeverityText(e.policy->severity) : L(SeveritySafe);
                 if (e.running) { meta += " \xC2\xB7 "; meta += L(StRunning); }
+
+                // Risk, renk yerine daha ağır mürekkep + uyarı ikonu ile
+                // işaretleniyor: tema tek renkli (bkz. theme::ink), buraya
+                // kırmızı eklemek token sistemini kırardı. Etiket zaten
+                // "Riskli"/"Dikkat" diye okunuyor, renk tekrara gerek yok.
+                const services::Severity sev = e.policy ? e.policy->severity : services::Severity::Safe;
+                const bool  risk = sev != services::Severity::Safe;
+                const float inkv = risk ? theme::ink::Primary : theme::ink::Tertiary;
+                const ImVec2 mp  = ImGui::GetCursorScreenPos();
+                if (risk) ImGui::SetCursorScreenPos(mp + ImVec2(px(19), 0));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(inkv, inkv, inkv, 1.0f));
                 ImGui::TextUnformatted(meta.c_str());
+                ImGui::PopStyleColor();
+                if (risk)
+                    icons::Draw(ImGui::GetWindowDrawList(), Icon::Warning,
+                                ImVec2(mp.x + px(7), mp.y + ImGui::GetTextLineHeight() * 0.5f),
+                                px(14), Gray(inkv));
 
                 const float smallW = px(110);
                 if (ui::Button(L(BtnRefresh), ImVec2(smallW, px(26)), ButtonStyle::Ghost, Icon::Refresh))
@@ -2921,8 +3594,17 @@ void NotifyDelegating(const elevate::Pending& p);
                     {
                         if (ui::Button(L(BtnDisable), ImVec2(smallW, px(26)), ButtonStyle::Secondary, Icon::EyeOff))
                         {
-                            pendingSet    = e.serviceName;
-                            pendingTarget = services::StartType::Disabled;
+                            // Dikkat/Riskli bir servisi tek tıkla kapatmak yoktu:
+                            // Windows Update ya da Defender kapandığında kullanıcı
+                            // bunu geri alana kadar fark etmeyebilir. Gerekçe ve
+                            // dönüş yolu bir onay penceresinde yazılı; Safe olanlar
+                            // tek tıpta kalıyor.
+                            if (risk) OpenSvcConfirm(e, sev);
+                            else
+                            {
+                                pendingSet    = e.serviceName;
+                                pendingTarget = services::StartType::Disabled;
+                            }
                         }
                     }
                     else
@@ -2945,6 +3627,8 @@ void NotifyDelegating(const elevate::Pending& p);
                 wantRefresh = true;
             }
             if (wantRefresh) RefreshServices();
+
+            SvcDrawConfirm();
         }
 
         // ================================================================== disk analizi
@@ -4091,6 +4775,10 @@ void NotifyDelegating(const elevate::Pending& p);
         // Herhangi bir dizge kurulmadan önce yüklenir; böylece ilk kare zaten kayıtlı
         // dilde çizilir ve İngilizce bir flaş olmaz.
         lang::Load();
+
+        // Geri yükleme noktası tercihi de açılışta okunur: ilk Uygula düğmesi
+        // dosyayı hiç açmadan çalışmalı (çağrı 10-30 saniye sürer).
+        restore::Load();
 
         // Güncelleme denetimi: tercihleri ve son denetim zamanını okur, önceki
         // takastan kalmış olabilecek kenara alınmış dosyayı anımsar. Kendi iş
